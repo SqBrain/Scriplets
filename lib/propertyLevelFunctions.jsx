@@ -228,3 +228,14 @@ function getPropertyFromNumber( arr, comp, delta ) {
     }
     return layer;
 }
+
+function reflect(obj, param) {
+    var ref = obj.reflect;
+    if(param == 0) {
+        alert(ref.properties.join("\n"));
+    } else if(param == 1) {
+        alert(ref.properties.join("\n"));
+    } else {
+        alert("PROPERTIES:\n" + ref.properties.join("\n") + "\n" + "METHODS:\n" + ref.methods.join("\n"));
+    }
+}

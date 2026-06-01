@@ -15,7 +15,7 @@ function createPlashka() {
         app.beginUndoGroup( "Create Plashka" );
         var layers = comp.selectedLayers;
         for ( var i = 0; i < layers.length; i++ ) {
-            var layer = layers[ i ];
+            var layer = layers[i];
             if ( keyState.altKey ) {
                 addPlashka( layer, PLASHKA );
             } else if ( keyState.shiftKey ) {
@@ -33,10 +33,12 @@ function createPlashka() {
         const trans = layer( TRANSFORM );
         const scale = trans( SCALE ).valueAtTime( comp.time, false );
         const pos = trans( POSITION ).valueAtTime( comp.time, false );
+        const rot = trans( ROTATION ).valueAtTime( comp.time, false );
+        const or = trans( ORIENTATION ).valueAtTime( comp.time, false );
         const anch = trans( ANCHOR_POINT ).valueAtTime( comp.time, false );
-        const center = [ bBox.left + bBox.width / 2, bBox.top + bBox.height / 2 ];
+        const center = [bBox.left + bBox.width / 2, bBox.top + bBox.height / 2];
         const offset = center - anch;
-        offset = [ offset[ 0 ] * scale[ 0 ] / 100, offset[ 1 ] * scale[ 1 ] / 100 ];
+        offset = [offset[0] * scale[0] / 100, offset[1] * scale[1] / 100];
 
         if ( matter == MATTE ) {
             plashka.label = 13;
@@ -54,11 +56,16 @@ function createPlashka() {
             const effects = plashka( EFFECTS_GROUP );
             effects.addProperty( FILL_EFFECT );
         }
+        plashka.parent = layer.parent;
+        plashka.threeDLayer = layer.threeDLayer;
         plashka( TRANSFORM )( POSITION ).setValue( pos + offset );
+        plashka( TRANSFORM )( ROTATION ).setValue( rot );
+        if ( plashka.threeDLayer ) {
+            plashka( TRANSFORM )( ORIENTATION ).setValue( or );
+        }
         plashka( TRANSFORM )( SCALE ).setValue( scale );
         plashka.inPoint = layer.inPoint;
         plashka.outPoint = layer.outPoint;
-        plashka.parent = layer.parent;
         return plashka;
     }
 
@@ -115,13 +122,13 @@ function createPlashka() {
         height.name = HEIGHT_NAME;
         const vertAnchor = effects.addProperty( DROPDOWN_CONTROL );
         var index = vertAnchor.propertyIndex;
-        vertAnchor( 1 ).setPropertyParameters( [ 'top', 'center', 'bottom' ] );
+        vertAnchor( 1 ).setPropertyParameters( ['top', 'center', 'bottom'] );
         vertAnchor = effects( index );
         vertAnchor.name = VER_ANCHOR;
         vertAnchor( 1 ).setValue( 2 );
         const horAnchor = effects.addProperty( DROPDOWN_CONTROL );
         index = horAnchor.propertyIndex;
-        horAnchor( 1 ).setPropertyParameters( [ 'left', 'center', 'right' ] );
+        horAnchor( 1 ).setPropertyParameters( ['left', 'center', 'right'] );
         horAnchor = effects( index );
         horAnchor.name = HOR_ANCHOR;
         horAnchor( 1 ).setValue( 2 );

@@ -27,9 +27,9 @@ function moveAnchorToCenter( repositingLayer ) {
             if ( theLayer.mask( f ).maskMode == MaskMode.NONE )
                 continue;
             for ( var j = 0; j < numVerts; j++ ) {
-                var curVerts = theLayer.mask( f ).maskShape.valueAtTime( curTime, false ).vertices[ j ];
-                xBounds.push( curVerts[ 0 ] );
-                yBounds.push( curVerts[ 1 ] );
+                var curVerts = theLayer.mask( f ).maskShape.valueAtTime( curTime, false ).vertices[j];
+                xBounds.push( curVerts[0] );
+                yBounds.push( curVerts[1] );
             }
         }
         xBounds.sort( function ( a, b ) {
@@ -66,8 +66,8 @@ function moveAnchorToCenter( repositingLayer ) {
     } catch ( e ) {
         var curAnchor = theLayer.anchorPoint.valueAtTime( curComp.time, true );
     }
-    var xMove = ( x - curAnchor[ 0 ] ) * ( theLayer.scale.value[ 0 ] / 100 );
-    var yMove = ( y - curAnchor[ 1 ] ) * ( theLayer.scale.value[ 1 ] / 100 );
+    var xMove = ( x - curAnchor[0] ) * ( theLayer.scale.value[0] / 100 );
+    var yMove = ( y - curAnchor[1] ) * ( theLayer.scale.value[1] / 100 );
     var posEx = false;
     if ( theLayer.position.expressionEnabled ) {
         theLayer.position.expressionEnabled = false;
@@ -78,17 +78,17 @@ function moveAnchorToCenter( repositingLayer ) {
     var oldParent = theLayer.parent;
     dupLayer.moveToEnd();
     if ( dupLayer.scale.isTimeVarying ) {
-        dupLayer.scale.setValueAtTime( curComp.time, [ 100, 100 ] );
+        dupLayer.scale.setValueAtTime( curComp.time, [100, 100] );
     } else {
-        dupLayer.scale.setValue( [ 100, 100 ] );
+        dupLayer.scale.setValue( [100, 100] );
     }
 
     theLayer.parent = dupLayer;
     if ( theLayer.anchorPoint.isTimeVarying ) {
         var theComp = curComp;
-        theLayer.anchorPoint.setValueAtTime( theComp.time, [ x, y ] );
+        theLayer.anchorPoint.setValueAtTime( theComp.time, [x, y] );
     } else {
-        theLayer.anchorPoint.setValue( [ x, y ] );
+        theLayer.anchorPoint.setValue( [x, y] );
     }
     if ( theLayer.position.isTimeVarying === true ) {
         var curPos = theLayer.position;
@@ -99,14 +99,14 @@ function moveAnchorToCenter( repositingLayer ) {
                 curPos.setRovingAtKey( k, false );
                 rovs.push( k );
             }
-            curPos.setValueAtKey( k, curPos.keyValue( k ) + [ xMove, yMove ] );
+            curPos.setValueAtKey( k, curPos.keyValue( k ) + [xMove, yMove] );
         }
         for ( var k = 0; k < rovs.length; k++ ) {
-            curPos.setRovingAtKey( rovs[ k ], true );
+            curPos.setRovingAtKey( rovs[k], true );
         }
     } else {
         var curPos = theLayer.position.value;
-        theLayer.position.setValue( [ curPos[ 0 ] + xMove, curPos[ 1 ] + yMove, curPos[ 2 ] ] );
+        theLayer.position.setValue( [curPos[0] + xMove, curPos[1] + yMove, curPos[2]] );
     }
     clearOutput();
     theLayer.parent = oldParent;
