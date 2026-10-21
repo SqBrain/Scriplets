@@ -1,0 +1,1306 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>VFX Cave</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Бесплатные скрипты для After Effects с автоматической проверкой: синтаксис ExtendScript, доступ к файлам, shell и сети.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one torch-lit passage. Sticky bar, a compact hero with a terminal-style
+   search, then the catalog as a grid of artifact cards (3 → 2 → 1 columns).
+   A script opens as its own view: reading column on the left, the cave check
+   (trust panel) pinned on the right. The cave is one dark world by design. */
+:root {
+  --rock-0: #0f0d0a;     /* deepest wall, page ground */
+  --rock-1: #19160f;     /* raised surfaces */
+  --rock-2: #241f17;     /* cards, inputs */
+  --rock-3: #3b3326;     /* edges */
+  --bone: #efe6d2;       /* primary text */
+  --dust: #b0a38b;       /* secondary text */
+  --ash: #7f7462;        /* tertiary text */
+  --torch: #f2a444;      /* the one accent: torchlight */
+  --torch-dim: #8a5a22;
+  --moss: #9cc270;       /* semantic: checked */
+  --amber: #e9c159;      /* semantic: needs review */
+  --ember: #e8684f;      /* semantic: blocked, risky capability */
+  --f-display: "Pixelify Sans", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.25rem;
+  --radius: 3px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--rock-0); }
+body {
+  background:
+    radial-gradient(1200px 520px at 12% -10%, rgba(242, 164, 68, 0.13), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(232, 104, 79, 0.06), transparent 65%),
+    var(--rock-0);
+  background-attachment: fixed;
+  color: var(--bone);
+  font: 400 var(--step-0)/1.55 var(--f-body);
+  min-height: 100%;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--rock-1);
+}
+a { color: var(--torch); text-underline-offset: 3px; }
+a:hover { color: var(--bone); }
+:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, kbd, pre { font-family: var(--f-mono); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- top bar ---------- */
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: color-mix(in srgb, var(--rock-1) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--rock-3);
+}
+.top .wrap { display: flex; align-items: center; gap: 20px; padding-block: 10px; flex-wrap: wrap; }
+.logo {
+  display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--bone);
+  font: 700 1.25rem/1 var(--f-display); letter-spacing: 0.02em;
+}
+.logo:hover { color: var(--bone); }
+.torch { width: 14px; height: 22px; position: relative; flex: none; }
+.torch::before { /* handle */
+  content: ""; position: absolute; left: 5px; top: 10px; width: 4px; height: 12px; background: var(--torch-dim);
+}
+.torch::after { /* flame, pixel-stepped */
+  content: ""; position: absolute; left: 1px; top: 0; width: 12px; height: 11px; background: var(--torch);
+  clip-path: polygon(33% 0, 66% 0, 66% 18%, 83% 18%, 83% 45%, 100% 45%, 100% 100%, 0 100%, 0 45%, 16% 45%, 16% 18%, 33% 18%);
+  box-shadow: 0 0 14px 4px rgba(242, 164, 68, 0.45);
+  animation: flicker 3.2s steps(1) infinite;
+}
+@keyframes flicker { 0%, 100% { opacity: 1; } 47% { opacity: 0.82; } 52% { opacity: 1; } 78% { opacity: 0.9; } }
+.nav { display: flex; gap: 4px; flex-wrap: wrap; margin-right: auto; }
+.nav a {
+  color: var(--dust); text-decoration: none; padding: 6px 10px; border-radius: var(--radius); font-size: var(--step--1);
+}
+.nav a:hover { color: var(--bone); background: var(--rock-2); }
+.nav a[aria-current="page"] { color: var(--bone); background: var(--rock-2); box-shadow: inset 0 -2px 0 var(--torch); }
+.top-side { display: flex; align-items: center; gap: 12px; }
+.xp {
+  font: 500 var(--step--1)/1 var(--f-mono); color: var(--dust); text-decoration: none;
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--rock-3); border-radius: var(--radius);
+}
+.xp b { color: var(--torch); font-weight: 500; }
+.lang { display: flex; border: 1px solid var(--rock-3); border-radius: var(--radius); overflow: hidden; }
+.lang button {
+  background: none; border: 0; padding: 6px 9px; cursor: pointer; color: var(--ash);
+  font: 500 var(--step--1)/1 var(--f-mono); letter-spacing: 0.06em;
+}
+.lang button[aria-pressed="true"] { background: var(--rock-3); color: var(--bone); }
+
+/* ---------- hero ---------- */
+.hero { padding-block: 44px 30px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; align-items: end; }
+.eyebrow {
+  font: 500 var(--step--1)/1.2 var(--f-mono); color: var(--torch); letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 14px;
+}
+.hero h1 { font: 700 var(--step-3)/1.05 var(--f-display); letter-spacing: 0.01em; margin-bottom: 14px; }
+.hero p.lead { color: var(--dust); margin: 0; max-width: 56ch; font-size: var(--step-1); line-height: 1.5; }
+.term {
+  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 20px 50px -30px rgba(242,164,68,0.5);
+}
+.term-bar {
+  display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--rock-3);
+  font: 400 var(--step--1)/1 var(--f-mono); color: var(--ash);
+}
+.term-bar i { width: 8px; height: 8px; background: var(--rock-3); display: inline-block; }
+.term-bar span { margin-left: 6px; }
+.term label { display: flex; align-items: center; gap: 10px; padding: 14px; cursor: text; }
+.prompt { font: 500 var(--step-1)/1 var(--f-mono); color: var(--torch); white-space: nowrap; }
+.term input {
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
+  font: 400 var(--step-1)/1.3 var(--f-mono); color: var(--bone); caret-color: var(--torch);
+}
+.term input::placeholder { color: var(--ash); }
+.term:focus-within { border-color: var(--torch-dim); }
+.term-hint { padding: 0 14px 12px; font: 400 var(--step--1)/1.4 var(--f-mono); color: var(--ash); }
+.term-hint button {
+  background: none; border: 0; padding: 0; margin: 0 8px 0 0; color: var(--dust); cursor: pointer;
+  font: inherit; text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.term-hint button:hover { color: var(--torch); }
+.ledger {
+  display: flex; flex-wrap: wrap; gap: 8px 28px; padding-block: 14px; margin-top: 4px;
+  border-top: 1px dashed var(--rock-3); border-bottom: 1px dashed var(--rock-3);
+  font: 400 var(--step--1)/1.3 var(--f-mono); color: var(--dust);
+}
+.ledger b { color: var(--bone); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 6px; }
+.ledger a { color: var(--dust); }
+.stalactites {
+  height: 14px; background: var(--rock-1); margin-top: -1px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='14' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h96v4H88v4h-4v4h-2V8h-4V4H62v4h-4v6h-2V8h-2V4H34v4h-4v2h-4V4H14v4h-4v3H8V8H6V4H0z'/%3E%3C/svg%3E") repeat-x;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='14' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h96v4H88v4h-4v4h-2V8h-4V4H62v4h-4v6h-2V8h-2V4H34v4h-4v2h-4V4H14v4h-4v3H8V8H6V4H0z'/%3E%3C/svg%3E") repeat-x;
+}
+
+/* ---------- catalog controls ---------- */
+.controls { display: grid; gap: 14px; padding-block: 22px 18px; }
+.hosts { display: flex; flex-wrap: wrap; gap: 8px; }
+.host {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 12px;
+  border: 1px solid var(--rock-3); border-radius: var(--radius); background: var(--rock-1);
+  font-size: var(--step--1); color: var(--dust);
+}
+.host[aria-pressed="true"] { border-color: var(--torch-dim); color: var(--bone); background: var(--rock-2); }
+.host small { font-family: var(--f-mono); color: var(--ash); }
+.host:disabled { opacity: 0.55; cursor: not-allowed; }
+button.host { cursor: pointer; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip {
+  border: 1px solid var(--rock-3); background: transparent; color: var(--dust); cursor: pointer;
+  padding: 5px 10px; border-radius: 999px; font-size: var(--step--1); line-height: 1.2;
+}
+.chip:hover { color: var(--bone); border-color: var(--ash); }
+.chip[aria-pressed="true"] { background: var(--torch); border-color: var(--torch); color: var(--rock-0); font-weight: 500; }
+.chip small { font-family: var(--f-mono); opacity: 0.75; margin-left: 4px; }
+.selects { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
+.selects label { display: inline-flex; gap: 8px; align-items: center; font-size: var(--step--1); color: var(--dust); }
+select, input[type="text"], textarea {
+  background: var(--rock-2); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 6px 8px;
+}
+select:focus, input[type="text"]:focus, textarea:focus { border-color: var(--torch-dim); outline: none; }
+.found { font: 400 var(--step--1)/1 var(--f-mono); color: var(--ash); }
+
+/* ---------- cards ---------- */
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-bottom: 40px; }
+.card {
+  display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px;
+  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 16px;
+  min-width: 0; position: relative;
+}
+.card:hover { border-color: var(--ash); }
+.card-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.meta { font: 400 var(--step--1)/1.2 var(--f-mono); color: var(--ash); letter-spacing: 0.02em; }
+.card h3 { font: 600 var(--step-1)/1.25 var(--f-body); }
+.card h3 a { color: var(--bone); text-decoration: none; }
+.card h3 a::after { content: ""; position: absolute; inset: 0; } /* whole card opens the script */
+.card p { margin: 0; color: var(--dust); font-size: var(--step--1); line-height: 1.5; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; position: relative; z-index: 1; }
+.status {
+  display: inline-flex; align-items: center; gap: 6px; font: 500 0.75rem/1 var(--f-mono);
+  padding: 4px 7px; border-radius: var(--radius); letter-spacing: 0.03em; white-space: nowrap;
+}
+.status::before { content: ""; width: 6px; height: 6px; background: currentColor; }
+.status.ok { color: var(--moss); background: color-mix(in srgb, var(--moss) 12%, transparent); }
+.status.review { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.status.blocked { color: var(--ember); background: color-mix(in srgb, var(--ember) 13%, transparent); }
+.cap {
+  font: 400 0.75rem/1 var(--f-mono); padding: 4px 6px; border-radius: var(--radius);
+  border: 1px solid var(--rock-3); color: var(--dust); white-space: nowrap;
+}
+.cap.risk { border-color: color-mix(in srgb, var(--ember) 55%, transparent); color: var(--ember); }
+.cap.warn { border-color: color-mix(in srgb, var(--amber) 45%, transparent); color: var(--amber); }
+.cap.undeclared::after { content: " !"; }
+.empty {
+  grid-column: 1 / -1; border: 1px dashed var(--rock-3); border-radius: var(--radius); padding: 32px; text-align: center; color: var(--dust);
+}
+
+/* ---------- script view ---------- */
+.back { display: inline-block; margin-block: 22px 8px; font: 400 var(--step--1)/1 var(--f-mono); color: var(--dust); text-decoration: none; }
+.back:hover { color: var(--torch); }
+.script-head { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 1px dashed var(--rock-3); }
+.script-head h1 { font: 700 var(--step-3)/1.08 var(--f-display); }
+.script-head .lead { color: var(--dust); font-size: var(--step-1); margin: 0; max-width: 62ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius); cursor: pointer;
+  border: 1px solid var(--rock-3); background: var(--rock-2); color: var(--bone); text-decoration: none; font-weight: 500;
+}
+.btn:hover { border-color: var(--ash); color: var(--bone); }
+.btn.primary { background: var(--torch); border-color: var(--torch); color: var(--rock-0); }
+.btn.primary:hover { background: #f6b766; color: var(--rock-0); }
+.btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.btn small { font: 400 0.75rem/1 var(--f-mono); opacity: 0.8; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; padding-block: 24px 48px; align-items: start; }
+.prose { display: grid; gap: 26px; min-width: 0; }
+.prose section { display: grid; gap: 10px; min-width: 0; }
+.prose h2, .side h2, .page h2 {
+  font: 500 var(--step--1)/1.2 var(--f-mono); color: var(--torch); text-transform: uppercase; letter-spacing: 0.1em;
+}
+.prose p { margin: 0; max-width: 68ch; }
+.note { border-left: 2px solid var(--amber); padding: 8px 12px; color: var(--bone); background: color-mix(in srgb, var(--amber) 7%, transparent); }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button {
+  background: none; border: 1px solid var(--rock-3); color: var(--dust); padding: 6px 10px; border-radius: var(--radius); cursor: pointer; font-size: var(--step--1);
+}
+.tabs button[aria-selected="true"] { color: var(--bone); border-color: var(--torch-dim); background: var(--rock-2); }
+ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
+ol.steps li::marker { font-family: var(--f-mono); color: var(--ash); }
+.path { font: 400 var(--step--1)/1.5 var(--f-mono); background: var(--rock-2); border: 1px solid var(--rock-3); padding: 2px 6px; border-radius: var(--radius); overflow-wrap: anywhere; }
+.code {
+  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius);
+  max-height: 520px; overflow: auto; font: 400 0.78rem/1.55 var(--f-mono);
+}
+.code ol { list-style: none; margin: 0; padding: 10px 0; counter-reset: ln; min-width: max-content; }
+.code li { counter-increment: ln; padding: 0 14px 0 0; white-space: pre; color: var(--dust); }
+.code li::before { content: counter(ln); display: inline-block; width: 4.2em; padding-right: 1em; text-align: right; color: var(--ash); opacity: 0.6; user-select: none; }
+.code li.hit { background: color-mix(in srgb, var(--amber) 13%, transparent); color: var(--bone); }
+.code li.cave { color: var(--torch-dim); }
+details.src summary { cursor: pointer; color: var(--dust); font-size: var(--step--1); }
+details.src summary:hover { color: var(--bone); }
+details.src[open] summary { margin-bottom: 10px; }
+.side { display: grid; gap: 16px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); min-width: 0; }
+.panel { background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; font-size: var(--step--1); line-height: 1.45; }
+.checks li::before { content: "■"; font-size: 0.7rem; line-height: 1.9; }
+.checks li.ok::before { color: var(--moss); }
+.checks li.warn::before { color: var(--amber); }
+.checks li.bad::before { color: var(--ember); }
+.checks li.info::before { color: var(--ash); }
+.checks small { display: block; color: var(--ash); font-family: var(--f-mono); font-size: 0.72rem; overflow-wrap: anywhere; }
+dl.facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: var(--step--1); }
+dl.facts dt { color: var(--ash); }
+dl.facts dd { margin: 0; color: var(--bone); overflow-wrap: anywhere; }
+.hash { font: 400 0.72rem/1.4 var(--f-mono); color: var(--dust); word-break: break-all; }
+.votes { display: grid; gap: 10px; }
+.vote-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vote-row .btn { padding: 6px 10px; font-size: var(--step--1); }
+.vote-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.vote-list li { font: 400 0.75rem/1 var(--f-mono); padding: 4px 6px; border-radius: var(--radius); border: 1px solid var(--rock-3); }
+.vote-list li.works { color: var(--moss); border-color: color-mix(in srgb, var(--moss) 40%, transparent); }
+.vote-list li.broken { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 45%, transparent); }
+.fine { font-size: 0.75rem; color: var(--ash); margin: 0; }
+
+/* ---------- other pages ---------- */
+.page { padding-block: 34px 56px; display: grid; gap: 28px; }
+.page > header { display: grid; gap: 10px; max-width: 70ch; }
+.page h1 { font: 700 var(--step-3)/1.08 var(--f-display); }
+.page .lead { color: var(--dust); font-size: var(--step-1); margin: 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.stack { display: grid; gap: 12px; min-width: 0; }
+.req { background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; }
+.req h3 { font: 600 var(--step-0)/1.35 var(--f-body); }
+.req p { margin: 0; color: var(--dust); font-size: var(--step--1); }
+.req .row { justify-content: space-between; }
+.example { font: 500 0.7rem/1 var(--f-mono); color: var(--ash); border: 1px dashed var(--rock-3); padding: 3px 5px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: 0.08em; }
+form.stack label { display: grid; gap: 6px; font-size: var(--step--1); color: var(--dust); }
+form.stack input, form.stack textarea, form.stack select { width: 100%; }
+textarea { resize: vertical; min-height: 90px; }
+table.xp-table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+table.xp-table th, table.xp-table td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--rock-3); vertical-align: top; }
+table.xp-table th { color: var(--ash); font-weight: 400; font-family: var(--f-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+table.xp-table td.num { font-family: var(--f-mono); color: var(--torch); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.xp-table tr.zero td { color: var(--dust); }
+table.xp-table tr.zero td.num { color: var(--ash); }
+.ranks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rank { border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; background: var(--rock-1); display: grid; gap: 6px; }
+.rank b { font: 700 var(--step-1)/1.1 var(--f-display); }
+.rank span { font: 400 0.75rem/1 var(--f-mono); color: var(--ash); }
+.rank.current { border-color: var(--torch); box-shadow: 0 0 24px -10px var(--torch); }
+.meter { height: 10px; background: var(--rock-2); border: 1px solid var(--rock-3); border-radius: var(--radius); overflow: hidden; }
+.meter i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--torch) 0 8px, var(--torch-dim) 8px 10px); }
+pre.manifest { margin: 0; background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; overflow: auto; font: 400 0.78rem/1.55 var(--f-mono); color: var(--dust); }
+.glossary { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; margin: 0; }
+.glossary dt { font: 500 var(--step-0)/1.4 var(--f-display); color: var(--torch); }
+.glossary dd { margin: 0; color: var(--dust); }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
+ul.plain li::marker { color: var(--torch-dim); content: "▪  "; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20;
+  background: var(--bone); color: var(--rock-0); padding: 9px 14px; border-radius: var(--radius); font-weight: 500; font-size: var(--step--1);
+}
+
+footer.foot { border-top: 1px solid var(--rock-3); background: var(--rock-1); }
+footer.foot .wrap { padding-block: 18px 22px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; font: 400 var(--step--1)/1.5 var(--f-mono); color: var(--ash); }
+footer.foot a { color: var(--dust); }
+
+@media (max-width: 960px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; }
+  .ranks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .hero { grid-template-columns: minmax(0, 1fr); padding-block: 28px 22px; gap: 22px; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .top .wrap { gap: 10px 14px; }
+  .nav { order: 3; width: 100%; margin-right: 0; overflow-x: auto; flex-wrap: nowrap; }
+  .nav a { white-space: nowrap; }
+  .top-side { margin-left: auto; }
+}
+@media (max-width: 560px) {
+  :root { --step-3: 1.75rem; --step-1: 1.0625rem; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .ranks { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .torch::after { animation: none; }
+  * { scroll-behavior: auto !important; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="#" aria-label="VFX Cave"><span class="torch" aria-hidden="true"></span>VFX Cave</a>
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+    <div class="top-side">
+      <a class="xp" id="xp" href="#path"></a>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="ru">RU</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<footer class="foot">
+  <div class="wrap" id="foot"></div>
+</footer>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script id="cave-data" type="application/json">{"index":{"schema":1,"name":"VFX Cave","generated":"2026-10-21T19:23:03.262Z","repo":"https://github.com/SqBrain/Scriplets","site":"https://sqbrain.github.io/Scriplets/","hosts":[{"id":"aftereffects","name":"After Effects","status":"open"},{"id":"blender","status":"soon"},{"id":"houdini","status":"soon"},{"id":"nuke","status":"soon"},{"id":"resolve","status":"soon"}],"items":[{"id":"vfx-cave-panel","version":"0.1.0","host":"aftereffects","kind":"panel","category":"utility","title":{"ru":"Панель VFX Cave","en":"VFX Cave panel"},"summary":{"ru":"Ищет, устанавливает и запускает артефакты из каталога прямо в After Effects, сверяя sha256 с индексом.","en":"Finds, installs and runs catalog artifacts right inside After Effects, checking each sha256 against the index."},"description":{"ru":"Докуемая панель читает открытый индекс data/index.json по адресу https:// или из локальной папки сайта. Скачивает файлы через curl, проверяет sha256, отказывается ставить отозванные и непрошедшие проверки версии. Перед первым запуском скрипта с доступом к файлам, shell, сети или eval показывает, что он умеет, и спрашивает разрешение. Установленные артефакты лежат в папке пользователя, права администратора не нужны.","en":"A dockable panel that reads the open data/index.json from an https:// URL or a local site folder. It downloads files with curl, checks their sha256 and refuses revoked versions or ones that failed the checks. Before the first run of a script with file, shell, network or eval access it shows what the script can do and asks for permission. Installed artifacts live in the user data folder, so no admin rights are needed."},"usage":{"ru":"Положите файл в Scripts/ScriptUI Panels, перезапустите AE и откройте Window > VFX Cave.jsx. Нажмите «Обновить», найдите артефакт, нажмите «Установить», затем «Запустить» или двойной щелчок.","en":"Put the file into Scripts/ScriptUI Panels, restart AE and open Window > VFX Cave.jsx. Click Refresh, find an artifact, click Install, then Run or double-click it."},"notes":{"ru":"Прототип, в After Effects пока не тестировался. Нужен флажок Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Для скачивания по https:// нужен curl: он есть в macOS и в Windows 10 и новее.","en":"Prototype, not yet tested inside After Effects. Needs Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Downloading over https:// needs curl, which ships with macOS and Windows 10 or later."},"tags":["installer","catalog","panel","sha256"],"hostVersions":{"min":null,"tested":[]},"author":{"name":"VFX Cave","github":"SqBrain"},"license":"MIT","ai":{"level":"assisted","model":"Claude","humanReviewed":false},"entry":"portal/panel/VFX Cave.jsx","added":null,"updated":null,"file":"dl/vfx-cave-panel.jsx","size":25554,"sha256":"de31471d9e14444456260f189a3af82f78f899c9c5d454bdd27e4f683e3e21b7","lines":555,"inlined":[],"checks":{"status":"review","syntax":{"level":"es3","es3Error":null,"error":null},"capabilities":[{"id":"shell","declared":true,"detected":true,"count":2,"samples":[{"line":310,"code":"var out = system.callSystem(isWindows ? \"cmd /c \" + cmd : cmd);"},{"line":521,"code":"system.callSystem(isWindows ? 'cmd /c start \"\" \"' + url + '\"' : 'open \"' + url + '\"');"}]},{"id":"network","declared":true,"detected":true,"count":1,"samples":[{"line":309,"code":"var cmd = 'curl -sSfL --max-time 60 -o \"' + file.fsName + '\" \"' + url + '\"';"}]},{"id":"files","declared":true,"detected":true,"count":10,"samples":[{"line":289,"code":"var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"},{"line":289,"code":"var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"},{"line":290,"code":"var artifacts = new Folder(home.fsName + \"/artifacts\");"}]},{"id":"eval","declared":true,"detected":true,"count":1,"samples":[{"line":500,"code":"$.evalFile(file);"}]},{"id":"settings","declared":true,"detected":true,"count":1,"samples":[{"line":270,"code":"try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}"}]}],"warnings":[],"missingIncludes":[]}}],"revoked":[]},"sources":{"vfx-cave-panel":"/*  VFX Cave · VFX Cave panel (vfx-cave-panel) v0.1.0\n    Author: VFX Cave · License: MIT\n    Source: https://github.com/SqBrain/Scriplets/blob/main/portal/panel/VFX%20Cave.jsx\n    Catalog: https://sqbrain.github.io/Scriplets/#vfx-cave-panel\n    Built by VFX Cave from portal/panel/VFX Cave.jsx.\n    The sha256 of this file is published in the catalog index. */\n\n/*  VFX Cave panel (prototype)\n    Finds, installs and runs scripts from the VFX Cave catalog inside After Effects.\n\n    Install: put this file into Scripts/ScriptUI Panels inside the After Effects\n    folder, restart AE, open Window > VFX Cave.jsx.\n\n    What it does and why it needs these permissions:\n    - reads the open catalog index (data/index.json) from a URL or a local folder;\n    - downloads with curl (macOS, Windows 10+) because ExtendScript sockets\n      can't speak HTTPS; this needs \"Allow Scripts to Write Files and Access\n      Network\" in Preferences > Scripting & Expressions;\n    - checks every downloaded file against the sha256 in the index and refuses\n      files that don't match or are revoked;\n    - shows what a script can do (files, shell, network, eval) and asks once\n      before running such a script;\n    - runs installed scripts with $.evalFile from the user data folder, so no\n      admin rights are needed.\n\n    ES3 only: the ExtendScript engine has no JSON, let/const or arrow functions. */\n\n(function (thisObj) {\n    var SECTION = \"VFX Cave\";\n    var DEFAULT_SOURCE = \"https://sqbrain.github.io/Scriplets/data/index.json\";\n    var RISKY = { shell: true, network: true, eval: true };\n\n    // ------------------------------------------------------------ JSON\n    // A small JSON reader so the panel doesn't depend on a JSON object that\n    // a clean AE install may lack, and never evals downloaded text.\n    var ESCAPES = { '\"': '\"', \"\\\\\": \"\\\\\", \"/\": \"/\", b: \"\\b\", f: \"\\f\", n: \"\\n\", r: \"\\r\", t: \"\\t\" };\n\n    function parseJSON(text) {\n        var i = 0, n = text.length;\n\n        function fail(msg) { throw new Error(\"index.json: \" + msg + \" at \" + i); }\n        function ws() {\n            var c;\n            while (i \u003c n) {\n                c = text.charCodeAt(i);\n                if (c === 32 || c === 9 || c === 10 || c === 13) i++;\n                else break;\n            }\n        }\n        function str() {\n            var out = \"\", q, b, e;\n            i++;\n            for (;;) {\n                q = text.indexOf('\"', i);\n                if (q === -1) fail(\"unterminated string\");\n                b = text.indexOf(\"\\\\\", i);\n                if (b === -1 || b > q) {\n                    out += text.substring(i, q);\n                    i = q + 1;\n                    return out;\n                }\n                out += text.substring(i, b);\n                e = text.charAt(b + 1);\n                if (e === \"u\") {\n                    out += String.fromCharCode(parseInt(text.substr(b + 2, 4), 16));\n                    i = b + 6;\n                } else {\n                    if (!ESCAPES.hasOwnProperty(e)) fail(\"bad escape\");\n                    out += ESCAPES[e];\n                    i = b + 2;\n                }\n            }\n        }\n        function num() {\n            var m = /^-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?/.exec(text.substr(i, 40));\n            if (!m) fail(\"unexpected '\" + text.charAt(i) + \"'\");\n            i += m[0].length;\n            return parseFloat(m[0]);\n        }\n        function arr() {\n            var a = [], c;\n            i++;\n            ws();\n            if (text.charAt(i) === \"]\") { i++; return a; }\n            for (;;) {\n                a.push(value());\n                ws();\n                c = text.charAt(i++);\n                if (c === \"]\") return a;\n                if (c !== \",\") fail(\"expected , or ]\");\n            }\n        }\n        function obj() {\n            var o = {}, k, c;\n            i++;\n            ws();\n            if (text.charAt(i) === \"}\") { i++; return o; }\n            for (;;) {\n                ws();\n                if (text.charAt(i) !== '\"') fail(\"expected a key\");\n                k = str();\n                ws();\n                if (text.charAt(i++) !== \":\") fail(\"expected :\");\n                o[k] = value();\n                ws();\n                c = text.charAt(i++);\n                if (c === \"}\") return o;\n                if (c !== \",\") fail(\"expected , or }\");\n            }\n        }\n        function value() {\n            ws();\n            var c = text.charAt(i);\n            if (c === \"{\") return obj();\n            if (c === \"[\") return arr();\n            if (c === '\"') return str();\n            if (text.substr(i, 4) === \"true\") { i += 4; return true; }\n            if (text.substr(i, 5) === \"false\") { i += 5; return false; }\n            if (text.substr(i, 4) === \"null\") { i += 4; return null; }\n            return num();\n        }\n\n        if (text.charCodeAt(0) === 0xfeff) i = 1;\n        var v = value();\n        ws();\n        if (i \u003c n) fail(\"trailing data\");\n        return v;\n    }\n\n    // ---------------------------------------------------------- SHA-256\n    // Input is a byte string (one char per byte, as read with BINARY encoding).\n    var K = [\n        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,\n        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,\n        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,\n        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,\n        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,\n        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,\n        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,\n        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2\n    ];\n\n    function ror(x, s) { return (x >>> s) | (x \u003c\u003c (32 - s)); }\n\n    function sha256(bytes) {\n        var len = bytes.length, words = [], i, j, t;\n        var blocks = ((len + 8) >> 6) + 1, total = blocks * 16;\n        for (i = 0; i \u003c total; i++) words[i] = 0;\n        for (i = 0; i \u003c len; i++) words[i >> 2] |= (bytes.charCodeAt(i) & 0xff) \u003c\u003c (24 - (i % 4) * 8);\n        words[len >> 2] |= 0x80 \u003c\u003c (24 - (len % 4) * 8);\n        words[total - 2] = Math.floor((len * 8) / 0x100000000);\n        words[total - 1] = (len * 8) >>> 0;\n\n        var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];\n        var W = [];\n        for (j = 0; j \u003c total; j += 16) {\n            var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];\n            for (t = 0; t \u003c 64; t++) {\n                if (t \u003c 16) {\n                    W[t] = words[j + t] | 0;\n                } else {\n                    var x = W[t - 15], y = W[t - 2];\n                    W[t] = (W[t - 16] + (ror(x, 7) ^ ror(x, 18) ^ (x >>> 3)) + W[t - 7] + (ror(y, 17) ^ ror(y, 19) ^ (y >>> 10))) | 0;\n                }\n                var t1 = (h + (ror(e, 6) ^ ror(e, 11) ^ ror(e, 25)) + ((e & f) ^ (~e & g)) + K[t] + W[t]) | 0;\n                var t2 = ((ror(a, 2) ^ ror(a, 13) ^ ror(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;\n                h = g; g = f; f = e; e = (d + t1) | 0;\n                d = c; c = b; b = a; a = (t1 + t2) | 0;\n            }\n            H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;\n            H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;\n        }\n        var hex = \"\";\n        for (i = 0; i \u003c 8; i++) hex += (\"00000000\" + (H[i] >>> 0).toString(16)).slice(-8);\n        return hex;\n    }\n\n    // ------------------------------------------------------- catalog logic\n    function matches(item, query) {\n        if (!query) return true;\n        var hay = [item.id, item.title.ru, item.title.en, item.summary.ru, item.summary.en, (item.tags || []).join(\" \")].join(\" \").toLowerCase();\n        var words = query.toLowerCase().split(/\\s+/);\n        for (var i = 0; i \u003c words.length; i++) if (words[i] && hay.indexOf(words[i]) === -1) return false;\n        return true;\n    }\n\n    function detectedCaps(item) {\n        var out = [], caps = item.checks.capabilities;\n        for (var i = 0; i \u003c caps.length; i++) if (caps[i].detected) out.push(caps[i].id);\n        return out;\n    }\n\n    function isRevoked(index, id, sha) {\n        var list = index.revoked || [];\n        for (var i = 0; i \u003c list.length; i++) if (list[i].id === id && (!list[i].sha256 || list[i].sha256 === sha)) return true;\n        return false;\n    }\n\n    function baseOf(source) { return source.replace(/data\\/index\\.json$/, \"\"); }\n\n    var SAFE_URL = /^https:\\/\\/[A-Za-z0-9.\\-]+(?::\\d+)?(?:\\/[A-Za-z0-9._~%!$&'()*+,;=:@\\/\\-]*)?$/;\n\n    var lib = { parseJSON: parseJSON, sha256: sha256, matches: matches, detectedCaps: detectedCaps, isRevoked: isRevoked, baseOf: baseOf, SAFE_URL: SAFE_URL };\n\n    // Outside ExtendScript (the Node test harness) stop here.\n    if (typeof $ === \"undefined\" || typeof app === \"undefined\") {\n        if (typeof CAVE_TEST !== \"undefined\") CAVE_TEST.lib = lib;\n        return;\n    }\n\n    // ----------------------------------------------------------- strings\n    var S = {\n        search: localize({ en: \"Search\", ru: \"Поиск\" }),\n        refresh: localize({ en: \"Refresh\", ru: \"Обновить\" }),\n        source: localize({ en: \"Source…\", ru: \"Источник…\" }),\n        install: localize({ en: \"Install\", ru: \"Установить\" }),\n        update: localize({ en: \"Update\", ru: \"Обновить\" }),\n        run: localize({ en: \"Run\", ru: \"Запустить\" }),\n        remove: localize({ en: \"Remove\", ru: \"Удалить\" }),\n        page: localize({ en: \"Page\", ru: \"Страница\" }),\n        colTitle: localize({ en: \"Artifact\", ru: \"Артефакт\" }),\n        colCat: localize({ en: \"Category\", ru: \"Категория\" }),\n        colState: localize({ en: \"State\", ru: \"Статус\" }),\n        ok: localize({ en: \"checked\", ru: \"проверен\" }),\n        review: localize({ en: \"review\", ru: \"ревью\" }),\n        blocked: localize({ en: \"needs work\", ru: \"доработка\" }),\n        installed: localize({ en: \"installed\", ru: \"установлен\" }),\n        outdated: localize({ en: \"update\", ru: \"есть обновление\" }),\n        revoked: localize({ en: \"revoked\", ru: \"отозван\" }),\n        noIndex: localize({ en: \"No catalog yet. Click Refresh.\", ru: \"Каталог не загружен. Нажмите «Обновить».\" }),\n        loaded: localize({ en: \"Catalog: %1 artifacts\", ru: \"Каталог: %1 артефактов\" }),\n        needPref: localize({\n            en: \"Turn on Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network, then try again.\",\n            ru: \"Включите Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network и повторите.\"\n        }),\n        badUrl: localize({ en: \"Only https:// addresses without spaces or quotes are allowed.\", ru: \"Разрешены только адреса https:// без пробелов и кавычек.\" }),\n        downloadFailed: localize({ en: \"Download failed: %1\", ru: \"Не удалось скачать: %1\" }),\n        hashMismatch: localize({ en: \"The file doesn't match the catalog (sha256). It was not installed.\", ru: \"Файл не совпадает с каталогом (sha256). Он не установлен.\" }),\n        isRevoked: localize({ en: \"This version was revoked by the catalog and won't run.\", ru: \"Эта версия отозвана каталогом и не будет запущена.\" }),\n        isBlocked: localize({ en: \"This artifact failed the catalog checks and can't be installed yet.\", ru: \"Этот артефакт не прошёл проверки каталога, установить его пока нельзя.\" }),\n        doneInstall: localize({ en: \"Installed: %1\", ru: \"Установлено: %1\" }),\n        doneRemove: localize({ en: \"Removed: %1\", ru: \"Удалено: %1\" }),\n        notInstalled: localize({ en: \"Install it first.\", ru: \"Сначала установите.\" }),\n        askTitle: localize({ en: \"Before the first run\", ru: \"Перед первым запуском\" }),\n        askLead: localize({ en: \"%1 can:\", ru: \"%1 умеет:\" }),\n        askRun: localize({ en: \"Run\", ru: \"Запустить\" }),\n        askCancel: localize({ en: \"Cancel\", ru: \"Отмена\" }),\n        sourcePrompt: localize({ en: \"Catalog index: an https:// URL or a path to data/index.json\", ru: \"Индекс каталога: адрес https:// или путь к data/index.json\" }),\n        capsLine: localize({ en: \"Can: %1\", ru: \"Умеет: %1\" }),\n        capsNone: localize({ en: \"Only changes the project.\", ru: \"Меняет только проект.\" }),\n        caps: {\n            files: localize({ en: \"read and write files\", ru: \"читать и писать файлы\" }),\n            shell: localize({ en: \"run system commands\", ru: \"запускать системные команды\" }),\n            network: localize({ en: \"use the network\", ru: \"ходить в сеть\" }),\n            eval: localize({ en: \"run code from text\", ru: \"выполнять код из строки\" }),\n            prototypes: localize({ en: \"change built-in objects\", ru: \"менять встроенные объекты\" }),\n            settings: localize({ en: \"save AE settings\", ru: \"сохранять настройки AE\" }),\n            menu: localize({ en: \"call menu commands\", ru: \"вызывать команды меню\" })\n        }\n    };\n    var LANG = $.locale && $.locale.indexOf(\"ru\") === 0 ? \"ru\" : \"en\";\n    function L(o) { return o ? (o[LANG] || o.en || o.ru || \"\") : \"\"; }\n\n    // ---------------------------------------------------------- settings\n    function getSetting(key, fallback) {\n        try { if (app.settings.haveSetting(SECTION, key)) return app.settings.getSetting(SECTION, key); } catch (e) {}\n        return fallback;\n    }\n    function setSetting(key, value) {\n        try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}\n    }\n    // installed: \"id=sha|id=sha\"\n    function readMap(key) {\n        var out = {}, raw = getSetting(key, \"\"), parts = raw ? raw.split(\"|\") : [];\n        for (var i = 0; i \u003c parts.length; i++) {\n            var kv = parts[i].split(\"=\");\n            if (kv.length === 2) out[kv[0]] = kv[1];\n        }\n        return out;\n    }\n    function writeMap(key, map) {\n        var parts = [];\n        for (var k in map) if (map.hasOwnProperty(k)) parts.push(k + \"=\" + map[k]);\n        setSetting(key, parts.join(\"|\"));\n    }\n\n    // ------------------------------------------------------------- files\n    var isWindows = $.os.indexOf(\"Windows\") !== -1;\n    var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");\n    var artifacts = new Folder(home.fsName + \"/artifacts\");\n\n    function ensure(folder) { if (!folder.exists) folder.create(); return folder; }\n\n    function readFile(file, encoding) {\n        file.encoding = encoding;\n        if (!file.open(\"r\")) throw new Error(file.error || file.fsName);\n        var s = file.read();\n        file.close();\n        return s;\n    }\n\n    function canUseFiles() {\n        try { return app.preferences.getPrefAsLong(\"Main Pref Section\", \"Pref_SCRIPTING_FILE_NETWORK_SECURITY\") === 1; } catch (e) { return true; }\n    }\n\n    function download(url, file) {\n        if (!SAFE_URL.test(url)) throw new Error(S.badUrl);\n        if (file.exists) file.remove();\n        var cmd = 'curl -sSfL --max-time 60 -o \"' + file.fsName + '\" \"' + url + '\"';\n        var out = system.callSystem(isWindows ? \"cmd /c \" + cmd : cmd);\n        if (!file.exists || file.length === 0) throw new Error(localize(S.downloadFailed, out || url));\n    }\n\n    // Copies or downloads an item's file (relative to the index base) to dest.\n    function fetchItemFile(source, relPath, dest) {\n        if (/^https:\\/\\//i.test(source)) download(baseOf(source) + relPath, dest);\n        else {\n            var src = new File(new File(source).parent.parent.fsName + \"/\" + relPath);\n            if (!src.exists) throw new Error(localize(S.downloadFailed, src.fsName));\n            if (dest.exists) dest.remove();\n            if (!src.copy(dest.fsName)) throw new Error(localize(S.downloadFailed, src.error));\n        }\n    }\n\n    function loadIndex() {\n        var source = getSetting(\"source\", DEFAULT_SOURCE);\n        var cache = new File(ensure(home).fsName + \"/index.json\");\n        if (/^https:\\/\\//i.test(source)) download(source, cache);\n        else {\n            var local = new File(source);\n            if (!local.exists) throw new Error(localize(S.downloadFailed, source));\n            if (cache.exists) cache.remove();\n            local.copy(cache.fsName);\n        }\n        return parseJSON(readFile(cache, \"UTF-8\"));\n    }\n\n    function cachedIndex() {\n        var cache = new File(home.fsName + \"/index.json\");\n        if (!cache.exists) return null;\n        try { return parseJSON(readFile(cache, \"UTF-8\")); } catch (e) { return null; }\n    }\n\n    // ---------------------------------------------------------------- UI\n    var index = null;\n    var shown = [];\n    var installed = readMap(\"installed\");\n    var consent = readMap(\"consent\");\n\n    var win = thisObj instanceof Panel ? thisObj : new Window(\"palette\", \"VFX Cave\", undefined, { resizeable: true });\n    win.orientation = \"column\";\n    win.alignChildren = [\"fill\", \"top\"];\n    win.spacing = 6;\n    win.margins = 8;\n\n    var top = win.add(\"group\");\n    top.orientation = \"row\";\n    top.alignChildren = [\"fill\", \"center\"];\n    top.add(\"statictext\", undefined, S.search + \":\");\n    var q = top.add(\"edittext\", undefined, \"\");\n    q.characters = 18;\n    q.alignment = [\"fill\", \"center\"];\n    var refreshBtn = top.add(\"button\", undefined, S.refresh);\n    var sourceBtn = top.add(\"button\", undefined, S.source);\n\n    var list = win.add(\"listbox\", undefined, [], {\n        numberOfColumns: 3,\n        showHeaders: true,\n        columnTitles: [S.colTitle, S.colCat, S.colState],\n        columnWidths: [220, 110, 110]\n    });\n    list.preferredSize = [460, 260];\n    list.alignment = [\"fill\", \"fill\"];\n\n    var info = win.add(\"statictext\", undefined, S.noIndex, { multiline: true });\n    info.preferredSize = [460, 92];\n    info.alignment = [\"fill\", \"bottom\"];\n\n    var buttons = win.add(\"group\");\n    buttons.alignment = [\"fill\", \"bottom\"];\n    var installBtn = buttons.add(\"button\", undefined, S.install);\n    var runBtn = buttons.add(\"button\", undefined, S.run);\n    var removeBtn = buttons.add(\"button\", undefined, S.remove);\n    var pageBtn = buttons.add(\"button\", undefined, S.page);\n\n    var statusLine = win.add(\"statictext\", undefined, \"\");\n    statusLine.alignment = [\"fill\", \"bottom\"];\n\n    function stateOf(item) {\n        if (isRevoked(index, item.id, installed[item.id])) return S.revoked;\n        if (installed[item.id]) return installed[item.id] === item.sha256 ? S.installed : S.outdated;\n        return S[item.checks.status] || item.checks.status;\n    }\n\n    function fill() {\n        list.removeAll();\n        shown = [];\n        if (!index) { info.text = S.noIndex; return; }\n        var query = q.text;\n        for (var i = 0; i \u003c index.items.length; i++) {\n            var item = index.items[i];\n            if (!matches(item, query)) continue;\n            var row = list.add(\"item\", L(item.title));\n            row.subItems[0].text = item.category;\n            row.subItems[1].text = stateOf(item);\n            shown.push(item);\n        }\n        statusLine.text = localize(S.loaded, index.items.length);\n        describe();\n    }\n\n    function selected() { return list.selection ? shown[list.selection.index] : null; }\n\n    function capsText(item) {\n        var caps = detectedCaps(item), names = [];\n        for (var i = 0; i \u003c caps.length; i++) names.push(S.caps[caps[i]] || caps[i]);\n        return names.length ? localize(S.capsLine, names.join(\", \")) : S.capsNone;\n    }\n\n    function describe() {\n        var item = selected();\n        installBtn.text = item && installed[item.id] && installed[item.id] !== item.sha256 ? S.update : S.install;\n        installBtn.enabled = !!item && item.checks.status !== \"blocked\";\n        runBtn.enabled = removeBtn.enabled = !!item && !!installed[item.id];\n        pageBtn.enabled = !!item;\n        if (!item) return;\n        info.text = L(item.summary) + \"\\n\" + capsText(item) + \"\\n\" + L(item.usage) + \"\\nsha256 \" + item.sha256.substr(0, 16) + \"…\";\n    }\n\n    function artifactFile(item) {\n        var ext = item.kind === \"preset\" ? \".ffx\" : \".jsx\";\n        return new File(artifacts.fsName + \"/\" + item.id + ext);\n    }\n\n    function guard(fn) {\n        return function () {\n            try { fn(); } catch (e) { alert(e.message || String(e), \"VFX Cave\"); }\n        };\n    }\n\n    function needsAccess() {\n        if (!canUseFiles()) throw new Error(S.needPref);\n    }\n\n    function doInstall() {\n        var item = selected();\n        if (!item) return;\n        if (item.checks.status === \"blocked\") throw new Error(S.isBlocked);\n        if (isRevoked(index, item.id, item.sha256)) throw new Error(S.isRevoked);\n        needsAccess();\n        ensure(artifacts);\n        var tmp = new File(artifacts.fsName + \"/\" + item.id + \".download\");\n        fetchItemFile(getSetting(\"source\", DEFAULT_SOURCE), item.file, tmp);\n        if (sha256(readFile(tmp, \"BINARY\")) !== item.sha256) {\n            tmp.remove();\n            throw new Error(S.hashMismatch);\n        }\n        var dest = artifactFile(item);\n        if (dest.exists) dest.remove();\n        tmp.rename(dest.name);\n        installed[item.id] = item.sha256;\n        writeMap(\"installed\", installed);\n        fill();\n        statusLine.text = localize(S.doneInstall, L(item.title));\n    }\n\n    function ask(item, caps) {\n        var d = new Window(\"dialog\", S.askTitle);\n        d.orientation = \"column\";\n        d.alignChildren = [\"fill\", \"top\"];\n        d.add(\"statictext\", undefined, localize(S.askLead, L(item.title)));\n        for (var i = 0; i \u003c caps.length; i++) d.add(\"statictext\", undefined, \"  • \" + (S.caps[caps[i]] || caps[i]));\n        var g = d.add(\"group\");\n        g.alignment = [\"right\", \"bottom\"];\n        g.add(\"button\", undefined, S.askCancel, { name: \"cancel\" });\n        g.add(\"button\", undefined, S.askRun, { name: \"ok\" });\n        return d.show() === 1;\n    }\n\n    function doRun() {\n        var item = selected();\n        if (!item || !installed[item.id]) throw new Error(S.notInstalled);\n        var file = artifactFile(item);\n        if (!file.exists) throw new Error(S.notInstalled);\n        var sha = sha256(readFile(file, \"BINARY\"));\n        if (sha !== installed[item.id] || isRevoked(index, item.id, sha)) throw new Error(S.isRevoked);\n        if (item.kind === \"preset\") {\n            var layer = app.project.activeItem && app.project.activeItem.selectedLayers && app.project.activeItem.selectedLayers[0];\n            if (!layer) throw new Error(L(item.usage));\n            layer.applyPreset(file);\n            return;\n        }\n        var caps = detectedCaps(item), worrying = [];\n        for (var i = 0; i \u003c caps.length; i++) if (RISKY[caps[i]] || caps[i] === \"files\") worrying.push(caps[i]);\n        if (worrying.length && consent[item.id] !== sha) {\n            if (!ask(item, worrying)) return;\n            consent[item.id] = sha;\n            writeMap(\"consent\", consent);\n        }\n        $.evalFile(file);\n    }\n\n    function doRemove() {\n        var item = selected();\n        if (!item) return;\n        var file = artifactFile(item);\n        if (file.exists) file.remove();\n        delete installed[item.id];\n        delete consent[item.id];\n        writeMap(\"installed\", installed);\n        writeMap(\"consent\", consent);\n        fill();\n        statusLine.text = localize(S.doneRemove, L(item.title));\n    }\n\n    function doPage() {\n        var item = selected();\n        if (!item) return;\n        var url = (index.site || baseOf(getSetting(\"source\", DEFAULT_SOURCE))) + \"#\" + item.id;\n        if (!SAFE_URL.test(url.replace(\"#\", \"/\"))) throw new Error(S.badUrl);\n        system.callSystem(isWindows ? 'cmd /c start \"\" \"' + url + '\"' : 'open \"' + url + '\"');\n    }\n\n    function doRefresh() {\n        needsAccess();\n        index = loadIndex();\n        fill();\n    }\n\n    function doSource() {\n        var value = prompt(S.sourcePrompt, getSetting(\"source\", DEFAULT_SOURCE), \"VFX Cave\");\n        if (!value) return;\n        if (/^https?:\\/\\//i.test(value) && !SAFE_URL.test(value)) throw new Error(S.badUrl);\n        setSetting(\"source\", value);\n        doRefresh();\n    }\n\n    q.onChanging = function () { fill(); };\n    list.onChange = function () { describe(); };\n    list.onDoubleClick = guard(doRun);\n    refreshBtn.onClick = guard(doRefresh);\n    sourceBtn.onClick = guard(doSource);\n    installBtn.onClick = guard(doInstall);\n    runBtn.onClick = guard(doRun);\n    removeBtn.onClick = guard(doRemove);\n    pageBtn.onClick = guard(doPage);\n    win.onResizing = win.onResize = function () { this.layout.resize(); };\n\n    index = cachedIndex();\n    fill();\n\n    if (win instanceof Window) { win.center(); win.show(); }\n    else { win.layout.layout(true); win.layout.resize(); }\n})(this);\n"}}</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("cave-data").textContent);
+  var INDEX = DATA.index;
+  var SOURCES = DATA.sources;
+  var ITEMS = INDEX.items;
+  var BY_ID = {};
+  ITEMS.forEach(function (it) { BY_ID[it.id] = it; });
+
+  // ------------------------------------------------------------ storage
+  function load(key, fallback) {
+    try { var v = localStorage.getItem("cave:" + key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem("cave:" + key, JSON.stringify(value)); } catch (e) { /* storage unavailable: keep in memory */ }
+  }
+
+  var state = {
+    lang: load("lang", /^(ru|uk|be|kk)/i.test(navigator.language || "ru") ? "ru" : "en"),
+    query: "",
+    category: "all",
+    trust: load("trust", "all"),
+    sort: load("sort", "name"),
+    installTab: "panel",
+    votes: load("votes", {}),          // { id: { "AE 2025": "works" | "broken" } }
+    requests: load("requests", []),    // created on this device
+    plus: load("plus", {}),            // request id -> true
+    takes: load("takes", {})           // request id -> true
+  };
+
+  // --------------------------------------------------------------- i18n
+  var T = {
+    ru: {
+      nav: { catalog: "Каталог", requests: "Доска заказов", submit: "Добавить скрипт", path: "Путь хранителя", about: "О пещере" },
+      heroEyebrow: "Открытый каталог · прототип",
+      heroTitle: "Пещера скриптов для After Effects",
+      heroLead: "Скрипты, которые люди написали для себя: руками или вместе с нейросетью. Скачивание без регистрации, каждый файл проверяется до публикации.",
+      termTitle: "cave — поиск",
+      searchLabel: "Поиск по пещере",
+      searchPh: "wiggle, маски, текст, матт…",
+      tryLabel: "попробуйте:",
+      tries: ["wiggle", "маски", "текст", "матт"],
+      ledger: { items: "артефактов", ok: "прошли проверки", review: "ждут ревью", blocked: "на доработке", signup: "регистраций для скачивания", index: "открытый индекс" },
+      hostsLabel: "Программа",
+      soon: "скоро",
+      allCats: "Все",
+      trustLabel: "Доверие",
+      trust: { all: "Все артефакты", safe: "Без shell, сети и eval", clean: "Только без замечаний" },
+      sortLabel: "Порядок",
+      sort: { name: "По названию", "new": "Сначала новые", category: "По категории" },
+      found: function (n) { return "Найдено: " + n; },
+      empty: "В этой части пещеры пусто. Уберите фильтр или оставьте заявку на доске заказов.",
+      emptyLink: "Оставить заявку",
+      status: { ok: "Проверен", review: "Нужно ревью", blocked: "На доработке" },
+      kind: { script: "Скрипт", panel: "Панель", preset: "Пресет" },
+      cats: { animation: "Анимация", keyframes: "Ключи", expressions: "Экспрешены", layers: "Слои", "masks-shapes": "Маски и шейпы", mattes: "Матты", text: "Текст", comp: "Композиции", render: "Рендер", color: "Цвет", utility: "Утилиты" },
+      caps: {
+        files: ["Файлы", "Создаёт, читает или пишет файлы и папки на диске."],
+        shell: ["Shell", "Запускает системные команды (system.callSystem или File.execute)."],
+        network: ["Сеть", "Обращается к сети."],
+        eval: ["Eval", "Выполняет код из строки или из другого файла."],
+        prototypes: ["Прототипы", "Добавляет методы встроенным объектам JavaScript или AE. Это влияет на другие скрипты в той же сессии AE."],
+        settings: ["Настройки", "Сохраняет настройки через app.settings или app.preferences."],
+        menu: ["Команды меню", "Вызывает команды меню AE через app.executeCommand."]
+      },
+      undeclared: "найдено, но автор не объявил",
+      declaredOnly: "объявлено автором, в коде не найдено",
+      warns: {
+        json: "Использует JSON. На чистой установке AE объекта JSON может не быть.",
+        "es5-array": "Методы массивов ES5 (forEach, map, filter…). В ExtendScript их нет без полифила.",
+        "es5-trim": "String.trim() из ES5. В ExtendScript его нет без полифила.",
+        "es5-object": "Object.keys, Array.isArray и другие API из ES5. В ExtendScript их нет без полифила.",
+        "embedded-data": "Внутри большой блок данных, например бинарный пресет. Его нельзя прочитать глазами."
+      },
+      polyfilled: "полифил есть в сборке",
+      syntax: {
+        es3: "Синтаксис ES3: совместим с движком ExtendScript.",
+        es5: "Синтаксис ES5: обычно работает в ExtendScript, но проверьте в AE.",
+        es2015: "Современный синтаксис (let, const, стрелочные функции). ExtendScript его не выполнит.",
+        modern: "Современный синтаксис. ExtendScript его не выполнит.",
+        invalid: "Синтаксическая ошибка: файл не разбирается."
+      },
+      missing: function (spec, from) { return "Не найден подключаемый файл " + spec + " (из " + from + "). Скачивание закрыто, пока автор не исправит путь."; },
+      inlined: function (n) { return n ? "Встроено подключаемых файлов: " + n + ". Скачивается один готовый файл." : "Один файл, без подключений."; },
+      declared: function (n) { return n ? "Все найденные возможности объявлены автором." : "Особых возможностей не найдено: скрипт меняет только проект."; },
+      back: "← В каталог",
+      download: "Скачать",
+      copy: "Копировать код",
+      copied: "Код скопирован",
+      copyFail: "Не удалось скопировать. Выделите код вручную.",
+      blockedBtn: "Скачивание закрыто",
+      sections: { what: "Что делает", how: "Как пользоваться", notes: "Важно знать", install: "Установка", source: "Исходник", check: "Проверка пещеры", file: "Файл", compat: "Совместимость" },
+      showSource: function (n) { return "Показать собранный файл (" + n + " строк). Подсвечены строки, из-за которых стоят бейджи."; },
+      tabPanel: "Через панель VFX Cave",
+      tabManual: "Вручную",
+      panelSteps: [
+        "Один раз поставьте панель: файл <span class=\"path\">VFX Cave.jsx</span> в папку <span class=\"path\">Scripts/ScriptUI Panels</span> внутри папки After Effects.",
+        "Откройте <b>Window → VFX Cave.jsx</b> и найдите артефакт по названию.",
+        "Нажмите <b>Установить</b>. Панель скачает файл, сверит sha256 с индексом и покажет бейджи до первого запуска."
+      ],
+      manualSteps: function (it) {
+        var folder = it.kind === "panel" ? "Scripts/ScriptUI Panels" : "Scripts";
+        if (it.kind === "preset") return [
+          "Скачайте <span class=\"path\">" + it.id + ".ffx</span>.",
+          "Положите его в <span class=\"path\">Документы/Adobe/After Effects &lt;версия&gt;/User Presets</span> или примените через <b>Animation → Apply Animation Preset</b>."
+        ];
+        return [
+          "Скачайте <span class=\"path\">" + it.id + ".jsx</span>. Это уже собранный файл: библиотеки встроены, ничего докладывать не нужно.",
+          "Windows: <span class=\"path\">C:\\Program Files\\Adobe\\Adobe After Effects &lt;версия&gt;\\Support Files\\" + folder.replace("/", "\\") + "</span>. macOS: <span class=\"path\">/Applications/Adobe After Effects &lt;версия&gt;/" + folder + "</span>.",
+          it.kind === "panel" ? "Перезапустите AE и откройте панель через меню <b>Window</b>." : "Перезапустите AE и запустите через <b>File → Scripts</b>. Без установки: <b>File → Scripts → Run Script File…</b>"
+        ];
+      },
+      prefNote: "Этому скрипту нужен доступ к файлам или системе. Включите <b>Preferences → Scripting &amp; Expressions → Allow Scripts to Write Files and Access Network</b> (в старых версиях AE этот флажок во вкладке General).",
+      facts: { author: "Автор", version: "Версия", license: "Лицензия", ai: "ИИ", added: "Добавлен", size: "Размер", lines: "Строк", sha: "sha256", entry: "Исходный файл" },
+      ai: { none: "без ИИ", assisted: "с помощью ИИ", generated: "в основном сгенерирован ИИ", unknown: "автор не указал" },
+      reviewed: "проверено человеком",
+      compatLead: "Работает ли этот артефакт в вашей версии AE? Первая отметка для каждой версии даёт +5 XP.",
+      compatVersion: "Версия AE",
+      works: "Работает",
+      broken: "Сломалось",
+      tested: function (list) { return list.length ? "Автор проверил в: " + list.join(", ") + "." : "Автор пока не указал версии. Станьте первым, кто проверит."; },
+      yourVotes: "Ваши отметки:",
+      localOnly: "Прототип: отметки, XP и заявки хранятся только в этом браузере.",
+      voted: "+5 XP · отметка сохранена",
+      reqTitle: "Доска заказов",
+      reqLead: "Опишите скрипт, которого вам не хватает. Авторы берут заявки, а за выполненный заказ получают XP. Денег и предоплаты здесь нет.",
+      reqFormTitle: "Новая заявка",
+      reqName: "Что нужно",
+      reqNamePh: "Скрипт, который раскладывает слои по сетке",
+      reqDesc: "Подробности",
+      reqDescPh: "Что выделяю перед запуском, что должно получиться, в какой версии AE",
+      reqHost: "Программа",
+      reqSubmit: "Повесить на доску",
+      reqAdded: "Заявка на доске",
+      reqEmptyName: "Напишите хотя бы, что нужно.",
+      plusOne: "Мне тоже",
+      take: "Возьмусь",
+      taken: "Вы взялись",
+      example: "пример",
+      yours: "ваша заявка",
+      examples: [
+        { id: "ex1", title: "Разложить выделенные слои по сетке с отступом", text: "Выделяю 12 слоёв, указываю число колонок и отступ в пикселях, скрипт ставит позиции. Нужен AE 2024+.", plus: 14 },
+        { id: "ex2", title: "Экспорт маркеров композиции в CSV для монтажёра", text: "Время, длительность и комментарий маркера, одна строка на маркер.", plus: 9 },
+        { id: "ex3", title: "Заменить шрифт во всех текстовых слоях проекта", text: "С выбором исходного и нового шрифта и отчётом, что поменялось.", plus: 6 }
+      ],
+      submitTitle: "Принести артефакт в пещеру",
+      submitLead: "Каталог живёт в Git-репозитории. Новый скрипт приходит pull request'ом, автоматическая сборка проверяет его и публикует сразу с бейджами. Ручное ревью нужно только для shell, сети и eval, и оно не задерживает публикацию.",
+      submitSteps: [
+        "Сделайте форк репозитория и положите скрипт с читаемым исходником. .jsxbin принимается только вместе с исходником, архивы (.zip, .rar) не принимаются.",
+        "Добавьте манифест <span class=\"path\">portal/catalog/&lt;id&gt;.json</span> по образцу справа: латинский id, описание на двух языках, объявленные возможности и честная пометка про ИИ.",
+        "Запустите <span class=\"path\">npm run build</span> в папке portal. Сборка встроит //@include, проверит синтаксис и покажет, что нашла.",
+        "Откройте pull request. После слияния артефакт появится в каталоге, в индексе и в панели."
+      ],
+      autoTitle: "Что проверяется автоматически",
+      autoList: [
+        "Все //@include и #include встраиваются в один файл. Если путь не найден, скрипт уходит на доработку.",
+        "Синтаксис разбирается как ES3, движок ExtendScript. Код с let, const и стрелками не пройдёт.",
+        "API из ES5 без полифила: JSON, forEach, map, filter, trim, Object.keys.",
+        "Возможности: файлы, shell, сеть, eval, изменение прототипов, настройки, команды меню. Найденное сравнивается с тем, что объявил автор.",
+        "sha256 каждого файла публикуется в индексе. Панель сверяет его перед установкой и не запускает отозванные версии."
+      ],
+      aiTitle: "Скрипты, написанные с нейросетью, здесь свои",
+      aiText: "Укажите уровень: без ИИ, с помощью ИИ или в основном сгенерирован ИИ. Назовите модель и отметьте, проверяли ли вы скрипт сами. Метка нужна, чтобы пользователи знали, чего ждать. На место в каталоге она не влияет.",
+      manifestTitle: "Образец манифеста",
+      noPoints: "За саму загрузку очков нет. XP дают за то, что делает пещеру надёжнее.",
+      pathTitle: "Путь хранителя",
+      pathLead: "В пещере растут не за количество загрузок, а за то, что делает каталог надёжнее: проверки, починки и подхваченные брошенные скрипты.",
+      yourXp: "Ваш опыт",
+      nextRank: function (n, r) { return "До ранга «" + r + "»: " + n + " XP"; },
+      maxRank: "Высший ранг. Пещера держится на вас.",
+      ranks: [["Новичок с факелом", 0], ["Следопыт", 25], ["Хранитель", 100], ["Старейшина", 300]],
+      xpRulesTitle: "Как начисляется опыт",
+      xpHead: ["Действие", "XP"],
+      xpRules: [
+        ["Отметка «работает / сломалось» в своей версии AE", 5, true],
+        ["Баг-репорт, который подтвердил автор", 10],
+        ["Ревью безопасности чужого артефакта", 20],
+        ["Починка артефакта, сломанного обновлением AE", 30],
+        ["Выполненный заказ с доски", 40],
+        ["Усыновление брошенного артефакта с открытой лицензией", 50],
+        ["Загрузка нового артефакта", 0]
+      ],
+      live: "работает в прототипе",
+      zeroNote: "Ноль за загрузку не опечатка. Если давать очки за количество, пещеру завалят ИИ-клонами.",
+      badgesTitle: "Знаки",
+      badges: [
+        ["Проверено в AE 26", "у артефакта есть подтверждённые отметки «работает» в текущей версии"],
+        ["Первооткрыватель", "автор, первым опубликовавший артефакт; защищает от перезаливов"],
+        ["Хранитель", "мейнтейнер, который отвечает на баги и чинит после обновлений"]
+      ],
+      aboutTitle: "О пещере",
+      aboutLead: "Убежище для маленьких инструментов, которые иначе пропадают в чатах, личных репозиториях и Telegram-лентах.",
+      aboutText: [
+        "Сегодня скрипт, написанный для себя за вечер с нейросетью, чаще всего умирает в окне чата. Если выживает, ломается при следующем обновлении AE. Форумы, где такие вещи копились раньше, закрываются: вместе с CGSociety в 2024 году исчезли больше 18 тысяч тредов о MAXScript.",
+        "Пещера собирает такие инструменты в одно место, проверяет их и помогает им пережить обновления."
+      ],
+      principlesTitle: "Правила пещеры",
+      principles: [
+        "Скачивание бесплатно и без регистрации. Аккаунт нужен только тем, кто публикует.",
+        "Открытый индекс: data/index.json может читать любая программа, панель или ИИ-ассистент.",
+        "Читаемый исходник обязателен. Ничего не запускается без вашего ведома.",
+        "Честные бейджи: что скрипт умеет, где проверен и сколько в нём ИИ.",
+        "Лицензия по умолчанию MIT. Брошенный артефакт можно подхватить."
+      ],
+      glossaryTitle: "Словарь пещеры",
+      glossary: [
+        ["Артефакт", "скрипт, панель или пресет в каталоге"],
+        ["Свиток", "экспрешен, которым делятся отдельно"],
+        ["Обвал", "поломка после обновления AE"],
+        ["Усыновление", "передача брошенного артефакта новому мейнтейнеру"],
+        ["Факел", "ваш опыт в пещере"]
+      ],
+      roadmapTitle: "Куда копаем дальше",
+      roadmap: [
+        "After Effects: каталог, панель установки, отметки совместимости.",
+        "Blender: свой репозиторий расширений, который Blender 4.2+ подключает штатно.",
+        "Houdini, Nuke, DaVinci Resolve: пакеты, меню и атомы Reactor.",
+        "MCP-сервер, чтобы ИИ-ассистенты находили проверенные скрипты вместо того, чтобы генерировать их заново."
+      ],
+      foot: function (d) { return "VFX Cave · прототип · индекс собран " + d; },
+      footIndex: "data/index.json",
+      footRepo: "исходники на GitHub",
+      xpShort: "XP"
+    },
+    en: {
+      nav: { catalog: "Catalog", requests: "Request board", submit: "Add a script", path: "Keeper's path", about: "About" },
+      heroEyebrow: "Open catalog · prototype",
+      heroTitle: "The script cave for After Effects",
+      heroLead: "Scripts people wrote for themselves, by hand or together with an AI. No sign-up to download, and every file is checked before it goes live.",
+      termTitle: "cave — search",
+      searchLabel: "Search the cave",
+      searchPh: "wiggle, masks, text, matte…",
+      tryLabel: "try:",
+      tries: ["wiggle", "masks", "text", "matte"],
+      ledger: { items: "artifacts", ok: "passed checks", review: "await review", blocked: "need work", signup: "sign-ups to download", index: "open index" },
+      hostsLabel: "Application",
+      soon: "soon",
+      allCats: "All",
+      trustLabel: "Trust",
+      trust: { all: "All artifacts", safe: "No shell, network or eval", clean: "No remarks only" },
+      sortLabel: "Order",
+      sort: { name: "By name", "new": "Newest first", category: "By category" },
+      found: function (n) { return n + " found"; },
+      empty: "Nothing in this part of the cave. Clear a filter or post a request on the board.",
+      emptyLink: "Post a request",
+      status: { ok: "Checked", review: "Needs review", blocked: "Needs work" },
+      kind: { script: "Script", panel: "Panel", preset: "Preset" },
+      cats: { animation: "Animation", keyframes: "Keyframes", expressions: "Expressions", layers: "Layers", "masks-shapes": "Masks & shapes", mattes: "Mattes", text: "Text", comp: "Comps", render: "Render", color: "Color", utility: "Utilities" },
+      caps: {
+        files: ["Files", "Creates, reads or writes files and folders on disk."],
+        shell: ["Shell", "Runs system commands (system.callSystem or File.execute)."],
+        network: ["Network", "Talks to the network."],
+        eval: ["Eval", "Runs code from a string or another file."],
+        prototypes: ["Prototypes", "Adds methods to built-in JavaScript or AE objects, which affects other scripts in the same AE session."],
+        settings: ["Settings", "Saves settings through app.settings or app.preferences."],
+        menu: ["Menu commands", "Calls AE menu commands through app.executeCommand."]
+      },
+      undeclared: "found but not declared by the author",
+      declaredOnly: "declared by the author, not found in code",
+      warns: {
+        json: "Uses JSON. A clean AE install may not have a JSON object.",
+        "es5-array": "ES5 array methods (forEach, map, filter…). ExtendScript lacks them without a polyfill.",
+        "es5-trim": "ES5 String.trim(). ExtendScript lacks it without a polyfill.",
+        "es5-object": "Object.keys, Array.isArray and other ES5 APIs. ExtendScript lacks them without a polyfill.",
+        "embedded-data": "Contains a large data block, such as a binary preset, that can't be read by eye."
+      },
+      polyfilled: "polyfilled in the bundle",
+      syntax: {
+        es3: "ES3 syntax: compatible with the ExtendScript engine.",
+        es5: "ES5 syntax: usually runs in ExtendScript, but test it in AE.",
+        es2015: "Modern syntax (let, const, arrow functions). ExtendScript won't run it.",
+        modern: "Modern syntax. ExtendScript won't run it.",
+        invalid: "Syntax error: the file doesn't parse."
+      },
+      missing: function (spec, from) { return "Included file " + spec + " not found (from " + from + "). Downloads stay closed until the author fixes the path."; },
+      inlined: function (n) { return n ? n + " included file(s) inlined. You download one ready file." : "Single file, no includes."; },
+      declared: function (n) { return n ? "Every capability found is declared by the author." : "No special capabilities found: the script only changes the project."; },
+      back: "← Back to catalog",
+      download: "Download",
+      copy: "Copy code",
+      copied: "Code copied",
+      copyFail: "Couldn't copy. Select the code by hand.",
+      blockedBtn: "Download closed",
+      sections: { what: "What it does", how: "How to use", notes: "Good to know", install: "Install", source: "Source", check: "Cave check", file: "File", compat: "Compatibility" },
+      showSource: function (n) { return "Show the bundled file (" + n + " lines). Lines behind the badges are highlighted."; },
+      tabPanel: "With the VFX Cave panel",
+      tabManual: "By hand",
+      panelSteps: [
+        "Install the panel once: put <span class=\"path\">VFX Cave.jsx</span> into <span class=\"path\">Scripts/ScriptUI Panels</span> inside the After Effects folder.",
+        "Open <b>Window → VFX Cave.jsx</b> and find the artifact by name.",
+        "Click <b>Install</b>. The panel downloads the file, checks its sha256 against the index and shows the badges before the first run."
+      ],
+      manualSteps: function (it) {
+        var folder = it.kind === "panel" ? "Scripts/ScriptUI Panels" : "Scripts";
+        if (it.kind === "preset") return [
+          "Download <span class=\"path\">" + it.id + ".ffx</span>.",
+          "Put it into <span class=\"path\">Documents/Adobe/After Effects &lt;version&gt;/User Presets</span> or apply it with <b>Animation → Apply Animation Preset</b>."
+        ];
+        return [
+          "Download <span class=\"path\">" + it.id + ".jsx</span>. It's already bundled: libraries are inlined, nothing else to copy.",
+          "Windows: <span class=\"path\">C:\\Program Files\\Adobe\\Adobe After Effects &lt;version&gt;\\Support Files\\" + folder.replace("/", "\\") + "</span>. macOS: <span class=\"path\">/Applications/Adobe After Effects &lt;version&gt;/" + folder + "</span>.",
+          it.kind === "panel" ? "Restart AE and open the panel from the <b>Window</b> menu." : "Restart AE and run it from <b>File → Scripts</b>. Without installing: <b>File → Scripts → Run Script File…</b>"
+        ];
+      },
+      prefNote: "This script needs file or system access. Turn on <b>Preferences → Scripting &amp; Expressions → Allow Scripts to Write Files and Access Network</b> (in older AE versions the checkbox is on the General tab).",
+      facts: { author: "Author", version: "Version", license: "License", ai: "AI", added: "Added", size: "Size", lines: "Lines", sha: "sha256", entry: "Source file" },
+      ai: { none: "no AI", assisted: "AI-assisted", generated: "mostly AI-generated", unknown: "not stated by the author" },
+      reviewed: "human-reviewed",
+      compatLead: "Does this artifact work in your AE version? The first mark for each version earns +5 XP.",
+      compatVersion: "AE version",
+      works: "Works",
+      broken: "Broken",
+      tested: function (list) { return list.length ? "Author tested in: " + list.join(", ") + "." : "The author hasn't listed versions yet. Be the first to test it."; },
+      yourVotes: "Your marks:",
+      localOnly: "Prototype: marks, XP and requests stay in this browser only.",
+      voted: "+5 XP · mark saved",
+      reqTitle: "Request board",
+      reqLead: "Describe the script you're missing. Authors pick up requests and earn XP for finished ones. No money or prepayment here.",
+      reqFormTitle: "New request",
+      reqName: "What you need",
+      reqNamePh: "A script that lays layers out on a grid",
+      reqDesc: "Details",
+      reqDescPh: "What you select before running, what should happen, which AE version",
+      reqHost: "Application",
+      reqSubmit: "Pin to the board",
+      reqAdded: "Request pinned",
+      reqEmptyName: "Write at least what you need.",
+      plusOne: "Me too",
+      take: "I'll take it",
+      taken: "You took it",
+      example: "example",
+      yours: "your request",
+      examples: [
+        { id: "ex1", title: "Lay selected layers out on a grid with spacing", text: "I select 12 layers, set columns and spacing in pixels, the script sets positions. AE 2024+.", plus: 14 },
+        { id: "ex2", title: "Export comp markers to CSV for the editor", text: "Time, duration and marker comment, one row per marker.", plus: 9 },
+        { id: "ex3", title: "Replace the font in every text layer of a project", text: "Pick the source and target font and get a report of what changed.", plus: 6 }
+      ],
+      submitTitle: "Bring an artifact to the cave",
+      submitLead: "The catalog lives in a Git repository. A new script arrives as a pull request; the automatic build checks it and publishes it right away with its badges. Manual review is only needed for shell, network and eval, and it doesn't hold up publishing.",
+      submitSteps: [
+        "Fork the repository and add your script with readable source. .jsxbin is accepted only together with its source; archives (.zip, .rar) are not accepted.",
+        "Add a manifest <span class=\"path\">portal/catalog/&lt;id&gt;.json</span> like the sample: a latin id, a description in two languages, declared capabilities and an honest AI label.",
+        "Run <span class=\"path\">npm run build</span> in the portal folder. The build inlines //@include, checks the syntax and reports what it found.",
+        "Open a pull request. Once merged, the artifact shows up in the catalog, the index and the panel."
+      ],
+      autoTitle: "What gets checked automatically",
+      autoList: [
+        "Every //@include and #include is inlined into one file. A missing path sends the script back for work.",
+        "Syntax is parsed as ES3, the ExtendScript engine. Code with let, const and arrows won't pass.",
+        "ES5 APIs without a polyfill: JSON, forEach, map, filter, trim, Object.keys.",
+        "Capabilities: files, shell, network, eval, prototype changes, settings, menu commands. What's found is compared with what the author declared.",
+        "Each file's sha256 is published in the index. The panel checks it before installing and refuses revoked versions."
+      ],
+      aiTitle: "Scripts written with AI are welcome",
+      aiText: "State the level: no AI, AI-assisted or mostly AI-generated. Name the model and say whether you tested the script yourself. The label tells users what to expect; it doesn't affect placement in the catalog.",
+      manifestTitle: "Sample manifest",
+      noPoints: "Uploading alone earns no points. XP goes to what makes the cave more reliable.",
+      pathTitle: "Keeper's path",
+      pathLead: "In the cave you grow by making the catalog more reliable, not by uploading more: checks, fixes and adopting abandoned scripts.",
+      yourXp: "Your experience",
+      nextRank: function (n, r) { return n + " XP to “" + r + "”"; },
+      maxRank: "Top rank. The cave stands on you.",
+      ranks: [["Torchbearer", 0], ["Tracker", 25], ["Keeper", 100], ["Elder", 300]],
+      xpRulesTitle: "How XP is earned",
+      xpHead: ["Action", "XP"],
+      xpRules: [
+        ["A “works / broken” mark in your AE version", 5, true],
+        ["A bug report the author confirmed", 10],
+        ["A security review of someone else's artifact", 20],
+        ["Fixing an artifact an AE update broke", 30],
+        ["A finished request from the board", 40],
+        ["Adopting an abandoned artifact with an open license", 50],
+        ["Uploading a new artifact", 0]
+      ],
+      live: "works in the prototype",
+      zeroNote: "Zero for uploads is not a typo. Paying for volume would bury the cave under AI clones.",
+      badgesTitle: "Marks",
+      badges: [
+        ["Tested in AE 26", "the artifact has confirmed “works” marks in the current version"],
+        ["Pathfinder", "the author who published the artifact first; protects against re-uploads"],
+        ["Keeper", "a maintainer who answers bugs and fixes things after updates"]
+      ],
+      aboutTitle: "About the cave",
+      aboutLead: "A shelter for small tools that otherwise vanish in chats, personal repositories and Telegram feeds.",
+      aboutText: [
+        "Today a script someone wrote for themselves in an evening with an AI usually dies in the chat window. If it survives, the next AE update breaks it. The forums where such things used to pile up keep closing: when CGSociety shut down in 2024, more than 18,000 MAXScript threads went with it.",
+        "The cave gathers these tools in one place, checks them and helps them survive updates."
+      ],
+      principlesTitle: "House rules",
+      principles: [
+        "Downloads are free and need no sign-up. Only publishers need an account.",
+        "Open index: any app, panel or AI assistant can read data/index.json.",
+        "Readable source is required. Nothing runs without you knowing.",
+        "Honest badges: what a script can do, where it was tested and how much AI is in it.",
+        "MIT by default. An abandoned artifact can be adopted."
+      ],
+      glossaryTitle: "Cave glossary",
+      glossary: [
+        ["Artifact", "a script, panel or preset in the catalog"],
+        ["Scroll", "an expression shared on its own"],
+        ["Cave-in", "breakage after an AE update"],
+        ["Adoption", "handing an abandoned artifact to a new maintainer"],
+        ["Torch", "your experience in the cave"]
+      ],
+      roadmapTitle: "Where we dig next",
+      roadmap: [
+        "After Effects: catalog, install panel, compatibility marks.",
+        "Blender: an extensions repository that Blender 4.2+ connects natively.",
+        "Houdini, Nuke, DaVinci Resolve: packages, menus and Reactor atoms.",
+        "An MCP server so AI assistants find checked scripts instead of generating them again."
+      ],
+      foot: function (d) { return "VFX Cave · prototype · index built " + d; },
+      footIndex: "data/index.json",
+      footRepo: "source on GitHub",
+      xpShort: "XP"
+    }
+  };
+  function t() { return T[state.lang]; }
+  function L(obj) { return obj ? (obj[state.lang] || obj.ru || obj.en || "") : ""; }
+
+  // -------------------------------------------------------------- utils
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  var RISKY = { shell: 1, network: 1, eval: 1 };
+  function detectedCaps(it) { return it.checks.capabilities.filter(function (c) { return c.detected; }); }
+  function openWarnings(it) { return it.checks.warnings.filter(function (w) { return !w.polyfilled; }); }
+  function fmtDate(iso) {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleDateString(state.lang === "ru" ? "ru-RU" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch (e) { return iso.slice(0, 10); }
+  }
+  function fmtSize(n) { return n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB"; }
+  var toastTimer;
+  function toast(msg) {
+    var el = document.getElementById("toast");
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 2200);
+  }
+
+  // ---------------------------------------------------------------- XP
+  function xpTotal() {
+    var n = 0;
+    Object.keys(state.votes).forEach(function (id) { n += Object.keys(state.votes[id]).length * 5; });
+    return n;
+  }
+  function rankFor(xp) {
+    var ranks = t().ranks, cur = 0;
+    for (var i = 0; i < ranks.length; i++) if (xp >= ranks[i][1]) cur = i;
+    return cur;
+  }
+
+  // ------------------------------------------------------------ chrome
+  var VIEWS = ["catalog", "requests", "submit", "path", "about"];
+  function currentView() {
+    var h = location.hash.replace(/^#/, "");
+    if (!h || h === "catalog") return { view: "catalog" };
+    if (VIEWS.indexOf(h) >= 0) return { view: h };
+    if (BY_ID[h]) return { view: "script", id: h };
+    return { view: "catalog" };
+  }
+  function renderChrome(view) {
+    var s = t();
+    document.documentElement.lang = state.lang;
+    document.getElementById("nav").innerHTML = VIEWS.map(function (v) {
+      var active = view === v || (v === "catalog" && view === "script");
+      return '<a href="#' + v + '"' + (active ? ' aria-current="page"' : "") + ">" + esc(s.nav[v]) + "</a>";
+    }).join("");
+    var xp = xpTotal();
+    document.getElementById("xp").innerHTML = '<span aria-hidden="true">▲</span><b>' + xp + "</b> " + s.xpShort + " · " + esc(s.ranks[rankFor(xp)][0]);
+    Array.prototype.forEach.call(document.querySelectorAll(".lang button"), function (b) {
+      b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === state.lang));
+    });
+    document.getElementById("foot").innerHTML =
+      "<span>" + esc(s.foot(fmtDate(INDEX.generated))) + "</span>" +
+      '<span><a href="data/index.json">' + s.footIndex + '</a> · <a href="' + esc(INDEX.repo) + '" target="_blank" rel="noopener">' + esc(s.footRepo) + "</a> · MIT</span>";
+  }
+
+  // ----------------------------------------------------------- catalog
+  function badgeRow(it, compact) {
+    var s = t();
+    var html = detectedCaps(it).map(function (c) {
+      var cls = "cap" + (RISKY[c.id] ? " risk" : "") + (c.declared ? "" : " undeclared");
+      return '<span class="' + cls + '" title="' + esc(s.caps[c.id][1] + (c.declared ? "" : " (" + s.undeclared + ")")) + '">' + esc(s.caps[c.id][0]) + "</span>";
+    }).join("");
+    var w = openWarnings(it);
+    if (w.length && !compact) html += w.map(function (x) { return '<span class="cap warn" title="' + esc(s.warns[x.code]) + '">' + esc(x.code) + "</span>"; }).join("");
+    else if (w.length) html += '<span class="cap warn" title="' + esc(w.map(function (x) { return s.warns[x.code]; }).join(" ")) + '">ES5 / JSON</span>';
+    if (it.checks.syntax && it.checks.syntax.level === "es3") html += '<span class="cap" title="' + esc(s.syntax.es3) + '">ES3 ✓</span>';
+    return html;
+  }
+
+  function matches(it, q) {
+    if (!q) return true;
+    var hay = [it.id, it.title.ru, it.title.en, it.summary.ru, it.summary.en, (it.tags || []).join(" "), t().cats[it.category] || ""].join(" ").toLowerCase();
+    return q.toLowerCase().split(/\s+/).every(function (w) { return hay.indexOf(w) >= 0; });
+  }
+  function passesTrust(it) {
+    if (state.trust === "safe") return !detectedCaps(it).some(function (c) { return RISKY[c.id]; }) && it.checks.status !== "blocked";
+    if (state.trust === "clean") return it.checks.status === "ok" && !openWarnings(it).length && !detectedCaps(it).some(function (c) { return !c.declared; });
+    return true;
+  }
+  function visibleItems() {
+    var list = ITEMS.filter(function (it) {
+      return matches(it, state.query) && (state.category === "all" || it.category === state.category) && passesTrust(it);
+    });
+    var s = t();
+    list.sort(function (a, b) {
+      if (state.sort === "new") return (b.added || "").localeCompare(a.added || "") || L(a.title).localeCompare(L(b.title));
+      if (state.sort === "category") return (s.cats[a.category] || "").localeCompare(s.cats[b.category] || "") || L(a.title).localeCompare(L(b.title));
+      return L(a.title).localeCompare(L(b.title), state.lang);
+    });
+    return list;
+  }
+
+  function card(it) {
+    var s = t();
+    return '<article class="card">' +
+      '<div class="card-top"><span class="meta">' + esc(s.kind[it.kind] || it.kind) + " · " + esc(s.cats[it.category] || it.category) + "</span>" +
+      '<span class="status ' + it.checks.status + '">' + esc(s.status[it.checks.status]) + "</span></div>" +
+      '<h3><a href="#' + it.id + '">' + esc(L(it.title)) + "</a></h3>" +
+      "<p>" + esc(L(it.summary)) + "</p>" +
+      '<div class="badges">' + badgeRow(it, true) + "</div>" +
+      "</article>";
+  }
+
+  function renderCatalog(app, keepFocus) {
+    var s = t();
+    var counts = { ok: 0, review: 0, blocked: 0 };
+    ITEMS.forEach(function (it) { counts[it.checks.status]++; });
+    var cats = {};
+    ITEMS.forEach(function (it) { cats[it.category] = (cats[it.category] || 0) + 1; });
+    var catKeys = Object.keys(s.cats).filter(function (k) { return cats[k]; });
+    var list = visibleItems();
+
+    if (!keepFocus) {
+      app.innerHTML =
+        '<section class="wrap hero">' +
+          "<div>" +
+            '<p class="eyebrow">' + esc(s.heroEyebrow) + "</p>" +
+            "<h1>" + esc(s.heroTitle) + "</h1>" +
+            '<p class="lead">' + esc(s.heroLead) + "</p>" +
+          "</div>" +
+          '<div class="term">' +
+            '<div class="term-bar"><i></i><i></i><i></i><span>' + esc(s.termTitle) + "</span></div>" +
+            '<label for="q"><span class="prompt">cave&gt;</span><input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="' + esc(s.searchPh) + '" aria-label="' + esc(s.searchLabel) + '"></label>' +
+            '<div class="term-hint">' + esc(s.tryLabel) + " " + s.tries.map(function (w) { return '<button type="button" data-try="' + esc(w) + '">' + esc(w) + "</button>"; }).join("") + "</div>" +
+          "</div>" +
+        "</section>" +
+        '<div class="wrap"><div class="ledger">' +
+          "<span><b>" + ITEMS.length + "</b>" + esc(s.ledger.items) + "</span>" +
+          "<span><b>" + counts.ok + "</b>" + esc(s.ledger.ok) + "</span>" +
+          "<span><b>" + counts.review + "</b>" + esc(s.ledger.review) + "</span>" +
+          "<span><b>" + counts.blocked + "</b>" + esc(s.ledger.blocked) + "</span>" +
+          "<span><b>0</b>" + esc(s.ledger.signup) + "</span>" +
+          '<span><a href="data/index.json">' + esc(s.ledger.index) + "</a></span>" +
+        "</div></div>" +
+        '<div class="wrap"><div class="controls">' +
+          '<div class="hosts" role="group" aria-label="' + esc(s.hostsLabel) + '">' +
+            INDEX.hosts.map(function (h) {
+              if (h.status === "open") return '<button type="button" class="host" aria-pressed="true">' + esc(h.name || h.id) + " <small>" + ITEMS.length + "</small></button>";
+              var names = { blender: "Blender", houdini: "Houdini", nuke: "Nuke", resolve: "DaVinci Resolve" };
+              return '<button type="button" class="host" disabled>' + esc(names[h.id] || h.id) + " <small>" + esc(s.soon) + "</small></button>";
+            }).join("") +
+          "</div>" +
+          '<div class="row" id="cats" role="group"></div>' +
+          '<div class="selects">' +
+            '<div class="row">' +
+              '<label for="trust">' + esc(s.trustLabel) + ' <select id="trust">' + ["all", "safe", "clean"].map(function (k) { return '<option value="' + k + '">' + esc(s.trust[k]) + "</option>"; }).join("") + "</select></label>" +
+              '<label for="sort">' + esc(s.sortLabel) + ' <select id="sort">' + ["name", "new", "category"].map(function (k) { return '<option value="' + k + '">' + esc(s.sort[k]) + "</option>"; }).join("") + "</select></label>" +
+            "</div>" +
+            '<span class="found" id="found" aria-live="polite"></span>' +
+          "</div>" +
+        "</div></div>" +
+        '<div class="wrap"><div class="grid" id="grid"></div></div>';
+
+      var q = document.getElementById("q");
+      q.value = state.query;
+      q.addEventListener("input", function () { state.query = q.value.trim(); renderCatalog(app, true); });
+      app.querySelector(".term-hint").addEventListener("click", function (e) {
+        var w = e.target.getAttribute && e.target.getAttribute("data-try");
+        if (!w) return;
+        q.value = w; state.query = w; renderCatalog(app, true); q.focus();
+      });
+      var trust = document.getElementById("trust"), sort = document.getElementById("sort");
+      trust.value = state.trust; sort.value = state.sort;
+      trust.addEventListener("change", function () { state.trust = trust.value; save("trust", state.trust); renderCatalog(app, true); });
+      sort.addEventListener("change", function () { state.sort = sort.value; save("sort", state.sort); renderCatalog(app, true); });
+      document.getElementById("cats").addEventListener("click", function (e) {
+        var b = e.target.closest("[data-cat]");
+        if (!b) return;
+        state.category = b.getAttribute("data-cat");
+        renderCatalog(app, true);
+      });
+    }
+
+    document.getElementById("cats").innerHTML =
+      ['<button type="button" class="chip" data-cat="all" aria-pressed="' + (state.category === "all") + '">' + esc(s.allCats) + " <small>" + ITEMS.length + "</small></button>"]
+        .concat(catKeys.map(function (k) {
+          return '<button type="button" class="chip" data-cat="' + k + '" aria-pressed="' + (state.category === k) + '">' + esc(s.cats[k]) + " <small>" + cats[k] + "</small></button>";
+        })).join("");
+    document.getElementById("found").textContent = s.found(list.length);
+    document.getElementById("grid").innerHTML = list.length
+      ? list.map(card).join("")
+      : '<div class="empty">' + esc(s.empty) + ' <a href="#requests">' + esc(s.emptyLink) + "</a></div>";
+  }
+
+  // ------------------------------------------------------------ script
+  function checkList(it) {
+    var s = t(), c = it.checks, out = [];
+    if (c.missingIncludes.length) c.missingIncludes.forEach(function (m) { out.push(["bad", s.missing(m.spec, m.from)]); });
+    if (c.syntax) {
+      var lvl = c.syntax.level;
+      var cls = lvl === "es3" ? "ok" : lvl === "es5" ? "warn" : "bad";
+      var extra = c.syntax.es3Error && lvl !== "es3" ? "<small>ES3: " + esc(c.syntax.es3Error.message) + (c.syntax.es3Error.line ? " · line " + c.syntax.es3Error.line : "") + "</small>" : "";
+      out.push([cls, esc(s.syntax[lvl]) + extra]);
+    }
+    if (it.kind !== "preset") out.push(["info", esc(s.inlined(it.inlined.length))]);
+    c.capabilities.forEach(function (cap) {
+      var label = s.caps[cap.id];
+      if (cap.detected) {
+        var where = cap.samples.map(function (x) { return "line " + x.line + ": " + x.code; }).join("\n");
+        out.push([RISKY[cap.id] ? "bad" : cap.declared ? "info" : "warn",
+          "<b>" + esc(label[0]) + ".</b> " + esc(label[1]) + (cap.declared ? "" : " <b>" + esc(s.undeclared) + ".</b>") +
+          (where ? "<small>" + esc(where).replace(/\n/g, "<br>") + "</small>" : "")]);
+      } else {
+        out.push(["info", "<b>" + esc(label[0]) + ".</b> " + esc(s.declaredOnly) + "."]);
+      }
+    });
+    c.warnings.forEach(function (w) {
+      var where = w.samples.map(function (x) { return "line " + x.line + ": " + x.code; }).join("\n");
+      out.push([w.polyfilled ? "ok" : "warn", esc(s.warns[w.code]) + (w.polyfilled ? " <b>" + esc(s.polyfilled) + ".</b>" : "") + (where ? "<small>" + esc(where).replace(/\n/g, "<br>") + "</small>" : "")]);
+    });
+    if (!c.capabilities.length && it.kind !== "preset") out.push(["ok", esc(s.declared(0))]);
+    else if (c.capabilities.length && c.capabilities.every(function (x) { return x.declared === x.detected; })) out.push(["ok", esc(s.declared(1))]);
+    return '<ul class="checks">' + out.map(function (o) { return '<li class="' + o[0] + '"><span>' + o[1] + "</span></li>"; }).join("") + "</ul>";
+  }
+
+  function sourceView(it) {
+    var src = SOURCES[it.id];
+    if (!src) return "";
+    var hits = {};
+    it.checks.capabilities.forEach(function (c) { c.samples.forEach(function (x) { hits[x.line] = 1; }); });
+    it.checks.warnings.forEach(function (w) { if (!w.polyfilled) w.samples.forEach(function (x) { hits[x.line] = 1; }); });
+    var lines = src.split("\n");
+    return '<ol>' + lines.map(function (ln, i) {
+      var cls = hits[i + 1] ? "hit" : /^\s*\/\/ \[cave\]/.test(ln) ? "cave" : "";
+      return "<li" + (cls ? ' class="' + cls + '"' : "") + ">" + (esc(ln) || " ") + "</li>";
+    }).join("") + "</ol>";
+  }
+
+  var AE_VERSIONS = ["AE 2026 (26.x)", "AE 2025 (25.x)", "AE 2024 (24.x)", "AE 2023 (23.x)", "AE 2022 (22.x)"];
+
+  function renderScript(app, id) {
+    var s = t(), it = BY_ID[id], blocked = it.checks.status === "blocked";
+    var caps = detectedCaps(it);
+    var needsPref = caps.some(function (c) { return c.id === "files" || c.id === "shell" || c.id === "network"; });
+    var my = state.votes[id] || {};
+    var ext = it.kind === "preset" ? ".ffx" : ".jsx";
+    var tested = (it.hostVersions && it.hostVersions.tested) || [];
+    var notes = L(it.notes);
+    var aiText = s.ai[(it.ai && it.ai.level) || "unknown"] + (it.ai && it.ai.model ? " · " + it.ai.model : "") + (it.ai && it.ai.humanReviewed && it.ai.level !== "none" && it.ai.level !== "unknown" ? " · " + s.reviewed : "");
+    var steps = state.installTab === "panel" ? s.panelSteps : s.manualSteps(it);
+
+    app.innerHTML =
+      '<div class="wrap">' +
+        '<a class="back" href="#catalog">' + esc(s.back) + "</a>" +
+        '<header class="script-head">' +
+          '<div class="row"><span class="status ' + it.checks.status + '">' + esc(s.status[it.checks.status]) + '</span><span class="meta">' + esc(s.kind[it.kind]) + " · " + esc(s.cats[it.category]) + " · After Effects · " + esc(it.id) + "</span></div>" +
+          "<h1>" + esc(L(it.title)) + "</h1>" +
+          '<p class="lead">' + esc(L(it.summary)) + "</p>" +
+          '<div class="badges">' + badgeRow(it, false) + "</div>" +
+          '<div class="actions">' +
+            (blocked
+              ? '<span class="btn" aria-disabled="true">' + esc(s.blockedBtn) + "</span>"
+              : '<a class="btn primary" href="' + esc(it.file) + '" download="' + esc(it.id + ext) + '">' + esc(s.download) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></a>") +
+            (SOURCES[id] ? '<button type="button" class="btn" id="copy">' + esc(s.copy) + "</button>" : "") +
+          "</div>" +
+        "</header>" +
+        '<div class="layout">' +
+          '<div class="prose">' +
+            "<section><h2>" + esc(s.sections.what) + "</h2><p>" + esc(L(it.description)) + "</p></section>" +
+            "<section><h2>" + esc(s.sections.how) + "</h2><p>" + esc(L(it.usage)) + "</p></section>" +
+            (notes ? "<section><h2>" + esc(s.sections.notes) + '</h2><p class="note">' + esc(notes) + "</p></section>" : "") +
+            "<section><h2>" + esc(s.sections.install) + "</h2>" +
+              '<div class="tabs" role="tablist">' +
+                '<button type="button" role="tab" data-tab="panel" aria-selected="' + (state.installTab === "panel") + '">' + esc(s.tabPanel) + "</button>" +
+                '<button type="button" role="tab" data-tab="manual" aria-selected="' + (state.installTab === "manual") + '">' + esc(s.tabManual) + "</button>" +
+              "</div>" +
+              '<ol class="steps">' + steps.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>" +
+              (needsPref ? '<p class="note">' + s.prefNote + "</p>" : "") +
+            "</section>" +
+            (SOURCES[id] ? "<section><h2>" + esc(s.sections.source) + '</h2><details class="src"><summary>' + esc(s.showSource(it.lines)) + '</summary><div class="code" id="code"></div></details></section>' : "") +
+          "</div>" +
+          '<aside class="side">' +
+            '<div class="panel"><h2>' + esc(s.sections.check) + "</h2>" + checkList(it) + "</div>" +
+            '<div class="panel"><h2>' + esc(s.sections.compat) + "</h2>" +
+              '<div class="votes">' +
+                '<p class="fine">' + esc(s.tested(tested)) + "</p>" +
+                '<p class="fine">' + esc(s.compatLead) + "</p>" +
+                '<label class="fine" for="ver">' + esc(s.compatVersion) + "</label>" +
+                '<select id="ver">' + AE_VERSIONS.map(function (v) { return "<option>" + esc(v) + "</option>"; }).join("") + "</select>" +
+                '<div class="vote-row"><button type="button" class="btn" data-vote="works">' + esc(s.works) + '</button><button type="button" class="btn" data-vote="broken">' + esc(s.broken) + "</button></div>" +
+                (Object.keys(my).length
+                  ? '<p class="fine">' + esc(s.yourVotes) + '</p><ul class="vote-list">' + Object.keys(my).map(function (v) { return '<li class="' + my[v] + '">' + esc(v.split(" (")[0]) + " · " + esc(my[v] === "works" ? s.works : s.broken) + "</li>"; }).join("") + "</ul>"
+                  : "") +
+                '<p class="fine">' + esc(s.localOnly) + "</p>" +
+              "</div>" +
+            "</div>" +
+            '<div class="panel"><h2>' + esc(s.sections.file) + '</h2><dl class="facts">' +
+              "<dt>" + esc(s.facts.author) + "</dt><dd>" + esc(it.author.name) + (it.author.github ? ' · <a href="https://github.com/' + esc(it.author.github) + '" target="_blank" rel="noopener">@' + esc(it.author.github) + "</a>" : "") + "</dd>" +
+              "<dt>" + esc(s.facts.version) + "</dt><dd>" + esc(it.version) + "</dd>" +
+              "<dt>" + esc(s.facts.license) + "</dt><dd>" + esc(it.license) + "</dd>" +
+              "<dt>" + esc(s.facts.ai) + "</dt><dd>" + esc(aiText) + "</dd>" +
+              "<dt>" + esc(s.facts.added) + "</dt><dd>" + esc(fmtDate(it.added)) + "</dd>" +
+              "<dt>" + esc(s.facts.entry) + '</dt><dd><a href="' + esc(INDEX.repo) + "/blob/main/" + encodeURI(it.entry) + '" target="_blank" rel="noopener">' + esc(it.entry) + "</a></dd>" +
+              "<dt>" + esc(s.facts.size) + "</dt><dd>" + fmtSize(it.size) + (it.lines ? " · " + it.lines + " " + esc(s.facts.lines.toLowerCase()) : "") + "</dd>" +
+              "<dt>" + esc(s.facts.sha) + '</dt><dd class="hash">' + esc(it.sha256) + "</dd>" +
+            "</dl></div>" +
+          "</aside>" +
+        "</div>" +
+      "</div>";
+
+    app.querySelector(".tabs").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-tab]");
+      if (!b) return;
+      state.installTab = b.getAttribute("data-tab");
+      var y = window.scrollY;
+      renderScript(app, id);
+      window.scrollTo(0, y);
+    });
+    var details = app.querySelector("details.src");
+    if (details) details.addEventListener("toggle", function () {
+      var box = document.getElementById("code");
+      if (details.open && !box.firstChild) box.innerHTML = sourceView(it);
+    });
+    var copy = document.getElementById("copy");
+    if (copy) copy.addEventListener("click", function () {
+      var text = SOURCES[id];
+      var done = function () { toast(s.copied); };
+      var fail = function () {
+        if (details) { details.open = true; var box = document.getElementById("code"); if (!box.firstChild) box.innerHTML = sourceView(it); }
+        toast(s.copyFail);
+      };
+      try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
+    });
+    app.querySelector(".vote-row").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-vote]");
+      if (!b) return;
+      var ver = document.getElementById("ver").value;
+      var votes = state.votes[id] || {};
+      var isNew = !votes[ver];
+      votes[ver] = b.getAttribute("data-vote");
+      state.votes[id] = votes;
+      save("votes", state.votes);
+      var y = window.scrollY;
+      render();
+      window.scrollTo(0, y);
+      var sel = document.getElementById("ver"); if (sel) sel.value = ver;
+      toast(isNew ? s.voted : s.voted.replace(/^\+5 XP · /, ""));
+    });
+  }
+
+  // ---------------------------------------------------------- requests
+  function renderRequests(app) {
+    var s = t();
+    var mine = state.requests.map(function (r) { return { id: r.id, title: r.title, text: r.text, plus: 0, mine: true }; });
+    var all = mine.slice().reverse().concat(s.examples);
+    app.innerHTML =
+      '<div class="wrap page">' +
+        "<header><h1>" + esc(s.reqTitle) + '</h1><p class="lead">' + esc(s.reqLead) + "</p></header>" +
+        '<div class="cols">' +
+          '<div class="stack" id="reqs">' + all.map(function (r) {
+            var plus = r.plus + (state.plus[r.id] ? 1 : 0);
+            return '<article class="req"><div class="row"><span class="' + (r.mine ? "meta" : "example") + '">' + esc(r.mine ? s.yours : s.example) + '</span><span class="meta">After Effects</span></div>' +
+              "<h3>" + esc(r.title) + "</h3>" + (r.text ? "<p>" + esc(r.text) + "</p>" : "") +
+              '<div class="row"><button type="button" class="chip" data-plus="' + esc(r.id) + '" aria-pressed="' + !!state.plus[r.id] + '">' + esc(s.plusOne) + " <small>" + plus + "</small></button>" +
+              '<button type="button" class="chip" data-take="' + esc(r.id) + '" aria-pressed="' + !!state.takes[r.id] + '">' + esc(state.takes[r.id] ? s.taken : s.take) + "</button></div></article>";
+          }).join("") + "</div>" +
+          '<form class="stack panel" id="req-form" novalidate>' +
+            "<h2>" + esc(s.reqFormTitle) + "</h2>" +
+            '<label for="req-title">' + esc(s.reqName) + '<input type="text" id="req-title" maxlength="140" placeholder="' + esc(s.reqNamePh) + '"></label>' +
+            '<label for="req-text">' + esc(s.reqDesc) + '<textarea id="req-text" maxlength="800" placeholder="' + esc(s.reqDescPh) + '"></textarea></label>' +
+            '<label for="req-host">' + esc(s.reqHost) + '<select id="req-host"><option>After Effects</option><option disabled>Blender — ' + esc(s.soon) + "</option><option disabled>Houdini — " + esc(s.soon) + "</option></select></label>" +
+            '<button type="submit" class="btn primary">' + esc(s.reqSubmit) + "</button>" +
+            '<p class="fine">' + esc(s.localOnly) + "</p>" +
+          "</form>" +
+        "</div>" +
+      "</div>";
+    document.getElementById("reqs").addEventListener("click", function (e) {
+      var p = e.target.closest("[data-plus]"), tk = e.target.closest("[data-take]");
+      if (p) { var id = p.getAttribute("data-plus"); state.plus[id] = !state.plus[id]; save("plus", state.plus); }
+      else if (tk) { var id2 = tk.getAttribute("data-take"); state.takes[id2] = !state.takes[id2]; save("takes", state.takes); }
+      else return;
+      renderRequests(app);
+    });
+    document.getElementById("req-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var title = document.getElementById("req-title").value.trim();
+      var text = document.getElementById("req-text").value.trim();
+      if (!title) { toast(s.reqEmptyName); document.getElementById("req-title").focus(); return; }
+      state.requests.push({ id: "my" + Date.now(), title: title, text: text });
+      save("requests", state.requests);
+      renderRequests(app);
+      toast(s.reqAdded);
+    });
+  }
+
+  // ------------------------------------------------------------ submit
+  var SAMPLE = {
+    id: "layer-grid",
+    version: "1.0.0",
+    entry: "scripts/layer-grid.jsx",
+    host: "aftereffects",
+    kind: "script",
+    category: "layers",
+    title: { ru: "Слои по сетке", en: "Layers to grid" },
+    summary: { ru: "Раскладывает выделенные слои по сетке с отступом.", en: "Lays selected layers out on a grid with spacing." },
+    description: { ru: "…", en: "…" },
+    usage: { ru: "Выделите слои и запустите скрипт.", en: "Select layers and run the script." },
+    tags: ["layout", "grid", "position"],
+    hostVersions: { min: "CC 2019", tested: ["AE 2025"] },
+    author: { name: "Your Name", github: "your-login" },
+    license: "MIT",
+    ai: { level: "assisted", model: "Claude", humanReviewed: true },
+    permissions: [],
+    requires: [],
+    notes: { ru: "", en: "" }
+  };
+  function renderSubmit(app) {
+    var s = t();
+    app.innerHTML =
+      '<div class="wrap page">' +
+        "<header><h1>" + esc(s.submitTitle) + '</h1><p class="lead">' + esc(s.submitLead) + "</p></header>" +
+        '<div class="cols">' +
+          '<div class="stack">' +
+            '<ol class="steps">' + s.submitSteps.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>" +
+            '<div class="panel"><h2>' + esc(s.autoTitle) + '</h2><ul class="plain">' + s.autoList.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
+            '<div class="panel"><h2>' + esc(s.aiTitle) + "</h2><p class=\"fine\" style=\"font-size:var(--step--1);color:var(--dust)\">" + esc(s.aiText) + "</p></div>" +
+            '<p class="note">' + esc(s.noPoints) + ' <a href="#path">' + esc(s.nav.path) + "</a></p>" +
+          "</div>" +
+          '<div class="stack"><h2 style="font:500 var(--step--1)/1.2 var(--f-mono);color:var(--torch);text-transform:uppercase;letter-spacing:.1em">' + esc(s.manifestTitle) + ' · catalog/layer-grid.json</h2><pre class="manifest">' + esc(JSON.stringify(SAMPLE, null, 2)) + "</pre></div>" +
+        "</div>" +
+      "</div>";
+  }
+
+  // -------------------------------------------------------------- path
+  function renderPath(app) {
+    var s = t(), xp = xpTotal(), r = rankFor(xp), ranks = s.ranks;
+    var next = ranks[r + 1];
+    var pct = next ? Math.round(((xp - ranks[r][1]) / (next[1] - ranks[r][1])) * 100) : 100;
+    app.innerHTML =
+      '<div class="wrap page">' +
+        "<header><h1>" + esc(s.pathTitle) + '</h1><p class="lead">' + esc(s.pathLead) + "</p></header>" +
+        '<div class="panel"><h2>' + esc(s.yourXp) + ": " + xp + " XP · " + esc(ranks[r][0]) + "</h2>" +
+          '<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
+          '<p class="fine">' + esc(next ? s.nextRank(next[1] - xp, next[0]) : s.maxRank) + " " + esc(s.localOnly) + "</p>" +
+        "</div>" +
+        '<div class="ranks">' + ranks.map(function (x, i) {
+          return '<div class="rank' + (i === r ? " current" : "") + '"><b>' + esc(x[0]) + "</b><span>" + x[1] + "+ XP</span></div>";
+        }).join("") + "</div>" +
+        '<div class="cols">' +
+          '<div class="stack"><h2>' + esc(s.xpRulesTitle) + '</h2><div style="overflow-x:auto"><table class="xp-table"><thead><tr><th>' + esc(s.xpHead[0]) + '</th><th style="text-align:right">' + esc(s.xpHead[1]) + "</th></tr></thead><tbody>" +
+            s.xpRules.map(function (x) {
+              return '<tr class="' + (x[1] === 0 ? "zero" : "") + '"><td>' + esc(x[0]) + (x[2] ? ' <span class="example" style="color:var(--moss);border-color:var(--moss)">' + esc(s.live) + "</span>" : "") + '</td><td class="num">' + (x[1] ? "+" + x[1] : "0") + "</td></tr>";
+            }).join("") +
+          '</tbody></table></div><p class="note">' + esc(s.zeroNote) + "</p></div>" +
+          '<div class="stack"><h2>' + esc(s.badgesTitle) + '</h2><dl class="glossary">' + s.badges.map(function (b) { return "<dt>" + esc(b[0]) + "</dt><dd>" + esc(b[1]) + "</dd>"; }).join("") + "</dl></div>" +
+        "</div>" +
+      "</div>";
+  }
+
+  // ------------------------------------------------------------- about
+  function renderAbout(app) {
+    var s = t();
+    app.innerHTML =
+      '<div class="wrap page">' +
+        "<header><h1>" + esc(s.aboutTitle) + '</h1><p class="lead">' + esc(s.aboutLead) + "</p></header>" +
+        '<div class="cols">' +
+          '<div class="stack">' + s.aboutText.map(function (p) { return '<p style="margin:0;max-width:62ch">' + esc(p) + "</p>"; }).join("") +
+            '<div class="panel"><h2>' + esc(s.principlesTitle) + '</h2><ul class="plain">' + s.principles.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
+          "</div>" +
+          '<div class="stack">' +
+            '<div class="panel"><h2>' + esc(s.glossaryTitle) + '</h2><dl class="glossary">' + s.glossary.map(function (g) { return "<dt>" + esc(g[0]) + "</dt><dd>" + esc(g[1]) + "</dd>"; }).join("") + "</dl></div>" +
+            '<div class="panel"><h2>' + esc(s.roadmapTitle) + '</h2><ul class="plain">' + s.roadmap.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
+          "</div>" +
+        "</div>" +
+      "</div>";
+  }
+
+  // ------------------------------------------------------------ router
+  var lastView = null;
+  function render() {
+    var route = currentView();
+    var app = document.getElementById("app");
+    renderChrome(route.view);
+    if (route.view === "script") renderScript(app, route.id);
+    else if (route.view === "requests") renderRequests(app);
+    else if (route.view === "submit") renderSubmit(app);
+    else if (route.view === "path") renderPath(app);
+    else if (route.view === "about") renderAbout(app);
+    else renderCatalog(app, false);
+    var key = route.view + (route.id || "");
+    if (key !== lastView) { window.scrollTo(0, 0); lastView = key; }
+    document.title = route.view === "script" ? L(BY_ID[route.id].title) + " · VFX Cave" : "VFX Cave";
+  }
+
+  document.querySelector(".lang").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-lang]");
+    if (!b) return;
+    state.lang = b.getAttribute("data-lang");
+    save("lang", state.lang);
+    var y = window.scrollY;
+    lastView = currentView().view + (currentView().id || "");
+    render();
+    window.scrollTo(0, y);
+  });
+  window.addEventListener("hashchange", render);
+  render();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "name": "VFX Cave",
+  "generated": "2026-10-21T19:23:03.262Z",
+  "repo": "https://github.com/SqBrain/Scriplets",
+  "site": "https://sqbrain.github.io/Scriplets/",
+  "hosts": [
+    {
+      "id": "aftereffects",
+      "name": "After Effects",
+      "status": "open"
+    },
+    {
+      "id": "blender",
+      "status": "soon"
+    },
+    {
+      "id": "houdini",
+      "status": "soon"
+    },
+    {
+      "id": "nuke",
+      "status": "soon"
+    },
+    {
+      "id": "resolve",
+      "status": "soon"
+    }
+  ],
+  "items": [
+    {
+      "id": "vfx-cave-panel",
+      "version": "0.1.0",
+      "host": "aftereffects",
+      "kind": "panel",
+      "category": "utility",
+      "title": {
+        "ru": "Панель VFX Cave",
+        "en": "VFX Cave panel"
+      },
+      "summary": {
+        "ru": "Ищет, устанавливает и запускает артефакты из каталога прямо в After Effects, сверяя sha256 с индексом.",
+        "en": "Finds, installs and runs catalog artifacts right inside After Effects, checking each sha256 against the index."
+      },
+      "description": {
+        "ru": "Докуемая панель читает открытый индекс data/index.json по адресу https:// или из локальной папки сайта. Скачивает файлы через curl, проверяет sha256, отказывается ставить отозванные и непрошедшие проверки версии. Перед первым запуском скрипта с доступом к файлам, shell, сети или eval показывает, что он умеет, и спрашивает разрешение. Установленные артефакты лежат в папке пользователя, права администратора не нужны.",
+        "en": "A dockable panel that reads the open data/index.json from an https:// URL or a local site folder. It downloads files with curl, checks their sha256 and refuses revoked versions or ones that failed the checks. Before the first run of a script with file, shell, network or eval access it shows what the script can do and asks for permission. Installed artifacts live in the user data folder, so no admin rights are needed."
+      },
+      "usage": {
+        "ru": "Положите файл в Scripts/ScriptUI Panels, перезапустите AE и откройте Window > VFX Cave.jsx. Нажмите «Обновить», найдите артефакт, нажмите «Установить», затем «Запустить» или двойной щелчок.",
+        "en": "Put the file into Scripts/ScriptUI Panels, restart AE and open Window > VFX Cave.jsx. Click Refresh, find an artifact, click Install, then Run or double-click it."
+      },
+      "notes": {
+        "ru": "Прототип, в After Effects пока не тестировался. Нужен флажок Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Для скачивания по https:// нужен curl: он есть в macOS и в Windows 10 и новее.",
+        "en": "Prototype, not yet tested inside After Effects. Needs Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Downloading over https:// needs curl, which ships with macOS and Windows 10 or later."
+      },
+      "tags": [
+        "installer",
+        "catalog",
+        "panel",
+        "sha256"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "VFX Cave",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "assisted",
+        "model": "Claude",
+        "humanReviewed": false
+      },
+      "entry": "portal/panel/VFX Cave.jsx",
+      "added": null,
+      "updated": null,
+      "file": "dl/vfx-cave-panel.jsx",
+      "size": 25554,
+      "sha256": "de31471d9e14444456260f189a3af82f78f899c9c5d454bdd27e4f683e3e21b7",
+      "lines": 555,
+      "inlined": [],
+      "checks": {
+        "status": "review",
+        "syntax": {
+          "level": "es3",
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [
+          {
+            "id": "shell",
+            "declared": true,
+            "detected": true,
+            "count": 2,
+            "samples": [
+              {
+                "line": 310,
+                "code": "var out = system.callSystem(isWindows ? \"cmd /c \" + cmd : cmd);"
+              },
+              {
+                "line": 521,
+                "code": "system.callSystem(isWindows ? 'cmd /c start \"\" \"' + url + '\"' : 'open \"' + url + '\"');"
+              }
+            ]
+          },
+          {
+            "id": "network",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 309,
+                "code": "var cmd = 'curl -sSfL --max-time 60 -o \"' + file.fsName + '\" \"' + url + '\"';"
+              }
+            ]
+          },
+          {
+            "id": "files",
+            "declared": true,
+            "detected": true,
+            "count": 10,
+            "samples": [
+              {
+                "line": 289,
+                "code": "var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"
+              },
+              {
+                "line": 289,
+                "code": "var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"
+              },
+              {
+                "line": 290,
+                "code": "var artifacts = new Folder(home.fsName + \"/artifacts\");"
+              }
+            ]
+          },
+          {
+            "id": "eval",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 500,
+                "code": "$.evalFile(file);"
+              }
+            ]
+          },
+          {
+            "id": "settings",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 270,
+                "code": "try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}"
+              }
+            ]
+          }
+        ],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    }
+  ],
+  "revoked": []
+}

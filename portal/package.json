@@ -1,0 +1,15 @@
+{
+  "name": "vfx-cave-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype of VFX Cave: a catalog of After Effects scripts with automatic checks, a static site and an install panel",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node tools/test-panel.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "acorn": "8.14.0"
+  }
+}

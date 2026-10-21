@@ -1,0 +1,32 @@
+{
+  "id": "vfx-cave-panel",
+  "version": "0.1.0",
+  "entry": "portal/panel/VFX Cave.jsx",
+  "host": "aftereffects",
+  "kind": "panel",
+  "category": "utility",
+  "title": { "ru": "Панель VFX Cave", "en": "VFX Cave panel" },
+  "summary": {
+    "ru": "Ищет, устанавливает и запускает артефакты из каталога прямо в After Effects, сверяя sha256 с индексом.",
+    "en": "Finds, installs and runs catalog artifacts right inside After Effects, checking each sha256 against the index."
+  },
+  "description": {
+    "ru": "Докуемая панель читает открытый индекс data/index.json по адресу https:// или из локальной папки сайта. Скачивает файлы через curl, проверяет sha256, отказывается ставить отозванные и непрошедшие проверки версии. Перед первым запуском скрипта с доступом к файлам, shell, сети или eval показывает, что он умеет, и спрашивает разрешение. Установленные артефакты лежат в папке пользователя, права администратора не нужны.",
+    "en": "A dockable panel that reads the open data/index.json from an https:// URL or a local site folder. It downloads files with curl, checks their sha256 and refuses revoked versions or ones that failed the checks. Before the first run of a script with file, shell, network or eval access it shows what the script can do and asks for permission. Installed artifacts live in the user data folder, so no admin rights are needed."
+  },
+  "usage": {
+    "ru": "Положите файл в Scripts/ScriptUI Panels, перезапустите AE и откройте Window > VFX Cave.jsx. Нажмите «Обновить», найдите артефакт, нажмите «Установить», затем «Запустить» или двойной щелчок.",
+    "en": "Put the file into Scripts/ScriptUI Panels, restart AE and open Window > VFX Cave.jsx. Click Refresh, find an artifact, click Install, then Run or double-click it."
+  },
+  "tags": ["installer", "catalog", "panel", "sha256"],
+  "hostVersions": { "min": null, "tested": [] },
+  "author": { "name": "VFX Cave", "github": "SqBrain" },
+  "license": "MIT",
+  "ai": { "level": "assisted", "model": "Claude", "humanReviewed": false },
+  "permissions": ["files", "shell", "network", "eval", "settings"],
+  "requires": [],
+  "notes": {
+    "ru": "Прототип, в After Effects пока не тестировался. Нужен флажок Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Для скачивания по https:// нужен curl: он есть в macOS и в Windows 10 и новее.",
+    "en": "Prototype, not yet tested inside After Effects. Needs Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network. Downloading over https:// needs curl, which ships with macOS and Windows 10 or later."
+  }
+}
