@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "VFX Cave",
-  "generated": "2026-10-21T19:23:03.262Z",
+  "generated": "2026-10-21T19:34:08.796Z",
   "repo": "https://github.com/SqBrain/Scriplets",
   "site": "https://sqbrain.github.io/Scriplets/",
   "hosts": [
@@ -28,6 +28,3273 @@
     }
   ],
   "items": [
+    {
+      "id": "add-controllable-matte",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "mattes",
+      "title": {
+        "ru": "Авто-плашка или матт",
+        "en": "Auto-Size Plate or Matte"
+      },
+      "summary": {
+        "ru": "Подкладывает под слой плашку, которая подстраивается под его размер (с Alt — трек-матт), с настройкой отступов.",
+        "en": "Adds a self-resizing plate behind each selected layer (Alt: a track matte) with padding controls."
+      },
+      "description": {
+        "ru": "Записывает встроенный пресет псевдоэффекта mattePreset.ffx (Top, Bottom, Left, Right, X Axis, Y Axis) в папку пользовательских данных и применяет его к новому шейп-слою, чей прямоугольник повторяет sourceRectAtTime() слоя плюс отступы; есть слайдер Minimal Width и белая заливка. Выделенный слой получает слайдеры xAxis/yAxis и экспрешен на Anchor Point, который ими управляется. По умолчанию — плашка под слоем, которая следует за его позицией. С Alt — скрытый матт над слоем: слой получает трек-матт Alpha и эффект Transform.",
+        "en": "Writes the embedded pseudo-effect preset mattePreset.ffx (Top, Bottom, Left, Right, X Axis, Y Axis) to the user data folder and applies it to a new shape layer whose rectangle follows the layer’s sourceRectAtTime() plus padding, with a Minimal Width slider and a white fill. The selected layer gets xAxis/yAxis sliders and an Anchor Point expression driven by them. Default: a plate below the layer that follows its position. Alt: a hidden matte above it, and the layer gets an Alpha track matte plus a Transform effect."
+      },
+      "usage": {
+        "ru": "Включите Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network (в старых версиях — Preferences > General). Выделите текстовые или другие слои и запустите скрипт; с Alt вместо плашки будет матт.",
+        "en": "Turn on Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network (Preferences > General in older versions). Select text or other layers and run the script; hold Alt to get a matte instead of a plate."
+      },
+      "notes": {
+        "ru": "Известный баг: библиотека обращается к AUTHOR_NAME и SCRIPT_NAME, а скрипт объявляет только authorName и scriptName, поэтому при включённом доступе к файлам он падает с ReferenceError, ничего не сделав. Перед публикацией нужно починить. Если опция доступа к файлам выключена, скрипт открывает окно настроек. Камеры и свет не отсекаются (проверка никогда не срабатывает). Скрипт реально пишет файлы, меняет прототипы и вызывает команду меню; shell и settings объявлены только потому, что в сборку попадает вся lib/index.jsx.",
+        "en": "Known bug: the library refers to AUTHOR_NAME and SCRIPT_NAME, but the script only defines authorName and scriptName, so with file access enabled it stops with a ReferenceError before doing anything. Needs a fix before publishing. If file access is off, the script opens the Preferences dialog. Camera and light layers are not filtered out (the check can never be true). The script really writes files, changes prototypes and runs a menu command; shell and settings are declared only because the whole lib/index.jsx is inlined into the build."
+      },
+      "tags": [
+        "plate",
+        "track-matte",
+        "text",
+        "pseudo-effect",
+        "rig"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "addControllableMatte.jsx",
+      "added": "2020-10-06T11:23:32+03:00",
+      "updated": "2020-10-06T11:23:32+03:00",
+      "file": "dl/add-controllable-matte.jsx",
+      "size": 66895,
+      "sha256": "2e61543bd7fb0a5febf303508ae419b1ea053e34b58be289f45c3caa463f7086",
+      "lines": 1484,
+      "inlined": [
+        "lib/index.jsx",
+        "lib/constants.jsx",
+        "lib/supportingFunctions.jsx",
+        "lib/appLevelFunctions.jsx",
+        "lib/compLevelFunctions.jsx",
+        "lib/propertyLevelFunctions.jsx",
+        "lib/alertFunctions.jsx",
+        "lib/fileDataFunctions.jsx",
+        "lib/checkFunctions.jsx",
+        "lib/prototypeLevelFunctions.jsx",
+        "lib/controllerFunctions.jsx",
+        "lib/moveAnchorPoint.jsx",
+        "lib/timeRefactor.jsx",
+        "lib/mathModule.jsx",
+        "lib/colorModule.jsx",
+        "lib/highOrderFunctions.jsx",
+        "MattePresetBinnaryCode.jsx"
+      ],
+      "checks": {
+        "status": "review",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [
+          {
+            "id": "shell",
+            "declared": true,
+            "detected": true,
+            "count": 2,
+            "samples": [
+              {
+                "line": 743,
+                "code": "system.callSystem( 'cmd /c start \"q\" \"' + url + '\"' );"
+              },
+              {
+                "line": 746,
+                "code": "system.callSystem( cmd );"
+              }
+            ]
+          },
+          {
+            "id": "files",
+            "declared": true,
+            "detected": true,
+            "count": 9,
+            "samples": [
+              {
+                "line": 681,
+                "code": "var userDataFolder = Folder.userData;"
+              },
+              {
+                "line": 682,
+                "code": "var motionScriptFolder = new Folder( userDataFolder.toString() + \"/\" + AUTHOR_NAME );"
+              },
+              {
+                "line": 686,
+                "code": "alert( \"Error creating \" + SCRIPT_NAME + \" folder. The folder will be created in the\\n\" + Folder.temp.toString() + \"\\nfolder\" );"
+              }
+            ]
+          },
+          {
+            "id": "prototypes",
+            "declared": true,
+            "detected": true,
+            "count": 11,
+            "samples": [
+              {
+                "line": 836,
+                "code": "AVLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 837,
+                "code": "TextLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 838,
+                "code": "ShapeLayer.prototype.instance = \"Layer\";"
+              }
+            ]
+          },
+          {
+            "id": "settings",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 329,
+                "code": "app.settings.saveSetting( SCRIPT_NAMESafe, name, value );"
+              }
+            ]
+          },
+          {
+            "id": "menu",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 666,
+                "code": "app.executeCommand( 2359 );"
+              }
+            ]
+          }
+        ],
+        "warnings": [
+          {
+            "code": "json",
+            "polyfilled": false,
+            "count": 2,
+            "samples": [
+              {
+                "line": 309,
+                "code": "return JSON.parse( app.settings.getSetting( SCRIPT_NAMESafe, name ) );"
+              },
+              {
+                "line": 324,
+                "code": "value = JSON.stringify( value );"
+              }
+            ]
+          },
+          {
+            "code": "embedded-data",
+            "polyfilled": false,
+            "count": 1,
+            "samples": []
+          }
+        ],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "add-cross-to-black",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Затемнение в начале и конце",
+        "en": "Fade In/Out from Black"
+      },
+      "summary": {
+        "ru": "Добавляет в выделенные композиции чёрный шейп-слой: выход из черноты и уход в черноту за 15 кадров.",
+        "en": "Adds a black shape layer to each selected comp that fades up from black and back to black over 15 frames."
+      },
+      "description": {
+        "ru": "В каждую композицию, выделенную в панели Project, добавляет сверху чёрный шейп-прямоугольник на весь кадр с именем «Fade to Black» и ключами Opacity: 100 → 0 за первые 15 кадров и 0 → 100 за последние 15. Работает сразу на много композиций, не открывая их.",
+        "en": "Adds a full-frame black rectangle shape layer named “Fade to Black” on top of every composition selected in the Project panel, with Opacity keys 100 → 0 over the first 15 frames and 0 → 100 over the last 15. Works on many comps at once without opening them."
+      },
+      "usage": {
+        "ru": "Выделите композиции в панели Project и запустите скрипт.",
+        "en": "Select compositions in the Project panel and run the script."
+      },
+      "notes": {
+        "ru": "Последний ключ стоит на времени конца композиции — на кадр позже последнего видимого, поэтому последний кадр не полностью чёрный. Рассчитано на композиции, которые начинаются с 0.",
+        "en": "The last key sits at the comp’s end time, one frame after the last visible frame, so the final frame is not fully black. Assumes the comp starts at 0."
+      },
+      "tags": [
+        "fade",
+        "black",
+        "transition",
+        "composition",
+        "batch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "add_cross_to_black.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/add-cross-to-black.jsx",
+      "size": 1310,
+      "sha256": "a406c01b16603cd0dad54727a77ca9075702205aeed6e334fb7a8bf5375ecd70",
+      "lines": 26,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "add-flicker",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "animation",
+      "title": {
+        "ru": "Мерцание прозрачности",
+        "en": "Opacity Flicker"
+      },
+      "summary": {
+        "ru": "Добавляет покадровое мигание Opacity выделенным слоям: от текущего кадра, на входе, на выходе или с двух сторон.",
+        "en": "Adds a frame-by-frame opacity flicker to selected layers at the current time, the in/out points or both."
+      },
+      "description": {
+        "ru": "Если выделены слои (без свойств), ставит ключи Opacity 100/0 через кадр на протяжении 9 кадров. Где именно — зависит от аргумента кнопки KBar: «start» — от входа слоя, «end» — перед выходом, «both» — с обеих сторон; без аргумента (или без KBar) — от текущего кадра. Если выделены свойства, им ставятся ключи 0/100 через кадр на 10 кадров от текущего времени.",
+        "en": "With layers selected (and no properties), it sets Opacity keys alternating 100/0 every frame over 9 frames. Where they go depends on the KBar button argument: “start” — from the layer’s in-point, “end” — before its out-point, “both” — at both ends; without an argument (or outside KBar) — from the current time. If properties are selected instead, they get alternating 0/100 keys over 10 frames from the current time."
+      },
+      "usage": {
+        "ru": "Выделите слои, поставьте индикатор времени туда, где начнётся мерцание, и запустите скрипт; для остальных режимов используйте кнопки KBar с аргументами start, end или both.",
+        "en": "Select layers, put the playhead where the flicker should start and run the script; for the other modes use KBar buttons with the argument start, end or both."
+      },
+      "notes": {
+        "ru": "Существующие ключи в этом отрезке перезаписываются. Режим для выделенных свойств имеет смысл только для одномерных свойств; остальные молча пропускаются.",
+        "en": "Existing keys in that range are overwritten. The selected-properties mode only makes sense for one-dimensional properties; others are skipped silently."
+      },
+      "tags": [
+        "flicker",
+        "opacity",
+        "keyframes",
+        "glitch",
+        "kbar"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "addFlicker.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/add-flicker.jsx",
+      "size": 3440,
+      "sha256": "c0c230164d1b781e5d9b69c6d508149c76d25460471339c41e3a30e10d3fd4ee",
+      "lines": 68,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "add-time-with-slider",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "expressions",
+      "title": {
+        "ru": "Экспрешен time со слайдером",
+        "en": "Time Expression with Speed Slider"
+      },
+      "summary": {
+        "ru": "Задаёт выделенным свойствам экспрешен time * Speed со слайдером скорости на слое или общем Controller.",
+        "en": "Drives the selected properties with time * Speed, where Speed is a slider on the layer or a shared Controller."
+      },
+      "description": {
+        "ru": "Прописывает экспрешен time*spd во все выделенные свойства, которые принимают экспрешены, и добавляет слайдер Speed (100 единиц в секунду). При одном выделенном слое слайдер ставится на него, при нескольких — на шейп-слой «Controller» (создаётся, если его нет). Подходит для бесконечного вращения или счётчиков.",
+        "en": "Sets a time*spd expression on every selected property that accepts expressions and adds a Speed slider (100 units per second). With one layer selected the slider goes on that layer; with several it goes on a shape layer named “Controller” (created if missing). Good for continuous rotation or counters."
+      },
+      "usage": {
+        "ru": "Выделите свойства (например, Rotation) в таймлайне и запустите скрипт; Speed настраивается в Effect Controls.",
+        "en": "Select the properties (e.g. Rotation) in the timeline and run the script; adjust Speed in Effect Controls."
+      },
+      "notes": {
+        "ru": "Экспрешен заменяет значение свойства, а не прибавляется к нему, и возвращает одно число — годится только для одномерных свойств (Rotation, Opacity, слайдеры). Каждый запуск добавляет ещё один слайдер Speed.",
+        "en": "The expression replaces the property’s value instead of adding to it and returns a single number, so it only suits one-dimensional properties (Rotation, Opacity, sliders). Each run adds another Speed slider."
+      },
+      "tags": [
+        "time",
+        "expressions",
+        "sliders",
+        "rotation"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "addTimeWithSlider.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/add-time-with-slider.jsx",
+      "size": 1875,
+      "sha256": "f14b44f5ef5184920addacd22ec36a8ebcfc5d66ba082e0fe4a2bd7f6fd05443",
+      "lines": 49,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "add-wiggle",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "animation",
+      "title": {
+        "ru": "Вигл со слайдерами на слое",
+        "en": "Wiggle with Layer Sliders"
+      },
+      "summary": {
+        "ru": "Добавляет wiggle на выделенные свойства, а слайдеры Freq и Amp создаёт на самом слое.",
+        "en": "Adds wiggle to the selected properties, with Freq and Amp sliders placed on each layer itself."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя ищет Slider Control с именами «Freq» и «Amp» и создаёт недостающие (3 и 10), затем прописывает выделенным свойствам этого слоя экспрешен wiggle, который читает эти слайдеры. Уже существующие слайдеры переиспользуются, так что скрипт можно запускать повторно. Общего контроллера нет: у каждого слоя своя пара слайдеров.",
+        "en": "For each selected layer it looks for Slider Controls named “Freq” and “Amp”, creates whichever is missing (3 and 10), then gives that layer’s selected properties a wiggle expression that reads those sliders. Existing sliders are reused, so you can run it repeatedly. There is no shared controller: every layer gets its own pair."
+      },
+      "usage": {
+        "ru": "Откройте композицию, выделите один слой и нужные свойства и запустите скрипт. Без активной композиции появится «Select composition».",
+        "en": "Open a comp, select one layer and the properties to shake, then run the script. Without an active comp it shows “Select composition”."
+      },
+      "notes": {
+        "ru": "Баг: внутренний цикл использует ту же переменную i, что и внешний, поэтому при нескольких выделенных слоях часть слоёв пропускается. Надёжно работает с одним слоем за раз. Существующие экспрешены перезаписываются.",
+        "en": "Bug: the inner loop reuses the outer loop variable i, so with several layers selected some layers get skipped. Reliable with one layer at a time. Existing expressions are overwritten."
+      },
+      "tags": [
+        "wiggle",
+        "expressions",
+        "sliders"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "add wiggle.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2020-05-30T12:40:26+03:00",
+      "file": "dl/add-wiggle.jsx",
+      "size": 1549,
+      "sha256": "860940a79d1927c81cc0e51c3f0cd805c66ffb6bbd72dd6f5db7beca033f4573",
+      "lines": 52,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "add-wiggle-with-sliders",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "animation",
+      "title": {
+        "ru": "Вигл со слайдерами",
+        "en": "Wiggle with Slider Controls"
+      },
+      "summary": {
+        "ru": "Вешает wiggle на выделенные свойства и выводит амплитуду и частоту на слайдеры Amp и Freq.",
+        "en": "Adds wiggle to the selected properties and puts amplitude and frequency on Amp and Freq sliders."
+      },
+      "description": {
+        "ru": "Прописывает экспрешен wiggle(freq, amp) во все выделенные свойства, которые принимают экспрешены, и связывает его с двумя Slider Control: Amp (10) и Freq (3). Если выделен один слой, слайдеры появляются на нём самом; если несколько — на шейп-слое «Controller» (создаётся или берётся существующий), и одна пара слайдеров управляет всеми. Существующий экспрешен на свойстве заменяется.",
+        "en": "Writes a wiggle(freq, amp) expression into every selected property that accepts expressions and links it to two Slider Controls: Amp (10) and Freq (3). With one layer selected the sliders go on that layer; with several they go on a shape layer named “Controller” (created, or reused if it exists), so one pair of sliders drives them all. Any existing expression on the property is replaced."
+      },
+      "usage": {
+        "ru": "Откройте композицию, выделите в таймлайне свойства, которые нужно «потрясти» (Position, Rotation и т. п.), и запустите скрипт через File > Scripts > Run Script File…. Диалогов нет — Amp и Freq крутите в Effect Controls.",
+        "en": "Open a comp, select the properties you want to shake (Position, Rotation, etc.) in the timeline and run the script via File > Scripts > Run Script File…. There is no dialog; adjust Amp and Freq in Effect Controls."
+      },
+      "notes": {
+        "ru": "Каждый запуск добавляет новую пару слайдеров, даже если Amp и Freq уже есть. Если не выделено ни одного слоя, появится сообщение «No properties selected».",
+        "en": "Each run adds a new pair of sliders even if Amp and Freq already exist. With no layer selected it shows “No properties selected”."
+      },
+      "tags": [
+        "wiggle",
+        "expressions",
+        "sliders",
+        "controller"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Add_Wiggle_with_Sliders.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/add-wiggle-with-sliders.jsx",
+      "size": 2089,
+      "sha256": "51c03dd154f85ff30dc58f6d50ac66bdf419257a6ad670f6d6837ddcb465e37b",
+      "lines": 53,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "alert-reflect",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "utility",
+      "title": {
+        "ru": "Инспектор свойства",
+        "en": "Inspect Property (Reflect)"
+      },
+      "summary": {
+        "ru": "Инструмент для скриптеров: показывает в алерте атрибуты и методы выделенного свойства.",
+        "en": "Scripting tool: shows the attributes and methods of the selected property in an alert."
+      },
+      "description": {
+        "ru": "Берёт выделенное свойство (если выделено два — второе) и через рефлексию ExtendScript выводит список его атрибутов с текущими значениями и список методов. Клавиши-модификаторы меняют вывод: Shift — атрибуты объекта значения, Ctrl — только matchName и тип значения, Alt — голый список имён атрибутов. В проекте ничего не меняется.",
+        "en": "Takes the selected property (the second one if two are selected) and uses ExtendScript reflection to list its attributes with current values and its methods. Modifier keys change the output: Shift shows the attributes of the property’s value object, Ctrl only the matchName and value type, Alt a bare list of attribute names. Nothing in the project is changed."
+      },
+      "usage": {
+        "ru": "Откройте композицию, выделите свойство в таймлайне и запустите скрипт (при необходимости удерживая Shift, Ctrl или Alt). Результат появится в окне алерта.",
+        "en": "Open a comp, select a property in the timeline and run the script, optionally holding Shift, Ctrl or Alt. The result appears in an alert window."
+      },
+      "notes": {
+        "ru": "На macOS проверяется именно Ctrl, а не Cmd.",
+        "en": "On macOS the script checks Ctrl, not Cmd."
+      },
+      "tags": [
+        "developer",
+        "reflection",
+        "properties",
+        "debug"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Alert Reflect.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/alert-reflect.jsx",
+      "size": 3210,
+      "sha256": "099944b2c3fb2e235ec03ae30d12e5c3105db4babca2eb97d68f230ef2adb402",
+      "lines": 107,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "align-points",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Выравнивание точек пути",
+        "en": "Align Path Points"
+      },
+      "summary": {
+        "ru": "Привязывает вершины выделенных путей шейп-слоя к целым и половинным пикселям — и на всех ключах.",
+        "en": "Snaps the vertices of the selected shape paths to whole or half pixels, on every keyframe too."
+      },
+      "description": {
+        "ru": "Для каждого выделенного свойства Path шейп-слоя округляет координаты всех вершин до ближайших 0,5 px — на каждом ключевом кадре, если путь анимирован, иначе в статичном значении. Касательные не трогаются; пути масок не обрабатываются.",
+        "en": "For each selected shape Path property it rounds every vertex coordinate to the nearest 0.5 px — on every keyframe if the path is animated, otherwise on the static value. Tangents are left alone; mask paths are not handled."
+      },
+      "usage": {
+        "ru": "Выделите свойства Path внутри Contents шейп-слоя и запустите скрипт.",
+        "en": "Select Path properties inside a shape layer’s Contents and run the script."
+      },
+      "notes": {
+        "ru": "Оставлен отладочный алерт: список вершин выводится для каждого пути и каждого ключа, на длинной анимации это утомительно. Пересекается с round-path-points.",
+        "en": "A leftover debug alert lists the vertices for every path and every keyframe, which gets tedious on long animations. Overlaps with round-path-points."
+      },
+      "tags": [
+        "paths",
+        "shape-layer",
+        "pixel-snapping",
+        "keyframes"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "alignPoints.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/align-points.jsx",
+      "size": 1841,
+      "sha256": "3de7b9b5003f74a5436183c8215b0936842e2ed21f65e43d60750c07f7b5b3c6",
+      "lines": 56,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "animation-down-up",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "animation",
+      "title": {
+        "ru": "Въезд и выезд с отскоком",
+        "en": "Slide In/Out with Bounce"
+      },
+      "summary": {
+        "ru": "Анимирует выделенные слои: въезд и выезд с фейдом в заданном направлении и инерционным отскоком.",
+        "en": "Animates the selected layers sliding and fading in and out in a chosen direction, with an inertial bounce."
+      },
+      "description": {
+        "ru": "Добавляет каждому слою контролы Amplitude, Frequency, Decay, Angle, Driver и Offset. Слайдер Driver получает ключи −1 → 0 за первые 10 кадров и 0 → 1 за последние 10 с изингом и экспрешен отскока; Position получает экспрешен, который сдвигает слой на Offset (100 px) по направлению Angle, а Opacity проявляется и гаснет за те же кадры. Направление задаётся аргументом KBar: up (по умолчанию), down, left, right.",
+        "en": "Adds Amplitude, Frequency, Decay, Angle, Driver and Offset controls to each layer. The Driver slider is keyed −1 → 0 over the first 10 frames and 0 → 1 over the last 10 with easing, plus a bounce expression; Position gets an expression that shifts the layer by Offset (100 px) along Angle, and Opacity fades in and out over the same frames. Direction comes from the KBar argument: up (default), down, left, right."
+      },
+      "usage": {
+        "ru": "Выделите слои и запустите скрипт; для других направлений используйте кнопки KBar с аргументами up, down, left или right. Offset, Angle и параметры отскока правятся в Effect Controls.",
+        "en": "Select layers and run the script; for other directions use KBar buttons with the argument up, down, left or right. Tweak Offset, Angle and the bounce sliders in Effect Controls."
+      },
+      "notes": {
+        "ru": "Заменяет существующий экспрешен на Position и добавляет ключи Opacity; повторный запуск на том же слое добавит второй набор контролов.",
+        "en": "Replaces any existing Position expression and adds Opacity keys; running it again on the same layer adds a second set of controls."
+      },
+      "tags": [
+        "animation",
+        "bounce",
+        "slide",
+        "expressions",
+        "kbar"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "animationDownUp.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/animation-down-up.jsx",
+      "size": 17161,
+      "sha256": "cc2c415fcf7b3a2215719d918cc66e18661201b5adbe0484844726b9b9687a07",
+      "lines": 397,
+      "inlined": [
+        "lib/constants.jsx",
+        "lib/Ease_Keyframes.jsx"
+      ],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "arrange-layers-to-bot-layer",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Группировка слоёв по началу",
+        "en": "Group Layers by In-Point"
+      },
+      "summary": {
+        "ru": "Ставит рядом в стеке слои с одинаковым началом и привязывает шейпы к риг-слою «Shape Layer 1».",
+        "en": "Stacks selected layers that start on the same frame together and links shapes to a “Shape Layer 1” rig."
+      },
+      "description": {
+        "ru": "Попарно сравнивает выделенные слои и, если два начинаются в одно время, ставит один прямо над другим — так слои с одинаковым входом собираются вместе. Попутно каждый выделенный шейп-слой, кроме последнего, получает Round Corners и эффект Fill, у которых радиус и цвет привязаны экспрешенами к эффектам «Roundness» и «Color Control» слоя «Shape Layer 1».",
+        "en": "Compares the selected layers pairwise and, when two start at the same time, moves one directly above the other, so layers with equal in-points end up together in the stack. Along the way every selected shape layer except the last gets a Round Corners operator and a Fill effect whose radius and color are linked by expression to the “Roundness” and “Color Control” effects on a layer named “Shape Layer 1”."
+      },
+      "usage": {
+        "ru": "Убедитесь, что в композиции есть «Shape Layer 1» с эффектами Roundness и Color Control, выделите слои и запустите скрипт.",
+        "en": "Make sure the comp has a “Shape Layer 1” with Roundness and Color Control effects, select the layers and run the script."
+      },
+      "notes": {
+        "ru": "Сделан под конкретный проект: без слоя «Shape Layer 1» с этими эффектами добавленные экспрешены будут с ошибками. Последний выделенный слой не изменяется.",
+        "en": "Built for a specific project: without a “Shape Layer 1” carrying those effects, the added expressions will error. The last selected layer is never modified."
+      },
+      "tags": [
+        "layers",
+        "order",
+        "shape-layer",
+        "rig"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "arrangeLayersToBotLayer.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/arrange-layers-to-bot-layer.jsx",
+      "size": 1549,
+      "sha256": "a629103025d61d1d7096ac38e180622e4b7078f7e17407f342c3e41cd1486b56",
+      "lines": 38,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "bake-still-expression",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "expressions",
+      "title": {
+        "ru": "Запечь экспрешены в значения",
+        "en": "Bake Expressions to Values"
+      },
+      "summary": {
+        "ru": "Заменяет экспрешены выделенных свойств их вычисленными значениями и удаляет сами экспрешены.",
+        "en": "Replaces expressions on the selected properties with their evaluated values, then removes the expressions."
+      },
+      "description": {
+        "ru": "Для каждого выделенного свойства с экспрешеном: если есть ключи, каждому ключу записывается значение, которое экспрешен даёт в момент этого ключа; если ключей нет, свойство получает статичное значение экспрешена на входе слоя. Затем экспрешен удаляется. Это «статичное» запекание: покадровые ключи не создаются, и движение, которое экспрешен давал между ключами, теряется.",
+        "en": "For each selected property with an expression: if it has keyframes, each key gets the value the expression produces at that key’s time; otherwise the property gets the static value the expression gives at the layer’s in-point. The expression is then removed. It is a “still” bake: no per-frame keys are created, so motion the expression produced between keys is lost."
+      },
+      "usage": {
+        "ru": "Выделите свойства с экспрешенами в таймлайне и запустите скрипт.",
+        "en": "Select properties with expressions in the timeline and run the script."
+      },
+      "notes": {
+        "ru": "Если нужна вся анимация, используйте штатное Animation > Keyframe Assistant > Convert Expression to Keyframes.",
+        "en": "If you need the full animation, use the built-in Animation > Keyframe Assistant > Convert Expression to Keyframes."
+      },
+      "tags": [
+        "expressions",
+        "bake",
+        "keyframes",
+        "cleanup"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "bakeStillExpression.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/bake-still-expression.jsx",
+      "size": 1295,
+      "sha256": "6194ef2d51a5262300f4c7fb3e966b8e3aff6512419fac18dce61129c14193a7",
+      "lines": 30,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "botya-create-matte",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "mattes",
+      "title": {
+        "ru": "Блики и тени через матт",
+        "en": "Highlight & Shadow Mattes"
+      },
+      "summary": {
+        "ru": "Собирает размытые проходы бликов или тени для выделенных слоёв из дубликатов, трек-маттов и режимов наложения.",
+        "en": "Builds blurred highlight or shadow passes for selected layers from duplicates, track mattes and blend modes."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя (кроме камер и света) создаёт скрытый дубликат «… Matte» без эффектов, но с Fast Box Blur, и второй дубликат, который использует его как трек-матт. Режим Highlight (по умолчанию) делает две такие пары — с размытием 3 и 30, режим Screen и матт Alpha Inverted; режим Shadow — одну пару с размытием 30, Multiply и матт Alpha. Если выделено несколько слоёв, создаётся (или берётся существующий) шейп-слой «Controller» со слайдерами прозрачности и размытия, и проходы привязываются к нему экспрешенами.",
+        "en": "For each selected layer (cameras and lights are skipped) it creates a hidden “… Matte” duplicate with its effects stripped and Fast Box Blur added, plus a second duplicate that uses it as a track matte. Highlight mode (the default) builds two such pairs — blur 3 and 30, Screen blending, Alpha Inverted matte; Shadow mode builds one pair with blur 30, Multiply and an Alpha matte. With several layers selected it creates (or reuses) a shape layer “Controller” with opacity and blur sliders and links the passes to it with expressions."
+      },
+      "usage": {
+        "ru": "Выделите один или несколько слоёв и запустите скрипт — получатся блики. Для теней запускайте его кнопкой KBar с аргументом «Shadow» (аргумент «Highlight» — блики).",
+        "en": "Select one or more layers and run the script to get highlights. For shadows, run it from a KBar button with the argument “Shadow” (“Highlight” gives highlights)."
+      },
+      "notes": {
+        "ru": "Нужен AE 2023+ (используется setTrackMatte). Эффект добавляется по английскому имени «Fast Box Blur», поэтому в локализованном AE может не сработать. В режиме Shadow с контроллером размытие тени привязано к слайдеру «Highlight Secondary Blur» — отдельного слайдера для тени нет. Если слой «Controller» уже есть, но без этих слайдеров, экспрешены выдадут ошибку.",
+        "en": "Needs AE 2023+ (uses setTrackMatte). The blur is added by its English name “Fast Box Blur”, so it may fail in localized versions of AE. In Shadow mode with a Controller the shadow blur is linked to the “Highlight Secondary Blur” slider — there is no separate shadow blur slider. If a “Controller” layer already exists without these sliders, the expressions will error."
+      },
+      "tags": [
+        "matte",
+        "highlight",
+        "shadow",
+        "blur",
+        "kbar"
+      ],
+      "hostVersions": {
+        "min": "2023 (23.0)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "BOTYA_createMatte.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/botya-create-matte.jsx",
+      "size": 5306,
+      "sha256": "ff38644cb080bfda07b8a36ceeb2367a070c7d0feb812afd2931c124cf07099a",
+      "lines": 119,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "change-comp-resolution",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Размер и fps пачкой",
+        "en": "Batch Comp Size and FPS"
+      },
+      "summary": {
+        "ru": "Меняет ширину, высоту и при желании fps выделенных в Project композиций; с Alt — масштаб слоёв.",
+        "en": "Changes width, height and optionally frame rate of comps selected in the Project panel; Alt sets layer scale."
+      },
+      "description": {
+        "ru": "Показывает запрос «width height fps» и применяет значения ко всем композициям, выделенным в панели Project (fps можно не указывать). «mul 0.5» вместо этого умножает текущий размер. С Alt работает с выделенными слоями активной композиции и спрашивает «X Y» для Scale (слои с ключами Scale пропускаются). При смене размера композиции слои не масштабируются.",
+        "en": "Shows a prompt for “width height fps” and applies the values to every composition selected in the Project panel (fps is optional). “mul 0.5” multiplies the current size instead. With Alt held it works on the selected layers of the active comp and asks for “X Y” to set their Scale (layers with Scale keyframes are skipped). Layers are not rescaled when the comp size changes."
+      },
+      "usage": {
+        "ru": "Выделите композиции в Project, запустите скрипт и введите, например, «1920 1080 25» или «mul 0.5». Для масштаба слоёв выделите их в таймлайне, запустите скрипт с зажатым Alt и введите, например, «50 50».",
+        "en": "Select comps in the Project panel, run the script and enter e.g. “1920 1080 25” or “mul 0.5”. For layer scale, select layers in the timeline, hold Alt while launching and enter e.g. “50 50”."
+      },
+      "notes": {
+        "ru": "Баги: нажатие Cancel вызывает ошибку; вариант «--» (пропустить значение) реализован наполовину и ломается; «mul» в режиме Alt использует векторную арифметику, которой нет в ExtendScript, и не сработает.",
+        "en": "Bugs: pressing Cancel throws an error; the “--” (skip a value) option is half-implemented and breaks; “mul” in Alt mode uses array math that ExtendScript doesn’t support, so it fails."
+      },
+      "tags": [
+        "composition",
+        "resolution",
+        "frame-rate",
+        "scale",
+        "batch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "changeCompResolution.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/change-comp-resolution.jsx",
+      "size": 3132,
+      "sha256": "41ede9326536e27289521a017f63adc42834f469ab887c4ac6adc7dc9af9b915",
+      "lines": 83,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "change-comps-duration",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Длительность композиций 90 с",
+        "en": "90-Second Comp Duration"
+      },
+      "summary": {
+        "ru": "Ставит длительность 90 секунд всем композициям, выделенным в панели Project.",
+        "en": "Sets the duration of every composition selected in the Project panel to 90 seconds."
+      },
+      "description": {
+        "ru": "Проходит по элементам, выделенным в панели Project, и каждой композиции ставит длительность 90 секунд; остальные элементы пропускаются. Значение зашито в код. Функция названа как пакетный переименователь, но переименование и смена разрешения/fps закомментированы — работает только смена длительности.",
+        "en": "Goes through the items selected in the Project panel and sets each composition’s duration to 90 seconds; other items are skipped. The value is hard-coded. The function is named like a batch renamer, but the renaming and the resolution/frame-rate code are commented out — only the duration change is active."
+      },
+      "usage": {
+        "ru": "Выделите композиции в панели Project и запустите скрипт. Диалога нет; чтобы задать другую длительность, поменяйте число 90 в коде.",
+        "en": "Select compositions in the Project panel and run the script. There is no dialog; to use another duration, change the number 90 in the code."
+      },
+      "notes": {
+        "ru": "Длительность жёстко 90 с; ошибки глушатся пустым catch. Не путать с change-comps-precompose — это другой скрипт с похожим именем файла.",
+        "en": "The 90 s value is hard-coded and errors are swallowed by an empty catch. Not to be confused with change-comps-precompose, a different script with a similar file name."
+      },
+      "tags": [
+        "composition",
+        "duration",
+        "batch",
+        "project"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Change Comps.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/change-comps-duration.jsx",
+      "size": 2010,
+      "sha256": "13544c20ae55469975466e786ab6b1db987252be582722f14c555d08df6eadbe",
+      "lines": 62,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "change-comps-precompose",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Прекомп MP4-слоёв в 25 fps",
+        "en": "Precompose MP4s at 25 fps"
+      },
+      "summary": {
+        "ru": "В выделенных композициях кладёт каждый .MP4-слой в отдельный прекомп 25 fps в папке «Scenes».",
+        "en": "In the selected comps, moves every .MP4 layer into its own 25 fps precomp stored in a “Scenes” folder."
+      },
+      "description": {
+        "ru": "Нужна папка «Scenes» в проекте. Для каждого элемента, выделенного в Project, создаёт в «Scenes» подпапку с его именем; в композициях каждый слой, в имени которого есть «.MP4» (заглавными), копируется в новую композицию «Scene <имя> 25 fps» по размеру слоя и по его входу и выходу, и этот прекомп встаёт на место исходного слоя в то же время и в ту же позицию в стеке. Вторая функция (подгон композиций под 1920×1080 и добавление слоёв из «Source» и «Scene 2») в файле есть, но не вызывается.",
+        "en": "Needs a folder named “Scenes” in the project. For each item selected in the Project panel it creates a subfolder in “Scenes” with that item’s name; inside compositions, every layer whose name contains “.MP4” (uppercase) is copied into a new comp “Scene <name> 25 fps” sized to the layer and trimmed to its in/out points, and that precomp takes the original layer’s place at the same time and stack position. A second function (resize comps to 1920×1080, add layers from “Source” and “Scene 2”) is in the file but never called."
+      },
+      "usage": {
+        "ru": "Создайте в проекте папку «Scenes», выделите композиции в панели Project и запустите скрипт.",
+        "en": "Create a “Scenes” folder in the project, select the compositions in the Project panel and run the script."
+      },
+      "notes": {
+        "ru": "Сделан под конкретный проект: без папки «Scenes» скрипт падает с ошибкой. Подпапка создаётся и для выделенных элементов, которые не являются композициями. Ищутся только имена с «.MP4» заглавными. Трансформации исходного слоя переезжают внутрь прекомпа — проверьте кадрирование.",
+        "en": "Built for a specific project: without a “Scenes” folder the script stops with an error. A subfolder is created even for selected items that are not comps. Only names with uppercase “.MP4” are matched. The original layer’s transforms end up inside the precomp, so check the framing."
+      },
+      "tags": [
+        "precompose",
+        "frame-rate",
+        "footage",
+        "batch",
+        "composition"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "changeComps;.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/change-comps-precompose.jsx",
+      "size": 4042,
+      "sha256": "caa2d2911cd95e45d8c357152420cf61f20149ad2c887f47d59c0dd1251038b8",
+      "lines": 108,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "convert-masks-to-shapes",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Маски в шейп-слой",
+        "en": "Masks to Shape Layer"
+      },
+      "summary": {
+        "ru": "Копирует выделенные маски в новый шейп-слой как контуры с белой заливкой.",
+        "en": "Copies the selected mask paths into a new shape layer as paths with a white fill."
+      },
+      "description": {
+        "ru": "Создаёт шейп-слой и для каждого выделенного свойства Mask Path добавляет Path с теми же вершинами и касательными, затем добавляет белую заливку (Fill). Копируется только текущая статичная форма — ключевые кадры маски, растушёвка, расширение и режим игнорируются.",
+        "en": "Creates a shape layer and adds a Path for every selected Mask Path property, copying its vertices and tangents, then adds a white Fill. Only the current static shape is copied — mask keyframes, feather, expansion and mode are ignored."
+      },
+      "usage": {
+        "ru": "Раскройте маски слоя в таймлайне (клавиша M), выделите их свойства Mask Path и запустите скрипт. Если ни один Mask Path не выделен, ничего не создаётся.",
+        "en": "Reveal the layer’s masks in the timeline (press M), select their Mask Path properties and run the script. If no Mask Path is selected, nothing is created."
+      },
+      "notes": {
+        "ru": "Трансформации исходного слоя не учитываются: координаты маски заданы в пространстве исходного слоя, а начало координат нового шейп-слоя — в центре композиции, поэтому фигуры обычно оказываются смещены и их нужно подвинуть.",
+        "en": "The source layer’s transform is ignored: mask coordinates are in the source layer’s space while the new shape layer’s origin sits at the comp center, so the shapes usually end up offset and need repositioning."
+      },
+      "tags": [
+        "masks",
+        "shape-layer",
+        "paths",
+        "convert"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "ConvertMasksToShapes.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/convert-masks-to-shapes.jsx",
+      "size": 9236,
+      "sha256": "dbd938028939e90a864a734c43a01eed67bcf348314ec0f1f98ca92ca7d417df",
+      "lines": 213,
+      "inlined": [
+        "lib/constants.jsx"
+      ],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "create-and-render",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "render",
+      "title": {
+        "ru": "Тройки композиций в Media Encoder",
+        "en": "Queue Comp Triplets to AME"
+      },
+      "summary": {
+        "ru": "Находит в выделенных папках композиции «… 1», «… 2», «… 3» и по очереди отправляет их в Media Encoder.",
+        "en": "Finds comps named “… 1”, “… 2”, “… 3” in the selected folders and queues each one in Media Encoder."
+      },
+      "description": {
+        "ru": "Проходит по папкам, выделенным в Project, и ищет три подряд идущие композиции с именами на « 1», « 2» и « 3». Для каждой тройки создаёт в корне проекта композицию-обёртку с размером, длительностью и fps первой, затем по одной добавляет туда композиции — выключая предыдущий слой и переименовывая обёртку по текущей — и после каждого шага выполняет File > Export > Add to Adobe Media Encoder Queue.",
+        "en": "Walks the folders selected in the Project panel looking for three consecutive comps whose names end in “ 1”, “ 2” and “ 3”. For each triplet it creates a wrapper comp in the project root with the first comp’s size, duration and frame rate, then adds the comps one by one — switching off the previous layer and renaming the wrapper after the current comp — and runs File > Export > Add to Adobe Media Encoder Queue after each step."
+      },
+      "usage": {
+        "ru": "Выделите в панели Project папки с пронумерованными композициями и запустите скрипт; откроется Adobe Media Encoder с заданиями в очереди.",
+        "en": "Select the folders with the numbered comps in the Project panel and run the script; Adobe Media Encoder opens with the jobs queued."
+      },
+      "notes": {
+        "ru": "Сделан под конкретный проект. Ищет команду меню по английскому имени «Add to Adobe Media Encoder Queue...», поэтому в локализованном AE не сработает. Запускает Adobe Media Encoder; настройки рендера берутся из AME. Композиции-обёртки остаются в проекте, undo-группы нет. Композиции тройки должны идти в папке подряд (по алфавиту).",
+        "en": "Built for a specific project. It looks the menu command up by its English name “Add to Adobe Media Encoder Queue...”, so it won’t work in localized AE. It launches Adobe Media Encoder; render settings come from AME. Wrapper comps stay in the project and there is no undo group. The three comps must sit next to each other in the folder (alphabetical order)."
+      },
+      "tags": [
+        "render",
+        "media-encoder",
+        "export",
+        "batch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "createAndRender.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/create-and-render.jsx",
+      "size": 2928,
+      "sha256": "e276a11fc0731f0756f1bfd147053a87d84e69701c5463ace73e62b5fce3d2ce",
+      "lines": 58,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [
+          {
+            "id": "menu",
+            "declared": true,
+            "detected": true,
+            "count": 3,
+            "samples": [
+              {
+                "line": 30,
+                "code": "app.executeCommand(command);"
+              },
+              {
+                "line": 35,
+                "code": "app.executeCommand(command);"
+              },
+              {
+                "line": 40,
+                "code": "app.executeCommand(command);"
+              }
+            ]
+          }
+        ],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "create-fitting-shape-layer",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Шейп-слой по длине выделенных",
+        "en": "Shape Layer Spanning Selection"
+      },
+      "summary": {
+        "ru": "Создаёт пустой шейп-слой на весь отрезок выделенных слоёв и ставит его над ними.",
+        "en": "Adds an empty shape layer that spans the time range of the selected layers and sits above them."
+      },
+      "description": {
+        "ru": "Находит самый ранний вход и самый поздний выход среди выделенных слоёв, создаёт пустой шейп-слой с этим отрезком и ставит его прямо над самым верхним из выделенных. Удобно как основа для контроллера, матта или корректирующего шейпа. Содержимого (фигур) у слоя нет.",
+        "en": "Finds the earliest in-point and the latest out-point among the selected layers, creates an empty shape layer with that range and moves it directly above the topmost selected layer. Handy as a base for a controller, a matte or an adjustment-style shape. The new layer has no contents."
+      },
+      "usage": {
+        "ru": "Выделите слои в композиции и запустите скрипт.",
+        "en": "Select layers in a comp and run the script."
+      },
+      "notes": {
+        "ru": "Без выделенных слоёв скрипт пытается поставить новый слой перед самим собой, что может вызвать ошибку, — выделите хотя бы один слой.",
+        "en": "With no layers selected the script tries to move the new layer before itself, which may raise an error — select at least one layer."
+      },
+      "tags": [
+        "shape-layer",
+        "timing",
+        "layers",
+        "controller"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "CreateFittingShapeLayer.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/create-fitting-shape-layer.jsx",
+      "size": 1656,
+      "sha256": "042a7e1e2e0d0302fac6138ff33335a3aecfbb564a554a61b3a5ac823628fe01",
+      "lines": 44,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "create-palette",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "color",
+      "title": {
+        "ru": "Слой-палитра цветов",
+        "en": "Color Palette Layer"
+      },
+      "summary": {
+        "ru": "Создаёт направляющий шейп-слой с сеткой образцов цвета, которые берутся из Color Control.",
+        "en": "Builds a guide shape layer with a grid of color swatches driven by Color Controls."
+      },
+      "description": {
+        "ru": "Спрашивает «количество|размер|отступ|в ряду|скругление|имя» (по умолчанию 5|60|5|5|0|Palette) и создаёт guide-слой (не рендерится) со слайдерами Size, Spacing, Row и Round? и по одному Color Control на каждый образец. Каждый образец — группа с прямоугольником, разложенная по сетке экспрешенами; при Round? = 1 образцы становятся кругами. Цвета выбираются в Color Control, и на них удобно ссылаться из экспрешенов других слоёв.",
+        "en": "Asks for “count|size|spacing|per row|round|name” (default 5|60|5|5|0|Palette) and creates a guide layer (not rendered) with Size, Spacing, Row and Round? sliders plus one Color Control per swatch. Each swatch is a rectangle group laid out in a grid by expressions; with Round? = 1 the swatches become circles. Pick the colors in the Color Controls and reference them from other layers’ expressions."
+      },
+      "usage": {
+        "ru": "Откройте композицию, запустите скрипт и заполните строку, например 8|80|10|4|1|Brand.",
+        "en": "Open a comp, run the script and fill in the prompt, e.g. 8|80|10|4|1|Brand."
+      },
+      "notes": {
+        "ru": "В подсказке запроса 4-м значением указано «Round», а 5-м — «Colors in Row», но код читает их наоборот (4-е — число в ряду, 5-е — скругление); ориентируйтесь на порядок в строке по умолчанию. Позиции сетки отсчитываются от позиции первого образца.",
+        "en": "The prompt text lists “Round” as the 4th value and “Colors in Row” as the 5th, but the code reads them the other way round (4th = per row, 5th = round); follow the order of the default string. Grid positions are offset from the first swatch’s position."
+      },
+      "tags": [
+        "color",
+        "palette",
+        "swatches",
+        "guide-layer"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "сreatePalette.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/create-palette.jsx",
+      "size": 4329,
+      "sha256": "35ac2b3ba963eabfbd1bccb4ef7895c57c621c9385a6d01be4f30753876b642c",
+      "lines": 92,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "duplicate-layer-and-matte-to-selected-layers",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "mattes",
+      "title": {
+        "ru": "Слой в каждый трек-матт",
+        "en": "Copy Layer Into Each Matte"
+      },
+      "summary": {
+        "ru": "Дублирует последний выделенный слой над каждым из остальных и делает их его альфа-маттами.",
+        "en": "Duplicates the last-selected layer above each other selected layer and uses that layer as its alpha matte."
+      },
+      "description": {
+        "ru": "Источник — слой, выделенный последним. Над каждым из остальных выделенных слоёв ставится копия источника, которой этот слой назначается трек-маттом Alpha; сами матты снова включаются, так что остаются видимыми. В конце исходный слой удаляется. Удобно, чтобы залить несколько шейпов или текстов одной текстурой или футажом.",
+        "en": "The layer you select last is the source. Above each of the other selected layers the script places a copy of the source and sets that layer as its Alpha track matte; the matte layers are switched back on, so they stay visible. The original source layer is deleted at the end. Useful for filling several shapes or text layers with the same texture or footage."
+      },
+      "usage": {
+        "ru": "Сначала выделите слои-матты, затем последним с Ctrl/Cmd выделите слой, который нужно размножить, и запустите скрипт.",
+        "en": "Select the matte layers first, then Ctrl/Cmd-click the layer to copy last, and run the script."
+      },
+      "notes": {
+        "ru": "Нужен AE 2023+ (setTrackMatte). Порядок выделения важен: последний выделенный слой после копирования удаляется.",
+        "en": "Needs AE 2023+ (setTrackMatte). Selection order matters: the last-selected layer is deleted after copying."
+      },
+      "tags": [
+        "track-matte",
+        "duplicate",
+        "texture",
+        "layers"
+      ],
+      "hostVersions": {
+        "min": "2023 (23.0)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Duplicate Layer and Matte to selected layers.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/duplicate-layer-and-matte-to-selected-layers.jsx",
+      "size": 1689,
+      "sha256": "901bffd4dcfe32d5b5ad2a924b29b784747c24a550074c10ad7469544770efe1",
+      "lines": 43,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "duplicate-layer-by-masks",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Разбить слой по маскам",
+        "en": "Split Layer by Masks"
+      },
+      "summary": {
+        "ru": "Превращает слой с несколькими масками в набор слоёв — по одной маске на каждом.",
+        "en": "Turns one layer with several masks into separate layers, one mask per layer."
+      },
+      "description": {
+        "ru": "Берёт первый выделенный слой и создаёт по дубликату на каждую маску, удаляя в каждой копии все маски, кроме своей. В конце исходный слой удаляется.",
+        "en": "Takes the first selected layer and creates one duplicate per mask, deleting every mask on each copy except its own. The original layer is removed at the end."
+      },
+      "usage": {
+        "ru": "Выделите слой с масками и запустите скрипт.",
+        "en": "Select a layer with masks and run the script."
+      },
+      "notes": {
+        "ru": "Если масок у слоя нет, скрипт просто удалит слой (вернуть можно через Undo). Без выделенного слоя скрипт падает с ошибкой.",
+        "en": "If the layer has no masks, the script simply deletes it (Undo brings it back). With no layer selected it throws an error."
+      },
+      "tags": [
+        "masks",
+        "split",
+        "duplicate",
+        "layers"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "duplicateLayerByMasks.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/duplicate-layer-by-masks.jsx",
+      "size": 1044,
+      "sha256": "3e86d755292301a7803766d851ca3aaf9048a2e549ddb7a446856d5d6af26917",
+      "lines": 26,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "duplicate-layer-or-shape",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Дубликатор слоёв и групп",
+        "en": "Duplicate Layers or Shape Groups"
+      },
+      "summary": {
+        "ru": "Дублирует выделенные слои или группы внутри шейп-слоя заданное число раз.",
+        "en": "Duplicates the selected layers, or selected groups inside a shape layer, a given number of times."
+      },
+      "description": {
+        "ru": "Спрашивает число N. Если выделен один шейп-слой и внутри его Contents выделены элементы, дублируются эти группы и фигуры; иначе дублируется каждый выделенный слой. N — итоговое количество вместе с оригиналом: при 3 появятся две копии. Ошибки показываются в алерте.",
+        "en": "Asks for a number N. If one shape layer is selected and items inside its Contents are selected, those groups and shapes are duplicated in place; otherwise every selected layer is duplicated. N is the total count including the original, so 3 gives two new copies. Errors are shown in an alert."
+      },
+      "usage": {
+        "ru": "Выделите слои (или группы в Contents одного шейп-слоя), запустите скрипт и введите число.",
+        "en": "Select layers (or groups in the Contents of one shape layer), run the script and enter the number."
+      },
+      "notes": {
+        "ru": "Индексы слоёв сортируются как строки, поэтому если выделены слои и выше, и ниже 10-го, могут продублироваться не те слои. Если у одиночного шейп-слоя выделено свойство вне Contents (например, в Transform), ничего не произойдёт.",
+        "en": "Layer indices are sorted as strings, so a selection spanning layers both above and below index 10 can duplicate the wrong layers. If a property outside Contents (e.g. in Transform) is selected on a single shape layer, nothing happens."
+      },
+      "tags": [
+        "duplicate",
+        "shape-layer",
+        "layers",
+        "batch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Duplicate Layer or Shape.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/duplicate-layer-or-shape.jsx",
+      "size": 3430,
+      "sha256": "fbe7cd81657ba1835bbd80ba29c0cdc3f5290131f83e3881f0e4d6fe4e6ed1b2",
+      "lines": 78,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "expressions-helper",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "expressions",
+      "title": {
+        "ru": "Заготовки экспрешенов",
+        "en": "Expression Snippet Inserter"
+      },
+      "summary": {
+        "ru": "Дописывает в начало экспрешена готовые строки: индекс группы, random со слайдерами, frameDuration, ссылки на слои.",
+        "en": "Prepends ready-made lines to expressions: group index, random with sliders, frameDuration, layer links."
+      },
+      "description": {
+        "ru": "Рассчитан на кнопки KBar: аргумент кнопки выбирает режим — shapeIndexExpr (индекс родительской группы шейпа; режим по умолчанию без KBar), indexExpr и reverseIndexExpr (смещение индекса от последнего выделенного слоя), mainLayer (ссылка на последний выделенный слой), random (добавляет слайдеры Seed, Min и Max и строки seedRandom/random), frameDur, compHalf, mainProps, pathPoints, relativeShapePath. Строки вставляются перед существующим экспрешеном каждого выделенного свойства; только режим random дополнительно создаёт слайдеры на слое.",
+        "en": "Built for KBar buttons: the button argument picks the mode — shapeIndexExpr (index of the parent shape group; the default without KBar), indexExpr and reverseIndexExpr (index offset from the last selected layer), mainLayer (link to the last selected layer), random (adds Seed, Min and Max sliders plus seedRandom/random lines), frameDur, compHalf, mainProps, pathPoints, relativeShapePath. Lines are inserted before the existing expression of each selected property; only random mode also adds sliders to the layer."
+      },
+      "usage": {
+        "ru": "Выделите одно или несколько свойств в таймлайне и запустите скрипт (или кнопку KBar с одним из аргументов выше). Режим random спрашивает имя переменной.",
+        "en": "Select one or more properties in the timeline and run the script (or a KBar button with one of the arguments above). Random mode asks for a variable name."
+      },
+      "notes": {
+        "ru": "Без KBar доступен только shapeIndexExpr. Баги: compHalf заменяет найденные фрагменты словом «undefined» и может упасть с ReferenceError (переменная fVar там не объявлена); при повторных random имена копятся вида «Min Val 2 3».",
+        "en": "Without KBar only shapeIndexExpr is available. Bugs: compHalf replaces the matched text with the word “undefined” and can throw a ReferenceError (fVar is not defined there); repeated random runs produce names like “Min Val 2 3”."
+      },
+      "tags": [
+        "expressions",
+        "snippets",
+        "kbar",
+        "shape-layer",
+        "random"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Expressions Helper.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/expressions-helper.jsx",
+      "size": 11771,
+      "sha256": "20568332da097b6c94dac50893bb65bd5e7e1875dd3cb91f13d02bb8dc0fa481",
+      "lines": 308,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "link-opacity-to-parent",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "expressions",
+      "title": {
+        "ru": "Opacity от родителя",
+        "en": "Link Opacity to Parent"
+      },
+      "summary": {
+        "ru": "Привязывает Opacity выделенных дочерних слоёв к Opacity родителя через экспрешен.",
+        "en": "Makes the opacity of the selected child layers follow their parent’s opacity via an expression."
+      },
+      "description": {
+        "ru": "Каждому выделенному слою с родителем прописывает экспрешен на Opacity, который берёт прозрачность родителя по его имени. Слои без родителя пропускаются. Собственное значение прозрачности дочернего слоя игнорируется (не перемножается).",
+        "en": "For each selected layer that has a parent, writes an Opacity expression that reads the parent’s opacity by layer name. Layers without a parent are skipped. The child’s own opacity value is ignored rather than multiplied."
+      },
+      "usage": {
+        "ru": "Привяжите слои к родителю как обычно, выделите дочерние и запустите скрипт.",
+        "en": "Parent the layers as usual, select the children and run the script."
+      },
+      "notes": {
+        "ru": "Связь идёт по имени родителя: переименование родителя или два слоя с одинаковым именем ломают её.",
+        "en": "The link uses the parent’s name, so renaming the parent or having two layers with the same name breaks it."
+      },
+      "tags": [
+        "opacity",
+        "parenting",
+        "expressions",
+        "rig"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "linkOpacityToParent.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/link-opacity-to-parent.jsx",
+      "size": 923,
+      "sha256": "547bcb04c85b9c82e18d92d2fbae8567462b6a99dd79e076eeef329bb5c04222",
+      "lines": 23,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "loop-footage",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Зациклить футаж",
+        "en": "Loop Footage with Time Remap"
+      },
+      "summary": {
+        "ru": "Включает Time Remapping на выделенных слоях и зацикливает их обрезанный отрезок через loopOut().",
+        "en": "Enables Time Remapping on the selected layers and loops their trimmed range with loopOut()."
+      },
+      "description": {
+        "ru": "Каждому выделенному слою, который поддерживает ремап времени, включает Time Remapping, ставит ключи на входе и за кадр до выхода, добавляет ещё один ключ кадром позже со значением начала, удаляет лишние ключи и вешает loopOut(). Получается бесшовный цикл видимой части клипа.",
+        "en": "For each selected layer that supports time remapping, it enables Time Remapping, sets keys at the in-point and one frame before the out-point, adds one more key a frame later that jumps back to the start value, removes extra keys and applies loopOut(). The result is a seamless cycle of the visible part of the clip."
+      },
+      "usage": {
+        "ru": "Обрежьте футаж или прекомп до нужного куска, выделите слои и запустите скрипт.",
+        "en": "Trim the footage or precomp layers to the part you want to loop, select them and run the script."
+      },
+      "notes": {
+        "ru": "Выход слоя не продлевается — растяните слой сами, чтобы увидеть цикл. Прежние ключи ремапа могут быть заменены.",
+        "en": "The layer’s out-point is not extended — drag it out yourself to see the loop. Previous time-remap keys may be replaced."
+      },
+      "tags": [
+        "loop",
+        "time-remapping",
+        "footage",
+        "expressions"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "loopFootage.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/loop-footage.jsx",
+      "size": 1630,
+      "sha256": "be717e3374aeca4e34920b9d2913b8aa9dc16eb1b7f6393e05d4439cb9e1233a",
+      "lines": 38,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "made-bunch-of-masks",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "animation",
+      "title": {
+        "ru": "Распад слоя на плитки",
+        "en": "Tile Disintegration Transition"
+      },
+      "summary": {
+        "ru": "Режет слой на сетку плиток-масок, которые от текущего кадра уменьшаются и смещаются.",
+        "en": "Cuts a layer into a grid of masked tiles that shrink and drift away from the current time."
+      },
+      "description": {
+        "ru": "Задумано так: каждый выделенный футажный слой режется на плитки (10 колонок) — каждая плитка это дубликат с квадратной маской, которая за 0,5 с превращается в скруглённую фигуру, пока Position смещается на (−50, −30) px, а Scale уходит в 0; исходный слой выключается. Все плитки стартуют одновременно. Вспомогательная функция для разнесения слоёв по времени есть, но не используется.",
+        "en": "The intent: each selected footage layer is cut into tiles (10 columns) — every tile is a duplicate with a square mask that morphs into a rounded shape over 0.5 s while its Position drifts by (−50, −30) px and Scale goes to 0; the original layer is switched off. All tiles start at the same time. A helper for staggering layers in time is present but unused."
+      },
+      "usage": {
+        "ru": "(После исправления include) выделите футажный слой, поставьте индикатор времени на начало перехода и запустите скрипт.",
+        "en": "(Once the include is fixed) select a footage layer, put the playhead where the transition should start and run the script."
+      },
+      "notes": {
+        "ru": "В текущем виде не работает: подключается «../libs/index.jsx», которого нет (видимо, имелся в виду lib/index.jsx), и AE не запустит скрипт. Даже после исправления: смещение считается векторной арифметикой (val + dist), которой нет в ExtendScript, а на неквадратных слоях узор плиток покрывает квадратную область — часть слоя остаётся непокрытой, появляются пустые плитки. После исправления include в permissions нужно добавить то же, что у других скриптов с lib/index.jsx.",
+        "en": "Broken as shipped: it includes “../libs/index.jsx”, which doesn’t exist (lib/index.jsx was probably meant), so AE won’t run it. Even with the include fixed, the drift uses array math (val + dist) that ExtendScript doesn’t support, and on non-square layers the tile pattern covers a square area, leaving part of the layer uncovered and creating empty tiles. Once the include points to lib/index.jsx, permissions must get the same entries as the other lib/index.jsx scripts."
+      },
+      "tags": [
+        "masks",
+        "transition",
+        "tiles",
+        "animation"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "madeBunchOfMasks.js",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/made-bunch-of-masks.jsx",
+      "size": 5968,
+      "sha256": "1a6072861737f86f5c6ad30198b95115ccb5921930cd34007fcba56ea5fe28e4",
+      "lines": 136,
+      "inlined": [],
+      "checks": {
+        "status": "blocked",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": [
+          {
+            "from": "madeBunchOfMasks.js",
+            "spec": "../libs/index.jsx"
+          }
+        ]
+      }
+    },
+    {
+      "id": "make-matte",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "mattes",
+      "title": {
+        "ru": "Инвертированный матт из копии",
+        "en": "Choked Inverted Self-Matte"
+      },
+      "summary": {
+        "ru": "Делает из копии слоя расширенный матт и вырезает им оригинал как трек-матт Alpha Inverted.",
+        "en": "Turns a copy of the layer into an expanded matte and cuts the original with it as an Alpha Inverted matte."
+      },
+      "description": {
+        "ru": "Дублирует первый выделенный слой как «<имя> Matte» (скрытый), оставляя все его эффекты и добавляя Simple Choker (Choke Matte −20, то есть матт расширяется). Затем с оригинала снимаются все эффекты, и копия назначается ему трек-маттом Alpha Inverted — оригинал виден только вне расширенного силуэта. Судя по логике, рассчитано на кеинг: копия с кеем вырезает объект, а оригинал без эффектов становится фоном с дыркой на месте объекта.",
+        "en": "Duplicates the first selected layer as “<name> Matte” (hidden), keeping all its effects and adding Simple Choker (Choke Matte −20, which expands the matte). All effects are then removed from the original, and the copy becomes its Alpha Inverted track matte, so the original shows only outside the expanded silhouette. Judging by the logic it is meant for keying: the keyed copy cuts the subject out, and the effect-free original becomes a background plate with a hole where the subject was."
+      },
+      "usage": {
+        "ru": "Выделите слой (например, футаж с эффектом кеинга) и запустите скрипт.",
+        "en": "Select the layer (e.g. footage with a keying effect) and run the script."
+      },
+      "notes": {
+        "ru": "Снимает все эффекты с исходного слоя (они остаются только на копии-матте). Нужен AE 2023+ (setTrackMatte). Обращается к параметру «Choke Matte» по английскому имени — в локализованном AE может не сработать. Без выделенного слоя падает с ошибкой.",
+        "en": "Removes all effects from the original layer (they survive only on the matte copy). Needs AE 2023+ (setTrackMatte). It accesses “Choke Matte” by its English name, so it may fail in localized AE. With no layer selected it throws an error."
+      },
+      "tags": [
+        "matte",
+        "choker",
+        "track-matte",
+        "keying"
+      ],
+      "hostVersions": {
+        "min": "2023 (23.0)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "makeMatte.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/make-matte.jsx",
+      "size": 1037,
+      "sha256": "416f60c35f74ae09868ab64788c2a45c8ff5ddf9032e9fa0e3c4210434f36b6f",
+      "lines": 27,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "make-shadow",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Размытая тень в Multiply",
+        "en": "Blurred Multiply Shadow"
+      },
+      "summary": {
+        "ru": "Подкладывает под каждый выделенный слой размытую копию в Multiply — мягкую тень.",
+        "en": "Adds a blurred Multiply copy under each selected layer as a soft shadow."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя (кроме камер и света) создаёт под ним дубликат «<имя> Shadow», снимает с него эффекты, добавляет Fast Box Blur (радиус 30), ставит режим Multiply и включает Preserve Underlying Transparency, чтобы тень затемняла только то, что под ней. Тень не смещается — подвиньте её сами.",
+        "en": "For each selected layer (cameras and lights are skipped) it creates a duplicate “<name> Shadow” right below it, strips its effects, adds Fast Box Blur (radius 30), sets the Multiply blend mode and turns on Preserve Underlying Transparency, so the shadow only darkens what lies underneath. The shadow is not offset — move it yourself."
+      },
+      "usage": {
+        "ru": "Выделите слои и запустите скрипт, затем сдвиньте новые слои Shadow.",
+        "en": "Select layers, run the script, then offset the new Shadow layers."
+      },
+      "notes": {
+        "ru": "Эффект добавляется по английскому имени «Fast Box Blur» — в локализованном AE может не сработать.",
+        "en": "The blur is added by its English name “Fast Box Blur”, so it may fail in localized AE."
+      },
+      "tags": [
+        "shadow",
+        "blur",
+        "multiply",
+        "layers"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "makeShadow.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/make-shadow.jsx",
+      "size": 1567,
+      "sha256": "813e052b4465f55f5ec396a1cbab5baf572d64e65b79e8041ace66005c46e12a",
+      "lines": 41,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "matte-layers",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "mattes",
+      "title": {
+        "ru": "Трек-матт от слоя выше",
+        "en": "Track Matte from Layer Above"
+      },
+      "summary": {
+        "ru": "Назначает каждому выделенному слою трек-маттом слой над ним: альфа, люма или инвертированные.",
+        "en": "Sets the layer directly above as the track matte for each selected layer: alpha, luma or inverted."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя (кроме самого верхнего) вызывает setTrackMatte со слоем прямо над ним. Тип матта задаётся аргументом кнопки KBar: alpha, luma, alpha_inverted или luma_inverted; при обычном запуске — Alpha.",
+        "en": "For each selected layer (except the top one) it calls setTrackMatte with the layer right above it. The matte type comes from the KBar button argument: alpha, luma, alpha_inverted or luma_inverted; run on its own it uses Alpha."
+      },
+      "usage": {
+        "ru": "Поставьте каждый матт прямо над слоем-заливкой, выделите слои-заливки и запустите скрипт (или кнопку KBar с нужным типом).",
+        "en": "Put each matte directly above its fill layer, select the fill layers and run the script (or a KBar button with the matte type)."
+      },
+      "notes": {
+        "ru": "Нужен AE 2023+ (setTrackMatte и новая модель трек-маттов).",
+        "en": "Needs AE 2023+ (setTrackMatte and the new track matte model)."
+      },
+      "tags": [
+        "track-matte",
+        "alpha",
+        "luma",
+        "kbar"
+      ],
+      "hostVersions": {
+        "min": "2023 (23.0)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "matteLayers.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/matte-layers.jsx",
+      "size": 2045,
+      "sha256": "20997823836c375da3a00a48f6f9fcbe69b62c2b346c442aee60aa3df1a355be",
+      "lines": 64,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "plashka-creator",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Плашка или матт под слой",
+        "en": "Plate or Matte for Layer"
+      },
+      "summary": {
+        "ru": "Создаёт прямоугольную плашку или матт по размеру слоя со слайдерами ширины, высоты и выравнивания.",
+        "en": "Creates a rectangle plate or matte sized to each selected layer, with width, height and alignment controls."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя измеряет его границы в текущем кадре и строит шейп-слой с прямоугольником, которым управляют слайдеры Width/Height и выпадающие списки Vertical/Horizontal Anchor; родитель, 3D, поворот, масштаб и вход/выход копируются со слоя. По умолчанию — слой «MATTE» сверху: слой получает трек-матт Alpha и эффект Transform для анимации внутри матта. С Alt — плашка «PLASHKA» снизу с эффектом Fill. С Shift — и то и другое: матт привязан к плашке через parent, а его слайдеры повторяют слайдеры плашки.",
+        "en": "For each selected layer it measures the bounds at the current time and builds a shape layer with a rectangle driven by Width/Height sliders and Vertical/Horizontal Anchor dropdowns, copying the layer’s parent, 3D switch, rotation, scale and in/out points. Default: a “MATTE” layer above — the layer gets an Alpha track matte and a Transform effect for animating inside it. Alt: a “PLASHKA” plate below with a Fill effect. Shift: both, with the matte parented to the plate and its sliders following the plate’s."
+      },
+      "usage": {
+        "ru": "Выделите текстовые или другие слои и запустите скрипт; с Alt — плашка под слоем, с Shift — плашка плюс матт.",
+        "en": "Select text or other layers and run the script; hold Alt for a plate under the layer, Shift for plate plus matte."
+      },
+      "notes": {
+        "ru": "Вероятный баг: смещение позиции считается векторной арифметикой на массивах (center - anch, pos + offset) с переприсваиванием const — в ExtendScript так не работает, поэтому установка позиции, скорее всего, упадёт с ошибкой и плашка останется невыровненной. Перед публикацией нужно проверить в AE. Нужен AE 2020 (17.0.1)+ из-за Dropdown Menu Control.",
+        "en": "Likely bug: the position offset uses vector math on arrays (center - anch, pos + offset) and reassigns a const, which ExtendScript does not support, so setting the position will probably fail with an error and leave the plate unaligned. Test in AE before publishing. Needs AE 2020 (17.0.1)+ for the Dropdown Menu Control."
+      },
+      "tags": [
+        "plate",
+        "shape-layer",
+        "track-matte",
+        "text",
+        "rig"
+      ],
+      "hostVersions": {
+        "min": "2020 (17.0.1)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Plashka creator.jsx",
+      "added": "2020-10-06T11:23:32+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/plashka-creator.jsx",
+      "size": 13347,
+      "sha256": "ad9f49518cfde1d5fe75c9bf1aaa55be68c6c773714041503da72cb67ccd23ed",
+      "lines": 313,
+      "inlined": [
+        "lib/constants.jsx"
+      ],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "precomp",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Прекомп по длине слоя",
+        "en": "Precompose Trimmed Layer"
+      },
+      "summary": {
+        "ru": "Прекомпозит выделенный слой в композицию по его размеру и длине и кладёт её рядом с исходником.",
+        "en": "Precomposes the selected layer into a comp sized and trimmed to it, stored next to its source item."
+      },
+      "description": {
+        "ru": "Берёт первый выделенный футажный слой или прекомп и создаёт новую композицию с шириной, высотой и pixel aspect слоя, fps исходника и длительностью, равной обрезанной длине слоя, в той же папке, где лежит исходник. Слой копируется внутрь, новая композиция встаёт на его место в то же время и в ту же позицию в стеке, исходный слой удаляется. Аргументы KBar «Camera» и «person» дают имя «Camera Tracking» или «person»; если имя слоя заканчивается на « 25 fps», к имени добавляется его начало.",
+        "en": "Takes the first selected footage or precomp layer and creates a new comp with the layer’s width, height and pixel aspect, the source’s frame rate and a duration equal to the layer’s trimmed length, inside the folder that holds the source. The layer is copied in, the new comp takes its place at the same time and stack position, and the original layer is deleted. The KBar arguments “Camera” and “person” name the comp “Camera Tracking” or “person”; if the layer name ends in “ 25 fps”, its prefix is added to the name."
+      },
+      "usage": {
+        "ru": "Выделите футажный слой или прекомп в таймлайне и запустите скрипт — лучше кнопкой KBar с аргументом Camera или person.",
+        "en": "Select a footage or precomp layer in the timeline and run the script, ideally from a KBar button with the argument Camera or person."
+      },
+      "notes": {
+        "ru": "Без KBar у новой композиции нет нормального имени (скорее всего, «undefined» или ошибка). Сдвиг времени внутри прекомпа берётся от верхнего слоя композиции, а не от выделенного, поэтому тайминг может съехать, если выделенный слой не первый. На стиллах и солидах (fps 0) может упасть.",
+        "en": "Run without KBar, the new comp gets no proper name (likely “undefined”, or an error). The time offset inside the precomp is taken from the comp’s top layer rather than the selected one, so timing can drift when the selected layer isn’t first. May fail on stills and solids (frame rate 0)."
+      },
+      "tags": [
+        "precompose",
+        "composition",
+        "trim",
+        "kbar"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "precomp.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/precomp.jsx",
+      "size": 2205,
+      "sha256": "40416ed818a7d5f0d73d52573c546a9368e8efe9a23decd1106250d312fdde85",
+      "lines": 59,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "ps-rect-controller",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "preset",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Псевдоэффект для прямоугольника",
+        "en": "Rectangle Controller Pseudo-Effect"
+      },
+      "summary": {
+        "ru": "Пресет, который добавляет псевдоэффект PS_Rect_Controller с шириной, высотой, поворотом, смещением и скруглением.",
+        "en": "Preset that adds a PS_Rect_Controller pseudo effect with width, height, rotation, offset and roundness controls."
+      },
+      "description": {
+        "ru": "Бинарный .ffx, который применяет один псевдоэффект PS_Rect_Controller с шестью анимируемыми параметрами: Width (по умолчанию 100), Height (50), Rotation (угол), X Offset, Y Offset и Roundness. Экспрешенов в пресете нет — он только даёт контролы, привязать их к прямоугольнику (например, к Size и Roundness у Rectangle Path) нужно самостоятельно.",
+        "en": "A binary .ffx that applies a single pseudo effect, PS_Rect_Controller, with six keyframeable controls: Width (default 100), Height (50), Rotation (angle), X Offset, Y Offset and Roundness. The preset holds no expressions — it only provides the controls, and you link them to a rectangle yourself (e.g. to the Size and Roundness of a Rectangle Path)."
+      },
+      "usage": {
+        "ru": "Выделите слой (например, шейп-слой с прямоугольником) и примените пресет через Animation > Apply Animation Preset… или из панели Effects & Presets, предварительно скопировав файл в папку User Presets.",
+        "en": "Select a layer (e.g. a shape layer with a rectangle) and apply the preset via Animation > Apply Animation Preset…, or from the Effects & Presets panel after copying the file into your User Presets folder."
+      },
+      "notes": {
+        "ru": "Судя по встроенным данным, сделан генератором псевдоэффектов; кроме самого эффекта в пресете ничего не сохранено.",
+        "en": "Judging by the embedded data it was made with a pseudo-effect generator; nothing but the effect itself is stored in the preset."
+      },
+      "tags": [
+        "pseudo-effect",
+        "preset",
+        "rectangle",
+        "controller",
+        "rig"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "true/PS_Rect_Controller.ffx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/ps-rect-controller.ffx",
+      "size": 5350,
+      "sha256": "e58805199347c181f5903b699cbe7799c086edc3c7178a87a250b87bd595a567",
+      "lines": null,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": null,
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "random-source",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Случайная замена источника",
+        "en": "Randomize Precomp Sources"
+      },
+      "summary": {
+        "ru": "Подменяет источник выделенных слоёв-прекомпов случайными композициями, выбранными в Project.",
+        "en": "Replaces the source of the selected precomp layers with random comps picked in the Project panel."
+      },
+      "description": {
+        "ru": "Собирает композиции, выделенные в панели Project, и каждому выделенному слою активной композиции, источником которого служит композиция, подставляет случайную из этого списка (replaceSource без исправления экспрешенов). Слои, которые не являются прекомпами, пропускаются. Удобно для случайных вариаций в сетках и толпах.",
+        "en": "Collects the compositions selected in the Project panel, then gives every selected layer in the active comp whose source is a composition a random one from that list (replaceSource without fixing expressions). Layers that aren’t precomps are skipped. Handy for random variations in grids and crowds."
+      },
+      "usage": {
+        "ru": "Выделите композиции-варианты в панели Project, затем щёлкните в таймлайн, выделите слои-прекомпы и запустите скрипт.",
+        "en": "Select the variant comps in the Project panel, then click into the timeline, select the precomp layers and run the script."
+      },
+      "notes": {
+        "ru": "Если в Project не выделено ни одной композиции, скрипт падает с ошибкой. Одна и та же композиция может выпасть несколько раз подряд.",
+        "en": "If no comps are selected in the Project panel, the script throws an error. The same comp can be picked several times in a row."
+      },
+      "tags": [
+        "precomp",
+        "random",
+        "replace-source",
+        "variations"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "randomSource.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/random-source.jsx",
+      "size": 1101,
+      "sha256": "a41ad084109cd0f2bb0a4f164a21dca610866f5ffbe83d516dea5b9d81b79bb9",
+      "lines": 30,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "rearrange-keys",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "keyframes",
+      "title": {
+        "ru": "Ровный шаг ключей",
+        "en": "Respace Keyframes Evenly"
+      },
+      "summary": {
+        "ru": "Расставляет выделенные ключевые кадры с равным шагом в N кадров, сохраняя значения и изинг.",
+        "en": "Respaces the selected keyframes a fixed number of frames apart, keeping values and easing."
+      },
+      "description": {
+        "ru": "Спрашивает число кадров между ключами (по умолчанию 2). Для каждого выделенного свойства с двумя и более выделенными ключами запоминает значение, интерполяцию, temporal ease и цветовую метку каждого ключа, удаляет их и создаёт заново от времени первого ключа с заданным шагом. Неравномерно расставленные ключи становятся равномерными.",
+        "en": "Asks for the number of frames between keys (default 2). For every selected property with two or more selected keyframes it records each key’s value, interpolation, temporal ease and color label, deletes the keys and recreates them from the first key’s time at the chosen step. Unevenly spaced keys become evenly spaced."
+      },
+      "usage": {
+        "ru": "Выделите в таймлайне ключи, которые нужно расставить, запустите скрипт и введите шаг в кадрах.",
+        "en": "Select the keyframes to respace in the timeline, run the script and enter the step in frames."
+      },
+      "notes": {
+        "ru": "Баг: признак пространственного свойства сравнивается, а не присваивается, поэтому на Position и подобных свойствах пространственные касательные не восстанавливаются (форма траектории может измениться). Cancel ломает выполнение. Нужен AE 2022 (22.6)+ из-за меток ключей. rearangeKeys.js в репозитории — старая копия, которая игнорирует введённый шаг.",
+        "en": "Bug: the spatial flag is compared instead of assigned, so on Position-like properties the spatial tangents are not restored (the motion path shape may change). Pressing Cancel breaks the run. Needs AE 2022 (22.6)+ for keyframe labels. rearangeKeys.js in the repo is an older copy that ignores the entered step."
+      },
+      "tags": [
+        "keyframes",
+        "timing",
+        "spacing",
+        "easing"
+      ],
+      "hostVersions": {
+        "min": "2022 (22.6)",
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "rearangeKeys.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/rearrange-keys.jsx",
+      "size": 3498,
+      "sha256": "c2ba8fd4ed441ebc6bb79946943bfe932f0427a716eeea9d7ebe17dc94e58674",
+      "lines": 74,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "rename-layers",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Пакетное переименование слоёв",
+        "en": "Batch Rename Layers"
+      },
+      "summary": {
+        "ru": "Переименовывает выделенные слои в одно имя с порядковыми номерами.",
+        "en": "Renames the selected layers to one base name with sequential numbers."
+      },
+      "description": {
+        "ru": "Спрашивает имя и переименовывает выделенные слои в «Имя 1», «Имя 2»… в порядке выделения. Если нажать Cancel или оставить поле пустым, ничего не меняется.",
+        "en": "Asks for a name and renames the selected layers to “Name 1”, “Name 2”… in selection order. Cancelling or leaving the field empty changes nothing."
+      },
+      "usage": {
+        "ru": "Выделите слои, запустите скрипт и введите базовое имя.",
+        "en": "Select layers, run the script and type the base name."
+      },
+      "notes": {
+        "ru": "",
+        "en": ""
+      },
+      "tags": [
+        "rename",
+        "layers",
+        "batch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "rename_layers.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/rename-layers.jsx",
+      "size": 784,
+      "sha256": "bb0b1118ecb85c7033accdbd47fce1def0918d22bbb2804681f4f0d7eab69729",
+      "lines": 22,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "round-path-points",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "masks-shapes",
+      "title": {
+        "ru": "Точки пути по полупикселям",
+        "en": "Snap Path Points to Half-Pixels"
+      },
+      "summary": {
+        "ru": "Округляет вершины выделенных путей шейп-слоя до ближайших 0,5 px.",
+        "en": "Rounds the vertices of the selected shape-layer paths to the nearest 0.5 px."
+      },
+      "description": {
+        "ru": "Для каждого выделенного свойства Path шейп-слоя без ключевых кадров привязывает все вершины к ближайшему целому или половинному пикселю; касательные не трогаются. Анимированные пути и маски пропускаются. Перед применением показывает отладочный алерт со списком атрибутов объекта Shape. Вторая функция, которая добавляла бы промежуточные точки на диагональных отрезках, в файле есть, но не вызывается.",
+        "en": "For each selected shape Path property without keyframes it snaps every vertex to the nearest whole or half pixel; tangents are left alone. Animated paths and masks are skipped. Before applying it shows a debug alert listing the Shape object’s attributes. A second function that would add intermediate points along diagonal segments is in the file but never called."
+      },
+      "usage": {
+        "ru": "Выделите свойства Path внутри Contents шейп-слоя и запустите скрипт; закройте отладочный алерт, чтобы продолжить.",
+        "en": "Select Path properties inside a shape layer’s Contents and run the script; close the debug alert to continue."
+      },
+      "notes": {
+        "ru": "Оставлен отладочный алерт на каждый путь. Нет undo-группы — каждый путь отменяется отдельно. Скрипт align-points делает то же самое и умеет ключевые кадры.",
+        "en": "A leftover debug alert pops up for every path. There is no undo group, so each path is a separate undo step. align-points does the same and also handles keyframes."
+      },
+      "tags": [
+        "paths",
+        "shape-layer",
+        "pixel-snapping",
+        "vertices"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Round pathPoints.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2020-05-30T12:40:26+03:00",
+      "file": "dl/round-path-points.jsx",
+      "size": 5121,
+      "sha256": "fac0e6a22b9e89bc6101b1001f63279e812a6c2501ef7da3e903fe54dfd86774",
+      "lines": 127,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "rule-tangents",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "panel",
+      "category": "keyframes",
+      "title": {
+        "ru": "Касательные по углу и длине",
+        "en": "Rule Tangents"
+      },
+      "summary": {
+        "ru": "Панель для настройки пространственных касательных ключа через угол и длину.",
+        "en": "Panel for setting a keyframe’s spatial tangents by angle and length with sliders."
+      },
+      "description": {
+        "ru": "Докируемая ScriptUI-панель (или плавающее окно) со слайдерами In Angle и Out Angle (0–360°), длины In/Out Tangent (0–2000) и двумя галочками, которые привязывают значения выхода к входу. Кнопка «Analyze Spatial» считывает касательные единственного выделенного ключа пространственного свойства (Position, Anchor Point и т. п.) в контролы; после этого движение слайдера или ввод числа переписывает касательные этого ключа. Работает с одним свойством и одним ключом за раз.",
+        "en": "A dockable ScriptUI panel (or floating window) with In Angle and Out Angle sliders (0–360°), In/Out Tangent length sliders (0–2000) and two checkboxes that lock the out values to the in values. “Analyze Spatial” reads the tangents of the single selected keyframe on a spatial property (Position, Anchor Point, etc.) into the controls; after that, moving a slider or typing a value rewrites that keyframe’s spatial tangents. Works on one property and one keyframe at a time."
+      },
+      "usage": {
+        "ru": "Скопируйте файл в папку ScriptUI Panels и откройте из меню Window, чтобы задокать (или запустите через File > Scripts — будет плавающее окно). Выделите один ключ на Position, нажмите Analyze Spatial и двигайте слайдеры.",
+        "en": "Copy the file into the ScriptUI Panels folder and open it from the Window menu to dock it (or run it via File > Scripts for a floating window). Select one keyframe on Position, click Analyze Spatial, then move the sliders."
+      },
+      "notes": {
+        "ru": "Возможные баги: углы переводятся в радианы переприсваиванием const-переменных, а const в ExtendScript не меняется, поэтому применённые углы, скорее всего, неверны; обработчики Out Angle проверяют блокировку длины вместо блокировки угла; если не выделено пространственное свойство, скрипт падает с ошибкой. Требует проверки. Права files, shell, settings и menu объявлены, потому что в сборку попадает вся lib/index.jsx; сам скрипт из библиотеки использует только prototypes. Скомпилированный «Rule tangets.jsxbin» не проверялся.",
+        "en": "Possible bugs: angles are converted to radians by reassigning const variables, which ExtendScript does not allow, so the applied angles are likely wrong; the Out Angle handlers check the length lock instead of the angle lock; with no spatial property selected it throws an error. Needs testing. files, shell, settings and menu are declared because the whole lib/index.jsx is inlined into the build; of the library, the script itself only relies on prototypes. The compiled “Rule tangets.jsxbin” was not reviewed."
+      },
+      "tags": [
+        "keyframes",
+        "tangents",
+        "motion-path",
+        "bezier",
+        "panel"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Rule tangets.jsx",
+      "added": "2020-10-06T11:23:32+03:00",
+      "updated": "2020-10-06T11:23:32+03:00",
+      "file": "dl/rule-tangents.jsx",
+      "size": 50220,
+      "sha256": "a142de651b59657d375b12b8baba60114de204a8c4e91d6c4e391b0ae6c86471",
+      "lines": 1445,
+      "inlined": [
+        "lib/index.jsx",
+        "lib/constants.jsx",
+        "lib/supportingFunctions.jsx",
+        "lib/appLevelFunctions.jsx",
+        "lib/compLevelFunctions.jsx",
+        "lib/propertyLevelFunctions.jsx",
+        "lib/alertFunctions.jsx",
+        "lib/fileDataFunctions.jsx",
+        "lib/checkFunctions.jsx",
+        "lib/prototypeLevelFunctions.jsx",
+        "lib/controllerFunctions.jsx",
+        "lib/moveAnchorPoint.jsx",
+        "lib/timeRefactor.jsx",
+        "lib/mathModule.jsx",
+        "lib/colorModule.jsx",
+        "lib/highOrderFunctions.jsx"
+      ],
+      "checks": {
+        "status": "review",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [
+          {
+            "id": "shell",
+            "declared": true,
+            "detected": true,
+            "count": 2,
+            "samples": [
+              {
+                "line": 754,
+                "code": "system.callSystem( 'cmd /c start \"q\" \"' + url + '\"' );"
+              },
+              {
+                "line": 757,
+                "code": "system.callSystem( cmd );"
+              }
+            ]
+          },
+          {
+            "id": "files",
+            "declared": true,
+            "detected": true,
+            "count": 9,
+            "samples": [
+              {
+                "line": 692,
+                "code": "var userDataFolder = Folder.userData;"
+              },
+              {
+                "line": 693,
+                "code": "var motionScriptFolder = new Folder( userDataFolder.toString() + \"/\" + AUTHOR_NAME );"
+              },
+              {
+                "line": 697,
+                "code": "alert( \"Error creating \" + SCRIPT_NAME + \" folder. The folder will be created in the\\n\" + Folder.temp.toString() + \"\\nfolder\" );"
+              }
+            ]
+          },
+          {
+            "id": "prototypes",
+            "declared": true,
+            "detected": true,
+            "count": 11,
+            "samples": [
+              {
+                "line": 847,
+                "code": "AVLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 848,
+                "code": "TextLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 849,
+                "code": "ShapeLayer.prototype.instance = \"Layer\";"
+              }
+            ]
+          },
+          {
+            "id": "settings",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 340,
+                "code": "app.settings.saveSetting( SCRIPT_NAMESafe, name, value );"
+              }
+            ]
+          },
+          {
+            "id": "menu",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 677,
+                "code": "app.executeCommand( 2359 );"
+              }
+            ]
+          }
+        ],
+        "warnings": [
+          {
+            "code": "json",
+            "polyfilled": false,
+            "count": 2,
+            "samples": [
+              {
+                "line": 320,
+                "code": "return JSON.parse( app.settings.getSetting( SCRIPT_NAMESafe, name ) );"
+              },
+              {
+                "line": 335,
+                "code": "value = JSON.stringify( value );"
+              }
+            ]
+          }
+        ],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "set-opacity",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Переключатель прозрачности",
+        "en": "Toggle Reference Opacity"
+      },
+      "summary": {
+        "ru": "Переключает Opacity выделенных слоёв между 100% и 40% (с Shift — 0%), чтобы быстро пригасить их.",
+        "en": "Toggles the selected layers between 100% and 40% opacity (0% with Shift) to quickly ghost them."
+      },
+      "description": {
+        "ru": "Для каждого выделенного слоя без ключей Opacity: если прозрачность меньше 100%, возвращает 100%, иначе ставит 40%. С Shift вместо 40% ставится 0%, с Alt — всегда 100%. Слои с анимированной Opacity не трогаются.",
+        "en": "For each selected layer without Opacity keyframes: if opacity is below 100% it goes back to 100%, otherwise it is set to 40%. Holding Shift uses 0% instead of 40%; holding Alt always gives 100%. Layers with animated opacity are left alone."
+      },
+      "usage": {
+        "ru": "Выделите слои и запустите скрипт (удобнее повесить его на горячую клавишу или кнопку KBar); для других значений держите при запуске Shift или Alt.",
+        "en": "Select layers and run the script (best bound to a hotkey or a KBar button); hold Shift or Alt while launching for the other values."
+      },
+      "notes": {
+        "ru": "Нет undo-группы: изменение каждого слоя отменяется отдельно.",
+        "en": "No undo group: each layer’s change is a separate undo step."
+      },
+      "tags": [
+        "opacity",
+        "toggle",
+        "layers",
+        "workflow"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "Set Opacity.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2020-05-30T12:40:26+03:00",
+      "file": "dl/set-opacity.jsx",
+      "size": 1005,
+      "sha256": "3ba3027877d7f37fe02ea0d7823542b5ec65e36419537c757cbad90e84aec8ad",
+      "lines": 35,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "shift-channels",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "color",
+      "title": {
+        "ru": "RGB-сплит на три слоя",
+        "en": "RGB Split Layers"
+      },
+      "summary": {
+        "ru": "Раскладывает слой на красную, зелёную и синюю копии через Shift Channels и складывает их в Screen.",
+        "en": "Splits a layer into red, green and blue copies with Shift Channels and recombines them in Screen mode."
+      },
+      "description": {
+        "ru": "Добавляет первому выделенному слою эффект Shift Channels, оставляя только синий канал, затем делает две копии — только зелёный и только красный — в режиме Screen поверх. Картинка выглядит как исходная, пока вы не сдвинете или не отмасштабируете копии, — так получается хроматическая аберрация или RGB-сплит. Обрабатывается только первый выделенный слой.",
+        "en": "Adds a Shift Channels effect to the first selected layer so it keeps only the blue channel, then makes two copies on top — green only and red only — in Screen mode. The image looks unchanged until you offset or scale the copies, which gives a chromatic aberration / RGB split look. Only the first selected layer is processed."
+      },
+      "usage": {
+        "ru": "Выделите слой (футаж, шейп или текст) и запустите скрипт, затем сдвиньте красную и зелёную копии.",
+        "en": "Select a layer (footage, shape or text), run the script, then nudge the red and green copies."
+      },
+      "notes": {
+        "ru": "",
+        "en": ""
+      },
+      "tags": [
+        "rgb-split",
+        "chromatic-aberration",
+        "channels",
+        "glitch"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "ShiftChannels.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/shift-channels.jsx",
+      "size": 1413,
+      "sha256": "98e8797d3f10cb2a581fd4eeb2cd7e5f8a3b505e242d4a67f808ad561d9daa7c",
+      "lines": 33,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "show-hierarchy-of-property",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "utility",
+      "title": {
+        "ru": "Путь к свойству",
+        "en": "Show Property Path"
+      },
+      "summary": {
+        "ru": "Для скриптеров: показывает цепочку групп выделенного свойства с именами, match name и индексами.",
+        "en": "Scripting tool: shows the group hierarchy of the selected property with names, match names and indices."
+      },
+      "description": {
+        "ru": "Для первого выделенного свойства выводит все родительские группы от слоя до самого свойства: отображаемое имя, match name, индекс и соответствующую глубину propertyGroup(n). Помогает писать экспрешены и скрипты, которые обращаются к свойствам по match name. В проекте ничего не меняется.",
+        "en": "For the first selected property it lists every parent group from the layer down to the property itself, with display name, match name, property index and the matching propertyGroup(n) depth. Helps when writing expressions and scripts that address properties by match name. Nothing in the project is changed."
+      },
+      "usage": {
+        "ru": "Выделите свойство в таймлайне и запустите скрипт — иерархия появится в алерте.",
+        "en": "Select a property in the timeline and run the script; the hierarchy appears in an alert."
+      },
+      "notes": {
+        "ru": "",
+        "en": ""
+      },
+      "tags": [
+        "developer",
+        "match-name",
+        "properties",
+        "expressions"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "showIerarhyOfProperty.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/show-hierarchy-of-property.jsx",
+      "size": 1191,
+      "sha256": "b6706036c27c4f6c5e4782e2af291597af018c7ea4d239234b4a4fa16293c5f6",
+      "lines": 32,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "split-text-on-words",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "text",
+      "title": {
+        "ru": "Разбить текст на строки",
+        "en": "Split Text into Lines"
+      },
+      "summary": {
+        "ru": "Разбивает текстовый слой на отдельные слои по строкам; каждая строка остаётся на своём месте.",
+        "en": "Splits each selected text layer into separate layers, one per line, with every line kept in place."
+      },
+      "description": {
+        "ru": "Для каждого выделенного текстового слоя создаёт по дубликату на каждую строку: в копии остаётся только своя строка (остальные становятся пустыми), поэтому она стоит ровно там же, а анкор переносится к границам строки. Исходный слой выключается. Несмотря на имя файла, разбивки на слова нет — этот код закомментирован.",
+        "en": "For every selected text layer it creates one duplicate per line: each copy keeps only its own line (the others become empty), so it stays exactly in place, and the anchor point is moved to the line’s bounds. The original layer is switched off. Despite the file name, splitting into words is not implemented — that code is commented out."
+      },
+      "usage": {
+        "ru": "Выделите текстовые слои в композиции и запустите скрипт.",
+        "en": "Select text layers in a comp and run the script."
+      },
+      "notes": {
+        "ru": "Учитываются только жёсткие переносы (Enter), а не автоперенос в абзацном тексте. Функция из библиотеки на деле ставит анкор в центр нижнего края текста, а не в центр. Если у Position есть ключи, компенсация анкора использует векторную арифметику, которой нет в ExtendScript, и, скорее всего, упадёт. Права files, shell, settings и menu объявлены, потому что в сборку попадает вся lib/index.jsx; сам скрипт из библиотеки использует только prototypes.",
+        "en": "Only hard line breaks (Enter) count, not automatic wrapping in paragraph text. The library helper actually puts the anchor at the bottom center of the text, not the center. If Position is keyframed, the anchor compensation uses array math that ExtendScript doesn’t support and will likely fail. files, shell, settings and menu are declared because the whole lib/index.jsx is inlined into the build; of the library, the script itself only relies on prototypes."
+      },
+      "tags": [
+        "text",
+        "split",
+        "lines",
+        "anchor-point"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "SplitTextOnWords.jsx",
+      "added": "2020-10-06T11:23:32+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/split-text-on-words.jsx",
+      "size": 44451,
+      "sha256": "54fbd64905c982e5be7597c9f45f90294deb3804d9fd604e7d8c778c904b03be",
+      "lines": 1350,
+      "inlined": [
+        "lib/index.jsx",
+        "lib/constants.jsx",
+        "lib/supportingFunctions.jsx",
+        "lib/appLevelFunctions.jsx",
+        "lib/compLevelFunctions.jsx",
+        "lib/propertyLevelFunctions.jsx",
+        "lib/alertFunctions.jsx",
+        "lib/fileDataFunctions.jsx",
+        "lib/checkFunctions.jsx",
+        "lib/prototypeLevelFunctions.jsx",
+        "lib/controllerFunctions.jsx",
+        "lib/moveAnchorPoint.jsx",
+        "lib/timeRefactor.jsx",
+        "lib/mathModule.jsx",
+        "lib/colorModule.jsx",
+        "lib/highOrderFunctions.jsx"
+      ],
+      "checks": {
+        "status": "review",
+        "syntax": {
+          "level": "es3",
+          "constExtension": true,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [
+          {
+            "id": "shell",
+            "declared": true,
+            "detected": true,
+            "count": 2,
+            "samples": [
+              {
+                "line": 739,
+                "code": "system.callSystem( 'cmd /c start \"q\" \"' + url + '\"' );"
+              },
+              {
+                "line": 742,
+                "code": "system.callSystem( cmd );"
+              }
+            ]
+          },
+          {
+            "id": "files",
+            "declared": true,
+            "detected": true,
+            "count": 9,
+            "samples": [
+              {
+                "line": 677,
+                "code": "var userDataFolder = Folder.userData;"
+              },
+              {
+                "line": 678,
+                "code": "var motionScriptFolder = new Folder( userDataFolder.toString() + \"/\" + AUTHOR_NAME );"
+              },
+              {
+                "line": 682,
+                "code": "alert( \"Error creating \" + SCRIPT_NAME + \" folder. The folder will be created in the\\n\" + Folder.temp.toString() + \"\\nfolder\" );"
+              }
+            ]
+          },
+          {
+            "id": "prototypes",
+            "declared": true,
+            "detected": true,
+            "count": 11,
+            "samples": [
+              {
+                "line": 832,
+                "code": "AVLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 833,
+                "code": "TextLayer.prototype.instance = \"Layer\";"
+              },
+              {
+                "line": 834,
+                "code": "ShapeLayer.prototype.instance = \"Layer\";"
+              }
+            ]
+          },
+          {
+            "id": "settings",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 325,
+                "code": "app.settings.saveSetting( SCRIPT_NAMESafe, name, value );"
+              }
+            ]
+          },
+          {
+            "id": "menu",
+            "declared": true,
+            "detected": true,
+            "count": 1,
+            "samples": [
+              {
+                "line": 662,
+                "code": "app.executeCommand( 2359 );"
+              }
+            ]
+          }
+        ],
+        "warnings": [
+          {
+            "code": "json",
+            "polyfilled": false,
+            "count": 2,
+            "samples": [
+              {
+                "line": 305,
+                "code": "return JSON.parse( app.settings.getSetting( SCRIPT_NAMESafe, name ) );"
+              },
+              {
+                "line": 320,
+                "code": "value = JSON.stringify( value );"
+              }
+            ]
+          }
+        ],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "trim-comp-to-layers",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "comp",
+      "title": {
+        "ru": "Обрезать композицию по слоям",
+        "en": "Trim Comp to Layers"
+      },
+      "summary": {
+        "ru": "Подгоняет начало и длительность активной композиции от самого раннего входа до самого позднего выхода слоёв.",
+        "en": "Sets the active comp’s start and duration to span from the earliest layer in-point to the latest out-point."
+      },
+      "description": {
+        "ru": "Перебирает все слои активной композиции (не только выделенные), находит самый ранний вход и самый поздний выход, ставит начало композиции (displayStartTime) на этот вход, а длительность — на весь отрезок. Слои не сдвигаются.",
+        "en": "Scans all layers of the active comp (not just the selected ones), finds the earliest in-point and the latest out-point, then sets the comp’s start time (displayStartTime) to that in-point and its duration to the span. Layers are not moved."
+      },
+      "usage": {
+        "ru": "Откройте композицию и запустите скрипт.",
+        "en": "Open the comp and run the script."
+      },
+      "notes": {
+        "ru": "Меняется стартовый таймкод композиции, а не положение слоёв, — проверьте результат на композициях, где первый слой начинается не с 0. Нет undo-группы: начало и длительность отменяются двумя шагами.",
+        "en": "It changes the comp’s start timecode rather than shifting layers, so check the result on comps whose first layer doesn’t start at 0. No undo group: start and duration are two separate undo steps."
+      },
+      "tags": [
+        "composition",
+        "trim",
+        "duration",
+        "timing"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "trimCompToLayers.jsx",
+      "added": "2020-05-30T12:40:26+03:00",
+      "updated": "2020-05-30T12:40:26+03:00",
+      "file": "dl/trim-comp-to-layers.jsx",
+      "size": 974,
+      "sha256": "9ef214cba6dfce99513e1218fe3ca8dc68362002b604a6cb8289b8e1eee416e6",
+      "lines": 30,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
+    {
+      "id": "trim-layers",
+      "version": "1.0.0",
+      "host": "aftereffects",
+      "kind": "script",
+      "category": "layers",
+      "title": {
+        "ru": "Обрезать слои по последнему",
+        "en": "Trim Layers to Last Selected"
+      },
+      "summary": {
+        "ru": "Подгоняет вход и выход выделенных слоёв под слой, выделенный последним.",
+        "en": "Matches the in and out points of the selected layers to the layer you selected last."
+      },
+      "description": {
+        "ru": "Последний слой в выделении служит образцом: все остальные выделенные слои получают такие же вход и выход. Удобно, чтобы выровнять титры, матты или корректирующие слои по клипу. Положение слоёв в стеке и их ключи не меняются.",
+        "en": "The last layer in the selection is the reference: every other selected layer gets the same in-point and out-point. Handy for lining up titles, mattes or adjustment layers with a clip. Stack order and keyframes are not touched."
+      },
+      "usage": {
+        "ru": "Выделите слои, которые нужно обрезать, затем последним с Ctrl/Cmd выделите слой-образец и запустите скрипт.",
+        "en": "Select the layers to trim, then Ctrl/Cmd-click the reference layer last and run the script."
+      },
+      "notes": {
+        "ru": "",
+        "en": ""
+      },
+      "tags": [
+        "trim",
+        "layers",
+        "timing",
+        "in-out"
+      ],
+      "hostVersions": {
+        "min": null,
+        "tested": []
+      },
+      "author": {
+        "name": "Mihail",
+        "github": "SqBrain"
+      },
+      "license": "MIT",
+      "ai": {
+        "level": "unknown",
+        "model": null,
+        "humanReviewed": true
+      },
+      "entry": "trimLayers.jsx",
+      "added": "2026-06-01T16:26:23+03:00",
+      "updated": "2026-06-01T16:26:23+03:00",
+      "file": "dl/trim-layers.jsx",
+      "size": 1067,
+      "sha256": "4f0ff7491d5533b24a135fee3f0549f1ada1d15fe620daee8162e87604fe9fbf",
+      "lines": 26,
+      "inlined": [],
+      "checks": {
+        "status": "ok",
+        "syntax": {
+          "level": "es3",
+          "constExtension": false,
+          "es3Error": null,
+          "error": null
+        },
+        "capabilities": [],
+        "warnings": [],
+        "missingIncludes": []
+      }
+    },
     {
       "id": "vfx-cave-panel",
       "version": "0.1.0",
@@ -75,8 +3342,8 @@
         "humanReviewed": false
       },
       "entry": "portal/panel/VFX Cave.jsx",
-      "added": null,
-      "updated": null,
+      "added": "2026-10-21T19:24:43+00:00",
+      "updated": "2026-10-21T19:24:43+00:00",
       "file": "dl/vfx-cave-panel.jsx",
       "size": 25554,
       "sha256": "de31471d9e14444456260f189a3af82f78f899c9c5d454bdd27e4f683e3e21b7",
@@ -86,6 +3353,7 @@
         "status": "review",
         "syntax": {
           "level": "es3",
+          "constExtension": false,
           "es3Error": null,
           "error": null
         },

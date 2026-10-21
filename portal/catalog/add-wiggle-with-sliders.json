@@ -1,0 +1,50 @@
+{
+  "id": "add-wiggle-with-sliders",
+  "version": "1.0.0",
+  "entry": "Add_Wiggle_with_Sliders.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "animation",
+  "title": {
+    "ru": "Вигл со слайдерами",
+    "en": "Wiggle with Slider Controls"
+  },
+  "summary": {
+    "ru": "Вешает wiggle на выделенные свойства и выводит амплитуду и частоту на слайдеры Amp и Freq.",
+    "en": "Adds wiggle to the selected properties and puts amplitude and frequency on Amp and Freq sliders."
+  },
+  "description": {
+    "ru": "Прописывает экспрешен wiggle(freq, amp) во все выделенные свойства, которые принимают экспрешены, и связывает его с двумя Slider Control: Amp (10) и Freq (3). Если выделен один слой, слайдеры появляются на нём самом; если несколько — на шейп-слое «Controller» (создаётся или берётся существующий), и одна пара слайдеров управляет всеми. Существующий экспрешен на свойстве заменяется.",
+    "en": "Writes a wiggle(freq, amp) expression into every selected property that accepts expressions and links it to two Slider Controls: Amp (10) and Freq (3). With one layer selected the sliders go on that layer; with several they go on a shape layer named “Controller” (created, or reused if it exists), so one pair of sliders drives them all. Any existing expression on the property is replaced."
+  },
+  "usage": {
+    "ru": "Откройте композицию, выделите в таймлайне свойства, которые нужно «потрясти» (Position, Rotation и т. п.), и запустите скрипт через File > Scripts > Run Script File…. Диалогов нет — Amp и Freq крутите в Effect Controls.",
+    "en": "Open a comp, select the properties you want to shake (Position, Rotation, etc.) in the timeline and run the script via File > Scripts > Run Script File…. There is no dialog; adjust Amp and Freq in Effect Controls."
+  },
+  "tags": [
+    "wiggle",
+    "expressions",
+    "sliders",
+    "controller"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Каждый запуск добавляет новую пару слайдеров, даже если Amp и Freq уже есть. Если не выделено ни одного слоя, появится сообщение «No properties selected».",
+    "en": "Each run adds a new pair of sliders even if Amp and Freq already exist. With no layer selected it shows “No properties selected”."
+  }
+}

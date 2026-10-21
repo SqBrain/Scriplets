@@ -1,0 +1,50 @@
+{
+  "id": "create-fitting-shape-layer",
+  "version": "1.0.0",
+  "entry": "CreateFittingShapeLayer.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Шейп-слой по длине выделенных",
+    "en": "Shape Layer Spanning Selection"
+  },
+  "summary": {
+    "ru": "Создаёт пустой шейп-слой на весь отрезок выделенных слоёв и ставит его над ними.",
+    "en": "Adds an empty shape layer that spans the time range of the selected layers and sits above them."
+  },
+  "description": {
+    "ru": "Находит самый ранний вход и самый поздний выход среди выделенных слоёв, создаёт пустой шейп-слой с этим отрезком и ставит его прямо над самым верхним из выделенных. Удобно как основа для контроллера, матта или корректирующего шейпа. Содержимого (фигур) у слоя нет.",
+    "en": "Finds the earliest in-point and the latest out-point among the selected layers, creates an empty shape layer with that range and moves it directly above the topmost selected layer. Handy as a base for a controller, a matte or an adjustment-style shape. The new layer has no contents."
+  },
+  "usage": {
+    "ru": "Выделите слои в композиции и запустите скрипт.",
+    "en": "Select layers in a comp and run the script."
+  },
+  "tags": [
+    "shape-layer",
+    "timing",
+    "layers",
+    "controller"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Без выделенных слоёв скрипт пытается поставить новый слой перед самим собой, что может вызвать ошибку, — выделите хотя бы один слой.",
+    "en": "With no layers selected the script tries to move the new layer before itself, which may raise an error — select at least one layer."
+  }
+}

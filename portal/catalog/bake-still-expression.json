@@ -1,0 +1,50 @@
+{
+  "id": "bake-still-expression",
+  "version": "1.0.0",
+  "entry": "bakeStillExpression.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "expressions",
+  "title": {
+    "ru": "Запечь экспрешены в значения",
+    "en": "Bake Expressions to Values"
+  },
+  "summary": {
+    "ru": "Заменяет экспрешены выделенных свойств их вычисленными значениями и удаляет сами экспрешены.",
+    "en": "Replaces expressions on the selected properties with their evaluated values, then removes the expressions."
+  },
+  "description": {
+    "ru": "Для каждого выделенного свойства с экспрешеном: если есть ключи, каждому ключу записывается значение, которое экспрешен даёт в момент этого ключа; если ключей нет, свойство получает статичное значение экспрешена на входе слоя. Затем экспрешен удаляется. Это «статичное» запекание: покадровые ключи не создаются, и движение, которое экспрешен давал между ключами, теряется.",
+    "en": "For each selected property with an expression: if it has keyframes, each key gets the value the expression produces at that key’s time; otherwise the property gets the static value the expression gives at the layer’s in-point. The expression is then removed. It is a “still” bake: no per-frame keys are created, so motion the expression produced between keys is lost."
+  },
+  "usage": {
+    "ru": "Выделите свойства с экспрешенами в таймлайне и запустите скрипт.",
+    "en": "Select properties with expressions in the timeline and run the script."
+  },
+  "tags": [
+    "expressions",
+    "bake",
+    "keyframes",
+    "cleanup"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Если нужна вся анимация, используйте штатное Animation > Keyframe Assistant > Convert Expression to Keyframes.",
+    "en": "If you need the full animation, use the built-in Animation > Keyframe Assistant > Convert Expression to Keyframes."
+  }
+}

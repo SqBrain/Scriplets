@@ -1,0 +1,52 @@
+{
+  "id": "made-bunch-of-masks",
+  "version": "1.0.0",
+  "entry": "madeBunchOfMasks.js",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "animation",
+  "title": {
+    "ru": "Распад слоя на плитки",
+    "en": "Tile Disintegration Transition"
+  },
+  "summary": {
+    "ru": "Режет слой на сетку плиток-масок, которые от текущего кадра уменьшаются и смещаются.",
+    "en": "Cuts a layer into a grid of masked tiles that shrink and drift away from the current time."
+  },
+  "description": {
+    "ru": "Задумано так: каждый выделенный футажный слой режется на плитки (10 колонок) — каждая плитка это дубликат с квадратной маской, которая за 0,5 с превращается в скруглённую фигуру, пока Position смещается на (−50, −30) px, а Scale уходит в 0; исходный слой выключается. Все плитки стартуют одновременно. Вспомогательная функция для разнесения слоёв по времени есть, но не используется.",
+    "en": "The intent: each selected footage layer is cut into tiles (10 columns) — every tile is a duplicate with a square mask that morphs into a rounded shape over 0.5 s while its Position drifts by (−50, −30) px and Scale goes to 0; the original layer is switched off. All tiles start at the same time. A helper for staggering layers in time is present but unused."
+  },
+  "usage": {
+    "ru": "(После исправления include) выделите футажный слой, поставьте индикатор времени на начало перехода и запустите скрипт.",
+    "en": "(Once the include is fixed) select a footage layer, put the playhead where the transition should start and run the script."
+  },
+  "tags": [
+    "masks",
+    "transition",
+    "tiles",
+    "animation"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [
+    "../libs/index.jsx"
+  ],
+  "notes": {
+    "ru": "В текущем виде не работает: подключается «../libs/index.jsx», которого нет (видимо, имелся в виду lib/index.jsx), и AE не запустит скрипт. Даже после исправления: смещение считается векторной арифметикой (val + dist), которой нет в ExtendScript, а на неквадратных слоях узор плиток покрывает квадратную область — часть слоя остаётся непокрытой, появляются пустые плитки. После исправления include в permissions нужно добавить то же, что у других скриптов с lib/index.jsx.",
+    "en": "Broken as shipped: it includes “../libs/index.jsx”, which doesn’t exist (lib/index.jsx was probably meant), so AE won’t run it. Even with the include fixed, the drift uses array math (val + dist) that ExtendScript doesn’t support, and on non-square layers the tile pattern covers a square area, leaving part of the layer uncovered and creating empty tiles. Once the include points to lib/index.jsx, permissions must get the same entries as the other lib/index.jsx scripts."
+  }
+}

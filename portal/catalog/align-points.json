@@ -1,0 +1,50 @@
+{
+  "id": "align-points",
+  "version": "1.0.0",
+  "entry": "alignPoints.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Выравнивание точек пути",
+    "en": "Align Path Points"
+  },
+  "summary": {
+    "ru": "Привязывает вершины выделенных путей шейп-слоя к целым и половинным пикселям — и на всех ключах.",
+    "en": "Snaps the vertices of the selected shape paths to whole or half pixels, on every keyframe too."
+  },
+  "description": {
+    "ru": "Для каждого выделенного свойства Path шейп-слоя округляет координаты всех вершин до ближайших 0,5 px — на каждом ключевом кадре, если путь анимирован, иначе в статичном значении. Касательные не трогаются; пути масок не обрабатываются.",
+    "en": "For each selected shape Path property it rounds every vertex coordinate to the nearest 0.5 px — on every keyframe if the path is animated, otherwise on the static value. Tangents are left alone; mask paths are not handled."
+  },
+  "usage": {
+    "ru": "Выделите свойства Path внутри Contents шейп-слоя и запустите скрипт.",
+    "en": "Select Path properties inside a shape layer’s Contents and run the script."
+  },
+  "tags": [
+    "paths",
+    "shape-layer",
+    "pixel-snapping",
+    "keyframes"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Оставлен отладочный алерт: список вершин выводится для каждого пути и каждого ключа, на длинной анимации это утомительно. Пересекается с round-path-points.",
+    "en": "A leftover debug alert lists the vertices for every path and every keyframe, which gets tedious on long animations. Overlaps with round-path-points."
+  }
+}

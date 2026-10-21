@@ -1,0 +1,50 @@
+{
+  "id": "show-hierarchy-of-property",
+  "version": "1.0.0",
+  "entry": "showIerarhyOfProperty.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "utility",
+  "title": {
+    "ru": "Путь к свойству",
+    "en": "Show Property Path"
+  },
+  "summary": {
+    "ru": "Для скриптеров: показывает цепочку групп выделенного свойства с именами, match name и индексами.",
+    "en": "Scripting tool: shows the group hierarchy of the selected property with names, match names and indices."
+  },
+  "description": {
+    "ru": "Для первого выделенного свойства выводит все родительские группы от слоя до самого свойства: отображаемое имя, match name, индекс и соответствующую глубину propertyGroup(n). Помогает писать экспрешены и скрипты, которые обращаются к свойствам по match name. В проекте ничего не меняется.",
+    "en": "For the first selected property it lists every parent group from the layer down to the property itself, with display name, match name, property index and the matching propertyGroup(n) depth. Helps when writing expressions and scripts that address properties by match name. Nothing in the project is changed."
+  },
+  "usage": {
+    "ru": "Выделите свойство в таймлайне и запустите скрипт — иерархия появится в алерте.",
+    "en": "Select a property in the timeline and run the script; the hierarchy appears in an alert."
+  },
+  "tags": [
+    "developer",
+    "match-name",
+    "properties",
+    "expressions"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "",
+    "en": ""
+  }
+}

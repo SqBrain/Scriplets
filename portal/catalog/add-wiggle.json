@@ -1,0 +1,49 @@
+{
+  "id": "add-wiggle",
+  "version": "1.0.0",
+  "entry": "add wiggle.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "animation",
+  "title": {
+    "ru": "Вигл со слайдерами на слое",
+    "en": "Wiggle with Layer Sliders"
+  },
+  "summary": {
+    "ru": "Добавляет wiggle на выделенные свойства, а слайдеры Freq и Amp создаёт на самом слое.",
+    "en": "Adds wiggle to the selected properties, with Freq and Amp sliders placed on each layer itself."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя ищет Slider Control с именами «Freq» и «Amp» и создаёт недостающие (3 и 10), затем прописывает выделенным свойствам этого слоя экспрешен wiggle, который читает эти слайдеры. Уже существующие слайдеры переиспользуются, так что скрипт можно запускать повторно. Общего контроллера нет: у каждого слоя своя пара слайдеров.",
+    "en": "For each selected layer it looks for Slider Controls named “Freq” and “Amp”, creates whichever is missing (3 and 10), then gives that layer’s selected properties a wiggle expression that reads those sliders. Existing sliders are reused, so you can run it repeatedly. There is no shared controller: every layer gets its own pair."
+  },
+  "usage": {
+    "ru": "Откройте композицию, выделите один слой и нужные свойства и запустите скрипт. Без активной композиции появится «Select composition».",
+    "en": "Open a comp, select one layer and the properties to shake, then run the script. Without an active comp it shows “Select composition”."
+  },
+  "tags": [
+    "wiggle",
+    "expressions",
+    "sliders"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Баг: внутренний цикл использует ту же переменную i, что и внешний, поэтому при нескольких выделенных слоях часть слоёв пропускается. Надёжно работает с одним слоем за раз. Существующие экспрешены перезаписываются.",
+    "en": "Bug: the inner loop reuses the outer loop variable i, so with several layers selected some layers get skipped. Reliable with one layer at a time. Existing expressions are overwritten."
+  }
+}

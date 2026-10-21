@@ -1,0 +1,60 @@
+{
+  "id": "add-controllable-matte",
+  "version": "1.0.0",
+  "entry": "addControllableMatte.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "mattes",
+  "title": {
+    "ru": "Авто-плашка или матт",
+    "en": "Auto-Size Plate or Matte"
+  },
+  "summary": {
+    "ru": "Подкладывает под слой плашку, которая подстраивается под его размер (с Alt — трек-матт), с настройкой отступов.",
+    "en": "Adds a self-resizing plate behind each selected layer (Alt: a track matte) with padding controls."
+  },
+  "description": {
+    "ru": "Записывает встроенный пресет псевдоэффекта mattePreset.ffx (Top, Bottom, Left, Right, X Axis, Y Axis) в папку пользовательских данных и применяет его к новому шейп-слою, чей прямоугольник повторяет sourceRectAtTime() слоя плюс отступы; есть слайдер Minimal Width и белая заливка. Выделенный слой получает слайдеры xAxis/yAxis и экспрешен на Anchor Point, который ими управляется. По умолчанию — плашка под слоем, которая следует за его позицией. С Alt — скрытый матт над слоем: слой получает трек-матт Alpha и эффект Transform.",
+    "en": "Writes the embedded pseudo-effect preset mattePreset.ffx (Top, Bottom, Left, Right, X Axis, Y Axis) to the user data folder and applies it to a new shape layer whose rectangle follows the layer’s sourceRectAtTime() plus padding, with a Minimal Width slider and a white fill. The selected layer gets xAxis/yAxis sliders and an Anchor Point expression driven by them. Default: a plate below the layer that follows its position. Alt: a hidden matte above it, and the layer gets an Alpha track matte plus a Transform effect."
+  },
+  "usage": {
+    "ru": "Включите Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network (в старых версиях — Preferences > General). Выделите текстовые или другие слои и запустите скрипт; с Alt вместо плашки будет матт.",
+    "en": "Turn on Preferences > Scripting & Expressions > Allow Scripts to Write Files and Access Network (Preferences > General in older versions). Select text or other layers and run the script; hold Alt to get a matte instead of a plate."
+  },
+  "tags": [
+    "plate",
+    "track-matte",
+    "text",
+    "pseudo-effect",
+    "rig"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [
+    "files",
+    "shell",
+    "prototypes",
+    "settings",
+    "menu"
+  ],
+  "requires": [
+    "lib",
+    "MattePresetBinnaryCode.jsx"
+  ],
+  "notes": {
+    "ru": "Известный баг: библиотека обращается к AUTHOR_NAME и SCRIPT_NAME, а скрипт объявляет только authorName и scriptName, поэтому при включённом доступе к файлам он падает с ReferenceError, ничего не сделав. Перед публикацией нужно починить. Если опция доступа к файлам выключена, скрипт открывает окно настроек. Камеры и свет не отсекаются (проверка никогда не срабатывает). Скрипт реально пишет файлы, меняет прототипы и вызывает команду меню; shell и settings объявлены только потому, что в сборку попадает вся lib/index.jsx.",
+    "en": "Known bug: the library refers to AUTHOR_NAME and SCRIPT_NAME, but the script only defines authorName and scriptName, so with file access enabled it stops with a ReferenceError before doing anything. Needs a fix before publishing. If file access is off, the script opens the Preferences dialog. Camera and light layers are not filtered out (the check can never be true). The script really writes files, changes prototypes and runs a menu command; shell and settings are declared only because the whole lib/index.jsx is inlined into the build."
+  }
+}

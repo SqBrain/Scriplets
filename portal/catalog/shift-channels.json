@@ -1,0 +1,50 @@
+{
+  "id": "shift-channels",
+  "version": "1.0.0",
+  "entry": "ShiftChannels.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "color",
+  "title": {
+    "ru": "RGB-сплит на три слоя",
+    "en": "RGB Split Layers"
+  },
+  "summary": {
+    "ru": "Раскладывает слой на красную, зелёную и синюю копии через Shift Channels и складывает их в Screen.",
+    "en": "Splits a layer into red, green and blue copies with Shift Channels and recombines them in Screen mode."
+  },
+  "description": {
+    "ru": "Добавляет первому выделенному слою эффект Shift Channels, оставляя только синий канал, затем делает две копии — только зелёный и только красный — в режиме Screen поверх. Картинка выглядит как исходная, пока вы не сдвинете или не отмасштабируете копии, — так получается хроматическая аберрация или RGB-сплит. Обрабатывается только первый выделенный слой.",
+    "en": "Adds a Shift Channels effect to the first selected layer so it keeps only the blue channel, then makes two copies on top — green only and red only — in Screen mode. The image looks unchanged until you offset or scale the copies, which gives a chromatic aberration / RGB split look. Only the first selected layer is processed."
+  },
+  "usage": {
+    "ru": "Выделите слой (футаж, шейп или текст) и запустите скрипт, затем сдвиньте красную и зелёную копии.",
+    "en": "Select a layer (footage, shape or text), run the script, then nudge the red and green copies."
+  },
+  "tags": [
+    "rgb-split",
+    "chromatic-aberration",
+    "channels",
+    "glitch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "",
+    "en": ""
+  }
+}

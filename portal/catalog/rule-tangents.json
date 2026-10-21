@@ -1,0 +1,59 @@
+{
+  "id": "rule-tangents",
+  "version": "1.0.0",
+  "entry": "Rule tangets.jsx",
+  "host": "aftereffects",
+  "kind": "panel",
+  "category": "keyframes",
+  "title": {
+    "ru": "Касательные по углу и длине",
+    "en": "Rule Tangents"
+  },
+  "summary": {
+    "ru": "Панель для настройки пространственных касательных ключа через угол и длину.",
+    "en": "Panel for setting a keyframe’s spatial tangents by angle and length with sliders."
+  },
+  "description": {
+    "ru": "Докируемая ScriptUI-панель (или плавающее окно) со слайдерами In Angle и Out Angle (0–360°), длины In/Out Tangent (0–2000) и двумя галочками, которые привязывают значения выхода к входу. Кнопка «Analyze Spatial» считывает касательные единственного выделенного ключа пространственного свойства (Position, Anchor Point и т. п.) в контролы; после этого движение слайдера или ввод числа переписывает касательные этого ключа. Работает с одним свойством и одним ключом за раз.",
+    "en": "A dockable ScriptUI panel (or floating window) with In Angle and Out Angle sliders (0–360°), In/Out Tangent length sliders (0–2000) and two checkboxes that lock the out values to the in values. “Analyze Spatial” reads the tangents of the single selected keyframe on a spatial property (Position, Anchor Point, etc.) into the controls; after that, moving a slider or typing a value rewrites that keyframe’s spatial tangents. Works on one property and one keyframe at a time."
+  },
+  "usage": {
+    "ru": "Скопируйте файл в папку ScriptUI Panels и откройте из меню Window, чтобы задокать (или запустите через File > Scripts — будет плавающее окно). Выделите один ключ на Position, нажмите Analyze Spatial и двигайте слайдеры.",
+    "en": "Copy the file into the ScriptUI Panels folder and open it from the Window menu to dock it (or run it via File > Scripts for a floating window). Select one keyframe on Position, click Analyze Spatial, then move the sliders."
+  },
+  "tags": [
+    "keyframes",
+    "tangents",
+    "motion-path",
+    "bezier",
+    "panel"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [
+    "files",
+    "shell",
+    "prototypes",
+    "settings",
+    "menu"
+  ],
+  "requires": [
+    "lib"
+  ],
+  "notes": {
+    "ru": "Возможные баги: углы переводятся в радианы переприсваиванием const-переменных, а const в ExtendScript не меняется, поэтому применённые углы, скорее всего, неверны; обработчики Out Angle проверяют блокировку длины вместо блокировки угла; если не выделено пространственное свойство, скрипт падает с ошибкой. Требует проверки. Права files, shell, settings и menu объявлены, потому что в сборку попадает вся lib/index.jsx; сам скрипт из библиотеки использует только prototypes. Скомпилированный «Rule tangets.jsxbin» не проверялся.",
+    "en": "Possible bugs: angles are converted to radians by reassigning const variables, which ExtendScript does not allow, so the applied angles are likely wrong; the Out Angle handlers check the length lock instead of the angle lock; with no spatial property selected it throws an error. Needs testing. files, shell, settings and menu are declared because the whole lib/index.jsx is inlined into the build; of the library, the script itself only relies on prototypes. The compiled “Rule tangets.jsxbin” was not reviewed."
+  }
+}

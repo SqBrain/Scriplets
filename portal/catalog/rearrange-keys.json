@@ -1,0 +1,50 @@
+{
+  "id": "rearrange-keys",
+  "version": "1.0.0",
+  "entry": "rearangeKeys.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "keyframes",
+  "title": {
+    "ru": "Ровный шаг ключей",
+    "en": "Respace Keyframes Evenly"
+  },
+  "summary": {
+    "ru": "Расставляет выделенные ключевые кадры с равным шагом в N кадров, сохраняя значения и изинг.",
+    "en": "Respaces the selected keyframes a fixed number of frames apart, keeping values and easing."
+  },
+  "description": {
+    "ru": "Спрашивает число кадров между ключами (по умолчанию 2). Для каждого выделенного свойства с двумя и более выделенными ключами запоминает значение, интерполяцию, temporal ease и цветовую метку каждого ключа, удаляет их и создаёт заново от времени первого ключа с заданным шагом. Неравномерно расставленные ключи становятся равномерными.",
+    "en": "Asks for the number of frames between keys (default 2). For every selected property with two or more selected keyframes it records each key’s value, interpolation, temporal ease and color label, deletes the keys and recreates them from the first key’s time at the chosen step. Unevenly spaced keys become evenly spaced."
+  },
+  "usage": {
+    "ru": "Выделите в таймлайне ключи, которые нужно расставить, запустите скрипт и введите шаг в кадрах.",
+    "en": "Select the keyframes to respace in the timeline, run the script and enter the step in frames."
+  },
+  "tags": [
+    "keyframes",
+    "timing",
+    "spacing",
+    "easing"
+  ],
+  "hostVersions": {
+    "min": "2022 (22.6)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Баг: признак пространственного свойства сравнивается, а не присваивается, поэтому на Position и подобных свойствах пространственные касательные не восстанавливаются (форма траектории может измениться). Cancel ломает выполнение. Нужен AE 2022 (22.6)+ из-за меток ключей. rearangeKeys.js в репозитории — старая копия, которая игнорирует введённый шаг.",
+    "en": "Bug: the spatial flag is compared instead of assigned, so on Position-like properties the spatial tangents are not restored (the motion path shape may change). Pressing Cancel breaks the run. Needs AE 2022 (22.6)+ for keyframe labels. rearangeKeys.js in the repo is an older copy that ignores the entered step."
+  }
+}

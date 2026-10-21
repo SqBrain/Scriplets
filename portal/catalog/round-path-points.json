@@ -1,0 +1,50 @@
+{
+  "id": "round-path-points",
+  "version": "1.0.0",
+  "entry": "Round pathPoints.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Точки пути по полупикселям",
+    "en": "Snap Path Points to Half-Pixels"
+  },
+  "summary": {
+    "ru": "Округляет вершины выделенных путей шейп-слоя до ближайших 0,5 px.",
+    "en": "Rounds the vertices of the selected shape-layer paths to the nearest 0.5 px."
+  },
+  "description": {
+    "ru": "Для каждого выделенного свойства Path шейп-слоя без ключевых кадров привязывает все вершины к ближайшему целому или половинному пикселю; касательные не трогаются. Анимированные пути и маски пропускаются. Перед применением показывает отладочный алерт со списком атрибутов объекта Shape. Вторая функция, которая добавляла бы промежуточные точки на диагональных отрезках, в файле есть, но не вызывается.",
+    "en": "For each selected shape Path property without keyframes it snaps every vertex to the nearest whole or half pixel; tangents are left alone. Animated paths and masks are skipped. Before applying it shows a debug alert listing the Shape object’s attributes. A second function that would add intermediate points along diagonal segments is in the file but never called."
+  },
+  "usage": {
+    "ru": "Выделите свойства Path внутри Contents шейп-слоя и запустите скрипт; закройте отладочный алерт, чтобы продолжить.",
+    "en": "Select Path properties inside a shape layer’s Contents and run the script; close the debug alert to continue."
+  },
+  "tags": [
+    "paths",
+    "shape-layer",
+    "pixel-snapping",
+    "vertices"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Оставлен отладочный алерт на каждый путь. Нет undo-группы — каждый путь отменяется отдельно. Скрипт align-points делает то же самое и умеет ключевые кадры.",
+    "en": "A leftover debug alert pops up for every path. There is no undo group, so each path is a separate undo step. align-points does the same and also handles keyframes."
+  }
+}

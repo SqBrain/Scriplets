@@ -1,0 +1,53 @@
+{
+  "id": "plashka-creator",
+  "version": "1.0.0",
+  "entry": "Plashka creator.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Плашка или матт под слой",
+    "en": "Plate or Matte for Layer"
+  },
+  "summary": {
+    "ru": "Создаёт прямоугольную плашку или матт по размеру слоя со слайдерами ширины, высоты и выравнивания.",
+    "en": "Creates a rectangle plate or matte sized to each selected layer, with width, height and alignment controls."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя измеряет его границы в текущем кадре и строит шейп-слой с прямоугольником, которым управляют слайдеры Width/Height и выпадающие списки Vertical/Horizontal Anchor; родитель, 3D, поворот, масштаб и вход/выход копируются со слоя. По умолчанию — слой «MATTE» сверху: слой получает трек-матт Alpha и эффект Transform для анимации внутри матта. С Alt — плашка «PLASHKA» снизу с эффектом Fill. С Shift — и то и другое: матт привязан к плашке через parent, а его слайдеры повторяют слайдеры плашки.",
+    "en": "For each selected layer it measures the bounds at the current time and builds a shape layer with a rectangle driven by Width/Height sliders and Vertical/Horizontal Anchor dropdowns, copying the layer’s parent, 3D switch, rotation, scale and in/out points. Default: a “MATTE” layer above — the layer gets an Alpha track matte and a Transform effect for animating inside it. Alt: a “PLASHKA” plate below with a Fill effect. Shift: both, with the matte parented to the plate and its sliders following the plate’s."
+  },
+  "usage": {
+    "ru": "Выделите текстовые или другие слои и запустите скрипт; с Alt — плашка под слоем, с Shift — плашка плюс матт.",
+    "en": "Select text or other layers and run the script; hold Alt for a plate under the layer, Shift for plate plus matte."
+  },
+  "tags": [
+    "plate",
+    "shape-layer",
+    "track-matte",
+    "text",
+    "rig"
+  ],
+  "hostVersions": {
+    "min": "2020 (17.0.1)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [
+    "lib"
+  ],
+  "notes": {
+    "ru": "Вероятный баг: смещение позиции считается векторной арифметикой на массивах (center - anch, pos + offset) с переприсваиванием const — в ExtendScript так не работает, поэтому установка позиции, скорее всего, упадёт с ошибкой и плашка останется невыровненной. Перед публикацией нужно проверить в AE. Нужен AE 2020 (17.0.1)+ из-за Dropdown Menu Control.",
+    "en": "Likely bug: the position offset uses vector math on arrays (center - anch, pos + offset) and reassigns a const, which ExtendScript does not support, so setting the position will probably fail with an error and leave the plate unaligned. Test in AE before publishing. Needs AE 2020 (17.0.1)+ for the Dropdown Menu Control."
+  }
+}

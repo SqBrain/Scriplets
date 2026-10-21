@@ -1,0 +1,50 @@
+{
+  "id": "make-matte",
+  "version": "1.0.0",
+  "entry": "makeMatte.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "mattes",
+  "title": {
+    "ru": "Инвертированный матт из копии",
+    "en": "Choked Inverted Self-Matte"
+  },
+  "summary": {
+    "ru": "Делает из копии слоя расширенный матт и вырезает им оригинал как трек-матт Alpha Inverted.",
+    "en": "Turns a copy of the layer into an expanded matte and cuts the original with it as an Alpha Inverted matte."
+  },
+  "description": {
+    "ru": "Дублирует первый выделенный слой как «<имя> Matte» (скрытый), оставляя все его эффекты и добавляя Simple Choker (Choke Matte −20, то есть матт расширяется). Затем с оригинала снимаются все эффекты, и копия назначается ему трек-маттом Alpha Inverted — оригинал виден только вне расширенного силуэта. Судя по логике, рассчитано на кеинг: копия с кеем вырезает объект, а оригинал без эффектов становится фоном с дыркой на месте объекта.",
+    "en": "Duplicates the first selected layer as “<name> Matte” (hidden), keeping all its effects and adding Simple Choker (Choke Matte −20, which expands the matte). All effects are then removed from the original, and the copy becomes its Alpha Inverted track matte, so the original shows only outside the expanded silhouette. Judging by the logic it is meant for keying: the keyed copy cuts the subject out, and the effect-free original becomes a background plate with a hole where the subject was."
+  },
+  "usage": {
+    "ru": "Выделите слой (например, футаж с эффектом кеинга) и запустите скрипт.",
+    "en": "Select the layer (e.g. footage with a keying effect) and run the script."
+  },
+  "tags": [
+    "matte",
+    "choker",
+    "track-matte",
+    "keying"
+  ],
+  "hostVersions": {
+    "min": "2023 (23.0)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Снимает все эффекты с исходного слоя (они остаются только на копии-матте). Нужен AE 2023+ (setTrackMatte). Обращается к параметру «Choke Matte» по английскому имени — в локализованном AE может не сработать. Без выделенного слоя падает с ошибкой.",
+    "en": "Removes all effects from the original layer (they survive only on the matte copy). Needs AE 2023+ (setTrackMatte). It accesses “Choke Matte” by its English name, so it may fail in localized AE. With no layer selected it throws an error."
+  }
+}

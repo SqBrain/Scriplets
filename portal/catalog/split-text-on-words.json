@@ -1,0 +1,58 @@
+{
+  "id": "split-text-on-words",
+  "version": "1.0.0",
+  "entry": "SplitTextOnWords.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "text",
+  "title": {
+    "ru": "Разбить текст на строки",
+    "en": "Split Text into Lines"
+  },
+  "summary": {
+    "ru": "Разбивает текстовый слой на отдельные слои по строкам; каждая строка остаётся на своём месте.",
+    "en": "Splits each selected text layer into separate layers, one per line, with every line kept in place."
+  },
+  "description": {
+    "ru": "Для каждого выделенного текстового слоя создаёт по дубликату на каждую строку: в копии остаётся только своя строка (остальные становятся пустыми), поэтому она стоит ровно там же, а анкор переносится к границам строки. Исходный слой выключается. Несмотря на имя файла, разбивки на слова нет — этот код закомментирован.",
+    "en": "For every selected text layer it creates one duplicate per line: each copy keeps only its own line (the others become empty), so it stays exactly in place, and the anchor point is moved to the line’s bounds. The original layer is switched off. Despite the file name, splitting into words is not implemented — that code is commented out."
+  },
+  "usage": {
+    "ru": "Выделите текстовые слои в композиции и запустите скрипт.",
+    "en": "Select text layers in a comp and run the script."
+  },
+  "tags": [
+    "text",
+    "split",
+    "lines",
+    "anchor-point"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [
+    "files",
+    "shell",
+    "prototypes",
+    "settings",
+    "menu"
+  ],
+  "requires": [
+    "lib"
+  ],
+  "notes": {
+    "ru": "Учитываются только жёсткие переносы (Enter), а не автоперенос в абзацном тексте. Функция из библиотеки на деле ставит анкор в центр нижнего края текста, а не в центр. Если у Position есть ключи, компенсация анкора использует векторную арифметику, которой нет в ExtendScript, и, скорее всего, упадёт. Права files, shell, settings и menu объявлены, потому что в сборку попадает вся lib/index.jsx; сам скрипт из библиотеки использует только prototypes.",
+    "en": "Only hard line breaks (Enter) count, not automatic wrapping in paragraph text. The library helper actually puts the anchor at the bottom center of the text, not the center. If Position is keyframed, the anchor compensation uses array math that ExtendScript doesn’t support and will likely fail. files, shell, settings and menu are declared because the whole lib/index.jsx is inlined into the build; of the library, the script itself only relies on prototypes."
+  }
+}

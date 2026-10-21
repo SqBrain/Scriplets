@@ -1,0 +1,52 @@
+{
+  "id": "convert-masks-to-shapes",
+  "version": "1.0.0",
+  "entry": "ConvertMasksToShapes.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Маски в шейп-слой",
+    "en": "Masks to Shape Layer"
+  },
+  "summary": {
+    "ru": "Копирует выделенные маски в новый шейп-слой как контуры с белой заливкой.",
+    "en": "Copies the selected mask paths into a new shape layer as paths with a white fill."
+  },
+  "description": {
+    "ru": "Создаёт шейп-слой и для каждого выделенного свойства Mask Path добавляет Path с теми же вершинами и касательными, затем добавляет белую заливку (Fill). Копируется только текущая статичная форма — ключевые кадры маски, растушёвка, расширение и режим игнорируются.",
+    "en": "Creates a shape layer and adds a Path for every selected Mask Path property, copying its vertices and tangents, then adds a white Fill. Only the current static shape is copied — mask keyframes, feather, expansion and mode are ignored."
+  },
+  "usage": {
+    "ru": "Раскройте маски слоя в таймлайне (клавиша M), выделите их свойства Mask Path и запустите скрипт. Если ни один Mask Path не выделен, ничего не создаётся.",
+    "en": "Reveal the layer’s masks in the timeline (press M), select their Mask Path properties and run the script. If no Mask Path is selected, nothing is created."
+  },
+  "tags": [
+    "masks",
+    "shape-layer",
+    "paths",
+    "convert"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [
+    "lib"
+  ],
+  "notes": {
+    "ru": "Трансформации исходного слоя не учитываются: координаты маски заданы в пространстве исходного слоя, а начало координат нового шейп-слоя — в центре композиции, поэтому фигуры обычно оказываются смещены и их нужно подвинуть.",
+    "en": "The source layer’s transform is ignored: mask coordinates are in the source layer’s space while the new shape layer’s origin sits at the comp center, so the shapes usually end up offset and need repositioning."
+  }
+}

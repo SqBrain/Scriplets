@@ -1,0 +1,50 @@
+{
+  "id": "change-comps-duration",
+  "version": "1.0.0",
+  "entry": "Change Comps.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Длительность композиций 90 с",
+    "en": "90-Second Comp Duration"
+  },
+  "summary": {
+    "ru": "Ставит длительность 90 секунд всем композициям, выделенным в панели Project.",
+    "en": "Sets the duration of every composition selected in the Project panel to 90 seconds."
+  },
+  "description": {
+    "ru": "Проходит по элементам, выделенным в панели Project, и каждой композиции ставит длительность 90 секунд; остальные элементы пропускаются. Значение зашито в код. Функция названа как пакетный переименователь, но переименование и смена разрешения/fps закомментированы — работает только смена длительности.",
+    "en": "Goes through the items selected in the Project panel and sets each composition’s duration to 90 seconds; other items are skipped. The value is hard-coded. The function is named like a batch renamer, but the renaming and the resolution/frame-rate code are commented out — only the duration change is active."
+  },
+  "usage": {
+    "ru": "Выделите композиции в панели Project и запустите скрипт. Диалога нет; чтобы задать другую длительность, поменяйте число 90 в коде.",
+    "en": "Select compositions in the Project panel and run the script. There is no dialog; to use another duration, change the number 90 in the code."
+  },
+  "tags": [
+    "composition",
+    "duration",
+    "batch",
+    "project"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Длительность жёстко 90 с; ошибки глушатся пустым catch. Не путать с change-comps-precompose — это другой скрипт с похожим именем файла.",
+    "en": "The 90 s value is hard-coded and errors are swallowed by an empty catch. Not to be confused with change-comps-precompose, a different script with a similar file name."
+  }
+}

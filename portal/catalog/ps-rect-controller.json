@@ -1,0 +1,51 @@
+{
+  "id": "ps-rect-controller",
+  "version": "1.0.0",
+  "entry": "true/PS_Rect_Controller.ffx",
+  "host": "aftereffects",
+  "kind": "preset",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Псевдоэффект для прямоугольника",
+    "en": "Rectangle Controller Pseudo-Effect"
+  },
+  "summary": {
+    "ru": "Пресет, который добавляет псевдоэффект PS_Rect_Controller с шириной, высотой, поворотом, смещением и скруглением.",
+    "en": "Preset that adds a PS_Rect_Controller pseudo effect with width, height, rotation, offset and roundness controls."
+  },
+  "description": {
+    "ru": "Бинарный .ffx, который применяет один псевдоэффект PS_Rect_Controller с шестью анимируемыми параметрами: Width (по умолчанию 100), Height (50), Rotation (угол), X Offset, Y Offset и Roundness. Экспрешенов в пресете нет — он только даёт контролы, привязать их к прямоугольнику (например, к Size и Roundness у Rectangle Path) нужно самостоятельно.",
+    "en": "A binary .ffx that applies a single pseudo effect, PS_Rect_Controller, with six keyframeable controls: Width (default 100), Height (50), Rotation (angle), X Offset, Y Offset and Roundness. The preset holds no expressions — it only provides the controls, and you link them to a rectangle yourself (e.g. to the Size and Roundness of a Rectangle Path)."
+  },
+  "usage": {
+    "ru": "Выделите слой (например, шейп-слой с прямоугольником) и примените пресет через Animation > Apply Animation Preset… или из панели Effects & Presets, предварительно скопировав файл в папку User Presets.",
+    "en": "Select a layer (e.g. a shape layer with a rectangle) and apply the preset via Animation > Apply Animation Preset…, or from the Effects & Presets panel after copying the file into your User Presets folder."
+  },
+  "tags": [
+    "pseudo-effect",
+    "preset",
+    "rectangle",
+    "controller",
+    "rig"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Судя по встроенным данным, сделан генератором псевдоэффектов; кроме самого эффекта в пресете ничего не сохранено.",
+    "en": "Judging by the embedded data it was made with a pseudo-effect generator; nothing but the effect itself is stored in the preset."
+  }
+}

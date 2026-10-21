@@ -1,0 +1,50 @@
+{
+  "id": "make-shadow",
+  "version": "1.0.0",
+  "entry": "makeShadow.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Размытая тень в Multiply",
+    "en": "Blurred Multiply Shadow"
+  },
+  "summary": {
+    "ru": "Подкладывает под каждый выделенный слой размытую копию в Multiply — мягкую тень.",
+    "en": "Adds a blurred Multiply copy under each selected layer as a soft shadow."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя (кроме камер и света) создаёт под ним дубликат «<имя> Shadow», снимает с него эффекты, добавляет Fast Box Blur (радиус 30), ставит режим Multiply и включает Preserve Underlying Transparency, чтобы тень затемняла только то, что под ней. Тень не смещается — подвиньте её сами.",
+    "en": "For each selected layer (cameras and lights are skipped) it creates a duplicate “<name> Shadow” right below it, strips its effects, adds Fast Box Blur (radius 30), sets the Multiply blend mode and turns on Preserve Underlying Transparency, so the shadow only darkens what lies underneath. The shadow is not offset — move it yourself."
+  },
+  "usage": {
+    "ru": "Выделите слои и запустите скрипт, затем сдвиньте новые слои Shadow.",
+    "en": "Select layers, run the script, then offset the new Shadow layers."
+  },
+  "tags": [
+    "shadow",
+    "blur",
+    "multiply",
+    "layers"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Эффект добавляется по английскому имени «Fast Box Blur» — в локализованном AE может не сработать.",
+    "en": "The blur is added by its English name “Fast Box Blur”, so it may fail in localized AE."
+  }
+}

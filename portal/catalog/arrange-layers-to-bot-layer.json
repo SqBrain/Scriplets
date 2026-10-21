@@ -1,0 +1,50 @@
+{
+  "id": "arrange-layers-to-bot-layer",
+  "version": "1.0.0",
+  "entry": "arrangeLayersToBotLayer.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Группировка слоёв по началу",
+    "en": "Group Layers by In-Point"
+  },
+  "summary": {
+    "ru": "Ставит рядом в стеке слои с одинаковым началом и привязывает шейпы к риг-слою «Shape Layer 1».",
+    "en": "Stacks selected layers that start on the same frame together and links shapes to a “Shape Layer 1” rig."
+  },
+  "description": {
+    "ru": "Попарно сравнивает выделенные слои и, если два начинаются в одно время, ставит один прямо над другим — так слои с одинаковым входом собираются вместе. Попутно каждый выделенный шейп-слой, кроме последнего, получает Round Corners и эффект Fill, у которых радиус и цвет привязаны экспрешенами к эффектам «Roundness» и «Color Control» слоя «Shape Layer 1».",
+    "en": "Compares the selected layers pairwise and, when two start at the same time, moves one directly above the other, so layers with equal in-points end up together in the stack. Along the way every selected shape layer except the last gets a Round Corners operator and a Fill effect whose radius and color are linked by expression to the “Roundness” and “Color Control” effects on a layer named “Shape Layer 1”."
+  },
+  "usage": {
+    "ru": "Убедитесь, что в композиции есть «Shape Layer 1» с эффектами Roundness и Color Control, выделите слои и запустите скрипт.",
+    "en": "Make sure the comp has a “Shape Layer 1” with Roundness and Color Control effects, select the layers and run the script."
+  },
+  "tags": [
+    "layers",
+    "order",
+    "shape-layer",
+    "rig"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Сделан под конкретный проект: без слоя «Shape Layer 1» с этими эффектами добавленные экспрешены будут с ошибками. Последний выделенный слой не изменяется.",
+    "en": "Built for a specific project: without a “Shape Layer 1” carrying those effects, the added expressions will error. The last selected layer is never modified."
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "botya-create-matte",
+  "version": "1.0.0",
+  "entry": "BOTYA_createMatte.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "mattes",
+  "title": {
+    "ru": "Блики и тени через матт",
+    "en": "Highlight & Shadow Mattes"
+  },
+  "summary": {
+    "ru": "Собирает размытые проходы бликов или тени для выделенных слоёв из дубликатов, трек-маттов и режимов наложения.",
+    "en": "Builds blurred highlight or shadow passes for selected layers from duplicates, track mattes and blend modes."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя (кроме камер и света) создаёт скрытый дубликат «… Matte» без эффектов, но с Fast Box Blur, и второй дубликат, который использует его как трек-матт. Режим Highlight (по умолчанию) делает две такие пары — с размытием 3 и 30, режим Screen и матт Alpha Inverted; режим Shadow — одну пару с размытием 30, Multiply и матт Alpha. Если выделено несколько слоёв, создаётся (или берётся существующий) шейп-слой «Controller» со слайдерами прозрачности и размытия, и проходы привязываются к нему экспрешенами.",
+    "en": "For each selected layer (cameras and lights are skipped) it creates a hidden “… Matte” duplicate with its effects stripped and Fast Box Blur added, plus a second duplicate that uses it as a track matte. Highlight mode (the default) builds two such pairs — blur 3 and 30, Screen blending, Alpha Inverted matte; Shadow mode builds one pair with blur 30, Multiply and an Alpha matte. With several layers selected it creates (or reuses) a shape layer “Controller” with opacity and blur sliders and links the passes to it with expressions."
+  },
+  "usage": {
+    "ru": "Выделите один или несколько слоёв и запустите скрипт — получатся блики. Для теней запускайте его кнопкой KBar с аргументом «Shadow» (аргумент «Highlight» — блики).",
+    "en": "Select one or more layers and run the script to get highlights. For shadows, run it from a KBar button with the argument “Shadow” (“Highlight” gives highlights)."
+  },
+  "tags": [
+    "matte",
+    "highlight",
+    "shadow",
+    "blur",
+    "kbar"
+  ],
+  "hostVersions": {
+    "min": "2023 (23.0)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Нужен AE 2023+ (используется setTrackMatte). Эффект добавляется по английскому имени «Fast Box Blur», поэтому в локализованном AE может не сработать. В режиме Shadow с контроллером размытие тени привязано к слайдеру «Highlight Secondary Blur» — отдельного слайдера для тени нет. Если слой «Controller» уже есть, но без этих слайдеров, экспрешены выдадут ошибку.",
+    "en": "Needs AE 2023+ (uses setTrackMatte). The blur is added by its English name “Fast Box Blur”, so it may fail in localized versions of AE. In Shadow mode with a Controller the shadow blur is linked to the “Highlight Secondary Blur” slider — there is no separate shadow blur slider. If a “Controller” layer already exists without these sliders, the expressions will error."
+  }
+}

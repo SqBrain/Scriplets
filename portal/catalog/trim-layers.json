@@ -1,0 +1,50 @@
+{
+  "id": "trim-layers",
+  "version": "1.0.0",
+  "entry": "trimLayers.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Обрезать слои по последнему",
+    "en": "Trim Layers to Last Selected"
+  },
+  "summary": {
+    "ru": "Подгоняет вход и выход выделенных слоёв под слой, выделенный последним.",
+    "en": "Matches the in and out points of the selected layers to the layer you selected last."
+  },
+  "description": {
+    "ru": "Последний слой в выделении служит образцом: все остальные выделенные слои получают такие же вход и выход. Удобно, чтобы выровнять титры, матты или корректирующие слои по клипу. Положение слоёв в стеке и их ключи не меняются.",
+    "en": "The last layer in the selection is the reference: every other selected layer gets the same in-point and out-point. Handy for lining up titles, mattes or adjustment layers with a clip. Stack order and keyframes are not touched."
+  },
+  "usage": {
+    "ru": "Выделите слои, которые нужно обрезать, затем последним с Ctrl/Cmd выделите слой-образец и запустите скрипт.",
+    "en": "Select the layers to trim, then Ctrl/Cmd-click the reference layer last and run the script."
+  },
+  "tags": [
+    "trim",
+    "layers",
+    "timing",
+    "in-out"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "",
+    "en": ""
+  }
+}

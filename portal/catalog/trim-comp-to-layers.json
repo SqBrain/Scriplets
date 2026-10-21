@@ -1,0 +1,50 @@
+{
+  "id": "trim-comp-to-layers",
+  "version": "1.0.0",
+  "entry": "trimCompToLayers.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Обрезать композицию по слоям",
+    "en": "Trim Comp to Layers"
+  },
+  "summary": {
+    "ru": "Подгоняет начало и длительность активной композиции от самого раннего входа до самого позднего выхода слоёв.",
+    "en": "Sets the active comp’s start and duration to span from the earliest layer in-point to the latest out-point."
+  },
+  "description": {
+    "ru": "Перебирает все слои активной композиции (не только выделенные), находит самый ранний вход и самый поздний выход, ставит начало композиции (displayStartTime) на этот вход, а длительность — на весь отрезок. Слои не сдвигаются.",
+    "en": "Scans all layers of the active comp (not just the selected ones), finds the earliest in-point and the latest out-point, then sets the comp’s start time (displayStartTime) to that in-point and its duration to the span. Layers are not moved."
+  },
+  "usage": {
+    "ru": "Откройте композицию и запустите скрипт.",
+    "en": "Open the comp and run the script."
+  },
+  "tags": [
+    "composition",
+    "trim",
+    "duration",
+    "timing"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Меняется стартовый таймкод композиции, а не положение слоёв, — проверьте результат на композициях, где первый слой начинается не с 0. Нет undo-группы: начало и длительность отменяются двумя шагами.",
+    "en": "It changes the comp’s start timecode rather than shifting layers, so check the result on comps whose first layer doesn’t start at 0. No undo group: start and duration are two separate undo steps."
+  }
+}

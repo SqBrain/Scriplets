@@ -1,0 +1,51 @@
+{
+  "id": "add-cross-to-black",
+  "version": "1.0.0",
+  "entry": "add_cross_to_black.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Затемнение в начале и конце",
+    "en": "Fade In/Out from Black"
+  },
+  "summary": {
+    "ru": "Добавляет в выделенные композиции чёрный шейп-слой: выход из черноты и уход в черноту за 15 кадров.",
+    "en": "Adds a black shape layer to each selected comp that fades up from black and back to black over 15 frames."
+  },
+  "description": {
+    "ru": "В каждую композицию, выделенную в панели Project, добавляет сверху чёрный шейп-прямоугольник на весь кадр с именем «Fade to Black» и ключами Opacity: 100 → 0 за первые 15 кадров и 0 → 100 за последние 15. Работает сразу на много композиций, не открывая их.",
+    "en": "Adds a full-frame black rectangle shape layer named “Fade to Black” on top of every composition selected in the Project panel, with Opacity keys 100 → 0 over the first 15 frames and 0 → 100 over the last 15. Works on many comps at once without opening them."
+  },
+  "usage": {
+    "ru": "Выделите композиции в панели Project и запустите скрипт.",
+    "en": "Select compositions in the Project panel and run the script."
+  },
+  "tags": [
+    "fade",
+    "black",
+    "transition",
+    "composition",
+    "batch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Последний ключ стоит на времени конца композиции — на кадр позже последнего видимого, поэтому последний кадр не полностью чёрный. Рассчитано на композиции, которые начинаются с 0.",
+    "en": "The last key sits at the comp’s end time, one frame after the last visible frame, so the final frame is not fully black. Assumes the comp starts at 0."
+  }
+}

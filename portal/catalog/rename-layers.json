@@ -1,0 +1,49 @@
+{
+  "id": "rename-layers",
+  "version": "1.0.0",
+  "entry": "rename_layers.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Пакетное переименование слоёв",
+    "en": "Batch Rename Layers"
+  },
+  "summary": {
+    "ru": "Переименовывает выделенные слои в одно имя с порядковыми номерами.",
+    "en": "Renames the selected layers to one base name with sequential numbers."
+  },
+  "description": {
+    "ru": "Спрашивает имя и переименовывает выделенные слои в «Имя 1», «Имя 2»… в порядке выделения. Если нажать Cancel или оставить поле пустым, ничего не меняется.",
+    "en": "Asks for a name and renames the selected layers to “Name 1”, “Name 2”… in selection order. Cancelling or leaving the field empty changes nothing."
+  },
+  "usage": {
+    "ru": "Выделите слои, запустите скрипт и введите базовое имя.",
+    "en": "Select layers, run the script and type the base name."
+  },
+  "tags": [
+    "rename",
+    "layers",
+    "batch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "",
+    "en": ""
+  }
+}

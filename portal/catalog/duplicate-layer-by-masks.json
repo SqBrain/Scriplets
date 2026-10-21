@@ -1,0 +1,50 @@
+{
+  "id": "duplicate-layer-by-masks",
+  "version": "1.0.0",
+  "entry": "duplicateLayerByMasks.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "masks-shapes",
+  "title": {
+    "ru": "Разбить слой по маскам",
+    "en": "Split Layer by Masks"
+  },
+  "summary": {
+    "ru": "Превращает слой с несколькими масками в набор слоёв — по одной маске на каждом.",
+    "en": "Turns one layer with several masks into separate layers, one mask per layer."
+  },
+  "description": {
+    "ru": "Берёт первый выделенный слой и создаёт по дубликату на каждую маску, удаляя в каждой копии все маски, кроме своей. В конце исходный слой удаляется.",
+    "en": "Takes the first selected layer and creates one duplicate per mask, deleting every mask on each copy except its own. The original layer is removed at the end."
+  },
+  "usage": {
+    "ru": "Выделите слой с масками и запустите скрипт.",
+    "en": "Select a layer with masks and run the script."
+  },
+  "tags": [
+    "masks",
+    "split",
+    "duplicate",
+    "layers"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Если масок у слоя нет, скрипт просто удалит слой (вернуть можно через Undo). Без выделенного слоя скрипт падает с ошибкой.",
+    "en": "If the layer has no masks, the script simply deletes it (Undo brings it back). With no layer selected it throws an error."
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "link-opacity-to-parent",
+  "version": "1.0.0",
+  "entry": "linkOpacityToParent.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "expressions",
+  "title": {
+    "ru": "Opacity от родителя",
+    "en": "Link Opacity to Parent"
+  },
+  "summary": {
+    "ru": "Привязывает Opacity выделенных дочерних слоёв к Opacity родителя через экспрешен.",
+    "en": "Makes the opacity of the selected child layers follow their parent’s opacity via an expression."
+  },
+  "description": {
+    "ru": "Каждому выделенному слою с родителем прописывает экспрешен на Opacity, который берёт прозрачность родителя по его имени. Слои без родителя пропускаются. Собственное значение прозрачности дочернего слоя игнорируется (не перемножается).",
+    "en": "For each selected layer that has a parent, writes an Opacity expression that reads the parent’s opacity by layer name. Layers without a parent are skipped. The child’s own opacity value is ignored rather than multiplied."
+  },
+  "usage": {
+    "ru": "Привяжите слои к родителю как обычно, выделите дочерние и запустите скрипт.",
+    "en": "Parent the layers as usual, select the children and run the script."
+  },
+  "tags": [
+    "opacity",
+    "parenting",
+    "expressions",
+    "rig"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Связь идёт по имени родителя: переименование родителя или два слоя с одинаковым именем ломают её.",
+    "en": "The link uses the parent’s name, so renaming the parent or having two layers with the same name breaks it."
+  }
+}

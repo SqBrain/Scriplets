@@ -1,0 +1,50 @@
+{
+  "id": "duplicate-layer-and-matte-to-selected-layers",
+  "version": "1.0.0",
+  "entry": "Duplicate Layer and Matte to selected layers.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "mattes",
+  "title": {
+    "ru": "Слой в каждый трек-матт",
+    "en": "Copy Layer Into Each Matte"
+  },
+  "summary": {
+    "ru": "Дублирует последний выделенный слой над каждым из остальных и делает их его альфа-маттами.",
+    "en": "Duplicates the last-selected layer above each other selected layer and uses that layer as its alpha matte."
+  },
+  "description": {
+    "ru": "Источник — слой, выделенный последним. Над каждым из остальных выделенных слоёв ставится копия источника, которой этот слой назначается трек-маттом Alpha; сами матты снова включаются, так что остаются видимыми. В конце исходный слой удаляется. Удобно, чтобы залить несколько шейпов или текстов одной текстурой или футажом.",
+    "en": "The layer you select last is the source. Above each of the other selected layers the script places a copy of the source and sets that layer as its Alpha track matte; the matte layers are switched back on, so they stay visible. The original source layer is deleted at the end. Useful for filling several shapes or text layers with the same texture or footage."
+  },
+  "usage": {
+    "ru": "Сначала выделите слои-матты, затем последним с Ctrl/Cmd выделите слой, который нужно размножить, и запустите скрипт.",
+    "en": "Select the matte layers first, then Ctrl/Cmd-click the layer to copy last, and run the script."
+  },
+  "tags": [
+    "track-matte",
+    "duplicate",
+    "texture",
+    "layers"
+  ],
+  "hostVersions": {
+    "min": "2023 (23.0)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Нужен AE 2023+ (setTrackMatte). Порядок выделения важен: последний выделенный слой после копирования удаляется.",
+    "en": "Needs AE 2023+ (setTrackMatte). Selection order matters: the last-selected layer is deleted after copying."
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "duplicate-layer-or-shape",
+  "version": "1.0.0",
+  "entry": "Duplicate Layer or Shape.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Дубликатор слоёв и групп",
+    "en": "Duplicate Layers or Shape Groups"
+  },
+  "summary": {
+    "ru": "Дублирует выделенные слои или группы внутри шейп-слоя заданное число раз.",
+    "en": "Duplicates the selected layers, or selected groups inside a shape layer, a given number of times."
+  },
+  "description": {
+    "ru": "Спрашивает число N. Если выделен один шейп-слой и внутри его Contents выделены элементы, дублируются эти группы и фигуры; иначе дублируется каждый выделенный слой. N — итоговое количество вместе с оригиналом: при 3 появятся две копии. Ошибки показываются в алерте.",
+    "en": "Asks for a number N. If one shape layer is selected and items inside its Contents are selected, those groups and shapes are duplicated in place; otherwise every selected layer is duplicated. N is the total count including the original, so 3 gives two new copies. Errors are shown in an alert."
+  },
+  "usage": {
+    "ru": "Выделите слои (или группы в Contents одного шейп-слоя), запустите скрипт и введите число.",
+    "en": "Select layers (or groups in the Contents of one shape layer), run the script and enter the number."
+  },
+  "tags": [
+    "duplicate",
+    "shape-layer",
+    "layers",
+    "batch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Индексы слоёв сортируются как строки, поэтому если выделены слои и выше, и ниже 10-го, могут продублироваться не те слои. Если у одиночного шейп-слоя выделено свойство вне Contents (например, в Transform), ничего не произойдёт.",
+    "en": "Layer indices are sorted as strings, so a selection spanning layers both above and below index 10 can duplicate the wrong layers. If a property outside Contents (e.g. in Transform) is selected on a single shape layer, nothing happens."
+  }
+}

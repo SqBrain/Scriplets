@@ -1,0 +1,50 @@
+{
+  "id": "precomp",
+  "version": "1.0.0",
+  "entry": "precomp.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Прекомп по длине слоя",
+    "en": "Precompose Trimmed Layer"
+  },
+  "summary": {
+    "ru": "Прекомпозит выделенный слой в композицию по его размеру и длине и кладёт её рядом с исходником.",
+    "en": "Precomposes the selected layer into a comp sized and trimmed to it, stored next to its source item."
+  },
+  "description": {
+    "ru": "Берёт первый выделенный футажный слой или прекомп и создаёт новую композицию с шириной, высотой и pixel aspect слоя, fps исходника и длительностью, равной обрезанной длине слоя, в той же папке, где лежит исходник. Слой копируется внутрь, новая композиция встаёт на его место в то же время и в ту же позицию в стеке, исходный слой удаляется. Аргументы KBar «Camera» и «person» дают имя «Camera Tracking» или «person»; если имя слоя заканчивается на « 25 fps», к имени добавляется его начало.",
+    "en": "Takes the first selected footage or precomp layer and creates a new comp with the layer’s width, height and pixel aspect, the source’s frame rate and a duration equal to the layer’s trimmed length, inside the folder that holds the source. The layer is copied in, the new comp takes its place at the same time and stack position, and the original layer is deleted. The KBar arguments “Camera” and “person” name the comp “Camera Tracking” or “person”; if the layer name ends in “ 25 fps”, its prefix is added to the name."
+  },
+  "usage": {
+    "ru": "Выделите футажный слой или прекомп в таймлайне и запустите скрипт — лучше кнопкой KBar с аргументом Camera или person.",
+    "en": "Select a footage or precomp layer in the timeline and run the script, ideally from a KBar button with the argument Camera or person."
+  },
+  "tags": [
+    "precompose",
+    "composition",
+    "trim",
+    "kbar"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Без KBar у новой композиции нет нормального имени (скорее всего, «undefined» или ошибка). Сдвиг времени внутри прекомпа берётся от верхнего слоя композиции, а не от выделенного, поэтому тайминг может съехать, если выделенный слой не первый. На стиллах и солидах (fps 0) может упасть.",
+    "en": "Run without KBar, the new comp gets no proper name (likely “undefined”, or an error). The time offset inside the precomp is taken from the comp’s top layer rather than the selected one, so timing can drift when the selected layer isn’t first. May fail on stills and solids (frame rate 0)."
+  }
+}

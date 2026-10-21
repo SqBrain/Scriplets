@@ -1,0 +1,50 @@
+{
+  "id": "loop-footage",
+  "version": "1.0.0",
+  "entry": "loopFootage.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Зациклить футаж",
+    "en": "Loop Footage with Time Remap"
+  },
+  "summary": {
+    "ru": "Включает Time Remapping на выделенных слоях и зацикливает их обрезанный отрезок через loopOut().",
+    "en": "Enables Time Remapping on the selected layers and loops their trimmed range with loopOut()."
+  },
+  "description": {
+    "ru": "Каждому выделенному слою, который поддерживает ремап времени, включает Time Remapping, ставит ключи на входе и за кадр до выхода, добавляет ещё один ключ кадром позже со значением начала, удаляет лишние ключи и вешает loopOut(). Получается бесшовный цикл видимой части клипа.",
+    "en": "For each selected layer that supports time remapping, it enables Time Remapping, sets keys at the in-point and one frame before the out-point, adds one more key a frame later that jumps back to the start value, removes extra keys and applies loopOut(). The result is a seamless cycle of the visible part of the clip."
+  },
+  "usage": {
+    "ru": "Обрежьте футаж или прекомп до нужного куска, выделите слои и запустите скрипт.",
+    "en": "Trim the footage or precomp layers to the part you want to loop, select them and run the script."
+  },
+  "tags": [
+    "loop",
+    "time-remapping",
+    "footage",
+    "expressions"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Выход слоя не продлевается — растяните слой сами, чтобы увидеть цикл. Прежние ключи ремапа могут быть заменены.",
+    "en": "The layer’s out-point is not extended — drag it out yourself to see the loop. Previous time-remap keys may be replaced."
+  }
+}

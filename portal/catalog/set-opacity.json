@@ -1,0 +1,50 @@
+{
+  "id": "set-opacity",
+  "version": "1.0.0",
+  "entry": "Set Opacity.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Переключатель прозрачности",
+    "en": "Toggle Reference Opacity"
+  },
+  "summary": {
+    "ru": "Переключает Opacity выделенных слоёв между 100% и 40% (с Shift — 0%), чтобы быстро пригасить их.",
+    "en": "Toggles the selected layers between 100% and 40% opacity (0% with Shift) to quickly ghost them."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя без ключей Opacity: если прозрачность меньше 100%, возвращает 100%, иначе ставит 40%. С Shift вместо 40% ставится 0%, с Alt — всегда 100%. Слои с анимированной Opacity не трогаются.",
+    "en": "For each selected layer without Opacity keyframes: if opacity is below 100% it goes back to 100%, otherwise it is set to 40%. Holding Shift uses 0% instead of 40%; holding Alt always gives 100%. Layers with animated opacity are left alone."
+  },
+  "usage": {
+    "ru": "Выделите слои и запустите скрипт (удобнее повесить его на горячую клавишу или кнопку KBar); для других значений держите при запуске Shift или Alt.",
+    "en": "Select layers and run the script (best bound to a hotkey or a KBar button); hold Shift or Alt while launching for the other values."
+  },
+  "tags": [
+    "opacity",
+    "toggle",
+    "layers",
+    "workflow"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Нет undo-группы: изменение каждого слоя отменяется отдельно.",
+    "en": "No undo group: each layer’s change is a separate undo step."
+  }
+}

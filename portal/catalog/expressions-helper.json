@@ -1,0 +1,51 @@
+{
+  "id": "expressions-helper",
+  "version": "1.0.0",
+  "entry": "Expressions Helper.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "expressions",
+  "title": {
+    "ru": "Заготовки экспрешенов",
+    "en": "Expression Snippet Inserter"
+  },
+  "summary": {
+    "ru": "Дописывает в начало экспрешена готовые строки: индекс группы, random со слайдерами, frameDuration, ссылки на слои.",
+    "en": "Prepends ready-made lines to expressions: group index, random with sliders, frameDuration, layer links."
+  },
+  "description": {
+    "ru": "Рассчитан на кнопки KBar: аргумент кнопки выбирает режим — shapeIndexExpr (индекс родительской группы шейпа; режим по умолчанию без KBar), indexExpr и reverseIndexExpr (смещение индекса от последнего выделенного слоя), mainLayer (ссылка на последний выделенный слой), random (добавляет слайдеры Seed, Min и Max и строки seedRandom/random), frameDur, compHalf, mainProps, pathPoints, relativeShapePath. Строки вставляются перед существующим экспрешеном каждого выделенного свойства; только режим random дополнительно создаёт слайдеры на слое.",
+    "en": "Built for KBar buttons: the button argument picks the mode — shapeIndexExpr (index of the parent shape group; the default without KBar), indexExpr and reverseIndexExpr (index offset from the last selected layer), mainLayer (link to the last selected layer), random (adds Seed, Min and Max sliders plus seedRandom/random lines), frameDur, compHalf, mainProps, pathPoints, relativeShapePath. Lines are inserted before the existing expression of each selected property; only random mode also adds sliders to the layer."
+  },
+  "usage": {
+    "ru": "Выделите одно или несколько свойств в таймлайне и запустите скрипт (или кнопку KBar с одним из аргументов выше). Режим random спрашивает имя переменной.",
+    "en": "Select one or more properties in the timeline and run the script (or a KBar button with one of the arguments above). Random mode asks for a variable name."
+  },
+  "tags": [
+    "expressions",
+    "snippets",
+    "kbar",
+    "shape-layer",
+    "random"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Без KBar доступен только shapeIndexExpr. Баги: compHalf заменяет найденные фрагменты словом «undefined» и может упасть с ReferenceError (переменная fVar там не объявлена); при повторных random имена копятся вида «Min Val 2 3».",
+    "en": "Without KBar only shapeIndexExpr is available. Bugs: compHalf replaces the matched text with the word “undefined” and can throw a ReferenceError (fVar is not defined there); repeated random runs produce names like “Min Val 2 3”."
+  }
+}

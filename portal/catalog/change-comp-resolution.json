@@ -1,0 +1,51 @@
+{
+  "id": "change-comp-resolution",
+  "version": "1.0.0",
+  "entry": "changeCompResolution.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Размер и fps пачкой",
+    "en": "Batch Comp Size and FPS"
+  },
+  "summary": {
+    "ru": "Меняет ширину, высоту и при желании fps выделенных в Project композиций; с Alt — масштаб слоёв.",
+    "en": "Changes width, height and optionally frame rate of comps selected in the Project panel; Alt sets layer scale."
+  },
+  "description": {
+    "ru": "Показывает запрос «width height fps» и применяет значения ко всем композициям, выделенным в панели Project (fps можно не указывать). «mul 0.5» вместо этого умножает текущий размер. С Alt работает с выделенными слоями активной композиции и спрашивает «X Y» для Scale (слои с ключами Scale пропускаются). При смене размера композиции слои не масштабируются.",
+    "en": "Shows a prompt for “width height fps” and applies the values to every composition selected in the Project panel (fps is optional). “mul 0.5” multiplies the current size instead. With Alt held it works on the selected layers of the active comp and asks for “X Y” to set their Scale (layers with Scale keyframes are skipped). Layers are not rescaled when the comp size changes."
+  },
+  "usage": {
+    "ru": "Выделите композиции в Project, запустите скрипт и введите, например, «1920 1080 25» или «mul 0.5». Для масштаба слоёв выделите их в таймлайне, запустите скрипт с зажатым Alt и введите, например, «50 50».",
+    "en": "Select comps in the Project panel, run the script and enter e.g. “1920 1080 25” or “mul 0.5”. For layer scale, select layers in the timeline, hold Alt while launching and enter e.g. “50 50”."
+  },
+  "tags": [
+    "composition",
+    "resolution",
+    "frame-rate",
+    "scale",
+    "batch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Баги: нажатие Cancel вызывает ошибку; вариант «--» (пропустить значение) реализован наполовину и ломается; «mul» в режиме Alt использует векторную арифметику, которой нет в ExtendScript, и не сработает.",
+    "en": "Bugs: pressing Cancel throws an error; the “--” (skip a value) option is half-implemented and breaks; “mul” in Alt mode uses array math that ExtendScript doesn’t support, so it fails."
+  }
+}

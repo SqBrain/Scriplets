@@ -1,0 +1,53 @@
+{
+  "id": "animation-down-up",
+  "version": "1.0.0",
+  "entry": "animationDownUp.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "animation",
+  "title": {
+    "ru": "Въезд и выезд с отскоком",
+    "en": "Slide In/Out with Bounce"
+  },
+  "summary": {
+    "ru": "Анимирует выделенные слои: въезд и выезд с фейдом в заданном направлении и инерционным отскоком.",
+    "en": "Animates the selected layers sliding and fading in and out in a chosen direction, with an inertial bounce."
+  },
+  "description": {
+    "ru": "Добавляет каждому слою контролы Amplitude, Frequency, Decay, Angle, Driver и Offset. Слайдер Driver получает ключи −1 → 0 за первые 10 кадров и 0 → 1 за последние 10 с изингом и экспрешен отскока; Position получает экспрешен, который сдвигает слой на Offset (100 px) по направлению Angle, а Opacity проявляется и гаснет за те же кадры. Направление задаётся аргументом KBar: up (по умолчанию), down, left, right.",
+    "en": "Adds Amplitude, Frequency, Decay, Angle, Driver and Offset controls to each layer. The Driver slider is keyed −1 → 0 over the first 10 frames and 0 → 1 over the last 10 with easing, plus a bounce expression; Position gets an expression that shifts the layer by Offset (100 px) along Angle, and Opacity fades in and out over the same frames. Direction comes from the KBar argument: up (default), down, left, right."
+  },
+  "usage": {
+    "ru": "Выделите слои и запустите скрипт; для других направлений используйте кнопки KBar с аргументами up, down, left или right. Offset, Angle и параметры отскока правятся в Effect Controls.",
+    "en": "Select layers and run the script; for other directions use KBar buttons with the argument up, down, left or right. Tweak Offset, Angle and the bounce sliders in Effect Controls."
+  },
+  "tags": [
+    "animation",
+    "bounce",
+    "slide",
+    "expressions",
+    "kbar"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [
+    "lib"
+  ],
+  "notes": {
+    "ru": "Заменяет существующий экспрешен на Position и добавляет ключи Opacity; повторный запуск на том же слое добавит второй набор контролов.",
+    "en": "Replaces any existing Position expression and adds Opacity keys; running it again on the same layer adds a second set of controls."
+  }
+}

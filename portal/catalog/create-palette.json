@@ -1,0 +1,50 @@
+{
+  "id": "create-palette",
+  "version": "1.0.0",
+  "entry": "сreatePalette.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "color",
+  "title": {
+    "ru": "Слой-палитра цветов",
+    "en": "Color Palette Layer"
+  },
+  "summary": {
+    "ru": "Создаёт направляющий шейп-слой с сеткой образцов цвета, которые берутся из Color Control.",
+    "en": "Builds a guide shape layer with a grid of color swatches driven by Color Controls."
+  },
+  "description": {
+    "ru": "Спрашивает «количество|размер|отступ|в ряду|скругление|имя» (по умолчанию 5|60|5|5|0|Palette) и создаёт guide-слой (не рендерится) со слайдерами Size, Spacing, Row и Round? и по одному Color Control на каждый образец. Каждый образец — группа с прямоугольником, разложенная по сетке экспрешенами; при Round? = 1 образцы становятся кругами. Цвета выбираются в Color Control, и на них удобно ссылаться из экспрешенов других слоёв.",
+    "en": "Asks for “count|size|spacing|per row|round|name” (default 5|60|5|5|0|Palette) and creates a guide layer (not rendered) with Size, Spacing, Row and Round? sliders plus one Color Control per swatch. Each swatch is a rectangle group laid out in a grid by expressions; with Round? = 1 the swatches become circles. Pick the colors in the Color Controls and reference them from other layers’ expressions."
+  },
+  "usage": {
+    "ru": "Откройте композицию, запустите скрипт и заполните строку, например 8|80|10|4|1|Brand.",
+    "en": "Open a comp, run the script and fill in the prompt, e.g. 8|80|10|4|1|Brand."
+  },
+  "tags": [
+    "color",
+    "palette",
+    "swatches",
+    "guide-layer"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "В подсказке запроса 4-м значением указано «Round», а 5-м — «Colors in Row», но код читает их наоборот (4-е — число в ряду, 5-е — скругление); ориентируйтесь на порядок в строке по умолчанию. Позиции сетки отсчитываются от позиции первого образца.",
+    "en": "The prompt text lists “Round” as the 4th value and “Colors in Row” as the 5th, but the code reads them the other way round (4th = per row, 5th = round); follow the order of the default string. Grid positions are offset from the first swatch’s position."
+  }
+}

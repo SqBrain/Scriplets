@@ -1,0 +1,50 @@
+{
+  "id": "random-source",
+  "version": "1.0.0",
+  "entry": "randomSource.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "layers",
+  "title": {
+    "ru": "Случайная замена источника",
+    "en": "Randomize Precomp Sources"
+  },
+  "summary": {
+    "ru": "Подменяет источник выделенных слоёв-прекомпов случайными композициями, выбранными в Project.",
+    "en": "Replaces the source of the selected precomp layers with random comps picked in the Project panel."
+  },
+  "description": {
+    "ru": "Собирает композиции, выделенные в панели Project, и каждому выделенному слою активной композиции, источником которого служит композиция, подставляет случайную из этого списка (replaceSource без исправления экспрешенов). Слои, которые не являются прекомпами, пропускаются. Удобно для случайных вариаций в сетках и толпах.",
+    "en": "Collects the compositions selected in the Project panel, then gives every selected layer in the active comp whose source is a composition a random one from that list (replaceSource without fixing expressions). Layers that aren’t precomps are skipped. Handy for random variations in grids and crowds."
+  },
+  "usage": {
+    "ru": "Выделите композиции-варианты в панели Project, затем щёлкните в таймлайн, выделите слои-прекомпы и запустите скрипт.",
+    "en": "Select the variant comps in the Project panel, then click into the timeline, select the precomp layers and run the script."
+  },
+  "tags": [
+    "precomp",
+    "random",
+    "replace-source",
+    "variations"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Если в Project не выделено ни одной композиции, скрипт падает с ошибкой. Одна и та же композиция может выпасть несколько раз подряд.",
+    "en": "If no comps are selected in the Project panel, the script throws an error. The same comp can be picked several times in a row."
+  }
+}

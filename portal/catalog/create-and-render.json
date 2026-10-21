@@ -1,0 +1,52 @@
+{
+  "id": "create-and-render",
+  "version": "1.0.0",
+  "entry": "createAndRender.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "render",
+  "title": {
+    "ru": "Тройки композиций в Media Encoder",
+    "en": "Queue Comp Triplets to AME"
+  },
+  "summary": {
+    "ru": "Находит в выделенных папках композиции «… 1», «… 2», «… 3» и по очереди отправляет их в Media Encoder.",
+    "en": "Finds comps named “… 1”, “… 2”, “… 3” in the selected folders and queues each one in Media Encoder."
+  },
+  "description": {
+    "ru": "Проходит по папкам, выделенным в Project, и ищет три подряд идущие композиции с именами на « 1», « 2» и « 3». Для каждой тройки создаёт в корне проекта композицию-обёртку с размером, длительностью и fps первой, затем по одной добавляет туда композиции — выключая предыдущий слой и переименовывая обёртку по текущей — и после каждого шага выполняет File > Export > Add to Adobe Media Encoder Queue.",
+    "en": "Walks the folders selected in the Project panel looking for three consecutive comps whose names end in “ 1”, “ 2” and “ 3”. For each triplet it creates a wrapper comp in the project root with the first comp’s size, duration and frame rate, then adds the comps one by one — switching off the previous layer and renaming the wrapper after the current comp — and runs File > Export > Add to Adobe Media Encoder Queue after each step."
+  },
+  "usage": {
+    "ru": "Выделите в панели Project папки с пронумерованными композициями и запустите скрипт; откроется Adobe Media Encoder с заданиями в очереди.",
+    "en": "Select the folders with the numbered comps in the Project panel and run the script; Adobe Media Encoder opens with the jobs queued."
+  },
+  "tags": [
+    "render",
+    "media-encoder",
+    "export",
+    "batch"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [
+    "menu"
+  ],
+  "requires": [],
+  "notes": {
+    "ru": "Сделан под конкретный проект. Ищет команду меню по английскому имени «Add to Adobe Media Encoder Queue...», поэтому в локализованном AE не сработает. Запускает Adobe Media Encoder; настройки рендера берутся из AME. Композиции-обёртки остаются в проекте, undo-группы нет. Композиции тройки должны идти в папке подряд (по алфавиту).",
+    "en": "Built for a specific project. It looks the menu command up by its English name “Add to Adobe Media Encoder Queue...”, so it won’t work in localized AE. It launches Adobe Media Encoder; render settings come from AME. Wrapper comps stay in the project and there is no undo group. The three comps must sit next to each other in the folder (alphabetical order)."
+  }
+}

@@ -98,6 +98,20 @@ function lineOf(code, index) {
 function checkSyntax(code) {
   const prepared = blankDirectives(code);
   let es3Error = null;
+  // ExtendScript accepts `const` on top of ES3. Retry with const read as var
+  // (same length, offsets stay valid) before calling the file non-ES3.
+  try {
+    tryParse(prepared, 3);
+  } catch (e) {
+    if (/\bconst\b/.test(prepared)) {
+      try {
+        const comments = tryParse(prepared.replace(/\bconst\b/g, "var  "), 3);
+        return { level: "es3", constExtension: true, comments };
+      } catch {
+        /* not just const: fall through to the full ladder */
+      }
+    }
+  }
   for (const [version, level] of [[3, "es3"], [5, "es5"], [2015, "es2015"], ["latest", "modern"]]) {
     try {
       const comments = tryParse(prepared, version);
@@ -296,7 +310,7 @@ function buildItem(m) {
       inlined,
       checks: {
         status,
-        syntax: { level: syntax.level, es3Error: syntax.es3Error ?? null, error: syntax.error ?? null },
+        syntax: { level: syntax.level, constExtension: !!syntax.constExtension, es3Error: syntax.es3Error ?? null, error: syntax.error ?? null },
         capabilities,
         warnings,
         missingIncludes: ctx.missing,

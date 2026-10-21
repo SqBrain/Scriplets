@@ -1,0 +1,51 @@
+{
+  "id": "add-flicker",
+  "version": "1.0.0",
+  "entry": "addFlicker.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "animation",
+  "title": {
+    "ru": "Мерцание прозрачности",
+    "en": "Opacity Flicker"
+  },
+  "summary": {
+    "ru": "Добавляет покадровое мигание Opacity выделенным слоям: от текущего кадра, на входе, на выходе или с двух сторон.",
+    "en": "Adds a frame-by-frame opacity flicker to selected layers at the current time, the in/out points or both."
+  },
+  "description": {
+    "ru": "Если выделены слои (без свойств), ставит ключи Opacity 100/0 через кадр на протяжении 9 кадров. Где именно — зависит от аргумента кнопки KBar: «start» — от входа слоя, «end» — перед выходом, «both» — с обеих сторон; без аргумента (или без KBar) — от текущего кадра. Если выделены свойства, им ставятся ключи 0/100 через кадр на 10 кадров от текущего времени.",
+    "en": "With layers selected (and no properties), it sets Opacity keys alternating 100/0 every frame over 9 frames. Where they go depends on the KBar button argument: “start” — from the layer’s in-point, “end” — before its out-point, “both” — at both ends; without an argument (or outside KBar) — from the current time. If properties are selected instead, they get alternating 0/100 keys over 10 frames from the current time."
+  },
+  "usage": {
+    "ru": "Выделите слои, поставьте индикатор времени туда, где начнётся мерцание, и запустите скрипт; для остальных режимов используйте кнопки KBar с аргументами start, end или both.",
+    "en": "Select layers, put the playhead where the flicker should start and run the script; for the other modes use KBar buttons with the argument start, end or both."
+  },
+  "tags": [
+    "flicker",
+    "opacity",
+    "keyframes",
+    "glitch",
+    "kbar"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Существующие ключи в этом отрезке перезаписываются. Режим для выделенных свойств имеет смысл только для одномерных свойств; остальные молча пропускаются.",
+    "en": "Existing keys in that range are overwritten. The selected-properties mode only makes sense for one-dimensional properties; others are skipped silently."
+  }
+}

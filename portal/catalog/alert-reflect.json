@@ -1,0 +1,50 @@
+{
+  "id": "alert-reflect",
+  "version": "1.0.0",
+  "entry": "Alert Reflect.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "utility",
+  "title": {
+    "ru": "Инспектор свойства",
+    "en": "Inspect Property (Reflect)"
+  },
+  "summary": {
+    "ru": "Инструмент для скриптеров: показывает в алерте атрибуты и методы выделенного свойства.",
+    "en": "Scripting tool: shows the attributes and methods of the selected property in an alert."
+  },
+  "description": {
+    "ru": "Берёт выделенное свойство (если выделено два — второе) и через рефлексию ExtendScript выводит список его атрибутов с текущими значениями и список методов. Клавиши-модификаторы меняют вывод: Shift — атрибуты объекта значения, Ctrl — только matchName и тип значения, Alt — голый список имён атрибутов. В проекте ничего не меняется.",
+    "en": "Takes the selected property (the second one if two are selected) and uses ExtendScript reflection to list its attributes with current values and its methods. Modifier keys change the output: Shift shows the attributes of the property’s value object, Ctrl only the matchName and value type, Alt a bare list of attribute names. Nothing in the project is changed."
+  },
+  "usage": {
+    "ru": "Откройте композицию, выделите свойство в таймлайне и запустите скрипт (при необходимости удерживая Shift, Ctrl или Alt). Результат появится в окне алерта.",
+    "en": "Open a comp, select a property in the timeline and run the script, optionally holding Shift, Ctrl or Alt. The result appears in an alert window."
+  },
+  "tags": [
+    "developer",
+    "reflection",
+    "properties",
+    "debug"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "На macOS проверяется именно Ctrl, а не Cmd.",
+    "en": "On macOS the script checks Ctrl, not Cmd."
+  }
+}

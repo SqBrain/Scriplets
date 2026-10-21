@@ -1,0 +1,50 @@
+{
+  "id": "add-time-with-slider",
+  "version": "1.0.0",
+  "entry": "addTimeWithSlider.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "expressions",
+  "title": {
+    "ru": "Экспрешен time со слайдером",
+    "en": "Time Expression with Speed Slider"
+  },
+  "summary": {
+    "ru": "Задаёт выделенным свойствам экспрешен time * Speed со слайдером скорости на слое или общем Controller.",
+    "en": "Drives the selected properties with time * Speed, where Speed is a slider on the layer or a shared Controller."
+  },
+  "description": {
+    "ru": "Прописывает экспрешен time*spd во все выделенные свойства, которые принимают экспрешены, и добавляет слайдер Speed (100 единиц в секунду). При одном выделенном слое слайдер ставится на него, при нескольких — на шейп-слой «Controller» (создаётся, если его нет). Подходит для бесконечного вращения или счётчиков.",
+    "en": "Sets a time*spd expression on every selected property that accepts expressions and adds a Speed slider (100 units per second). With one layer selected the slider goes on that layer; with several it goes on a shape layer named “Controller” (created if missing). Good for continuous rotation or counters."
+  },
+  "usage": {
+    "ru": "Выделите свойства (например, Rotation) в таймлайне и запустите скрипт; Speed настраивается в Effect Controls.",
+    "en": "Select the properties (e.g. Rotation) in the timeline and run the script; adjust Speed in Effect Controls."
+  },
+  "tags": [
+    "time",
+    "expressions",
+    "sliders",
+    "rotation"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Экспрешен заменяет значение свойства, а не прибавляется к нему, и возвращает одно число — годится только для одномерных свойств (Rotation, Opacity, слайдеры). Каждый запуск добавляет ещё один слайдер Speed.",
+    "en": "The expression replaces the property’s value instead of adding to it and returns a single number, so it only suits one-dimensional properties (Rotation, Opacity, sliders). Each run adds another Speed slider."
+  }
+}

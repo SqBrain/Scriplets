@@ -1,0 +1,51 @@
+{
+  "id": "change-comps-precompose",
+  "version": "1.0.0",
+  "entry": "changeComps;.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "comp",
+  "title": {
+    "ru": "Прекомп MP4-слоёв в 25 fps",
+    "en": "Precompose MP4s at 25 fps"
+  },
+  "summary": {
+    "ru": "В выделенных композициях кладёт каждый .MP4-слой в отдельный прекомп 25 fps в папке «Scenes».",
+    "en": "In the selected comps, moves every .MP4 layer into its own 25 fps precomp stored in a “Scenes” folder."
+  },
+  "description": {
+    "ru": "Нужна папка «Scenes» в проекте. Для каждого элемента, выделенного в Project, создаёт в «Scenes» подпапку с его именем; в композициях каждый слой, в имени которого есть «.MP4» (заглавными), копируется в новую композицию «Scene <имя> 25 fps» по размеру слоя и по его входу и выходу, и этот прекомп встаёт на место исходного слоя в то же время и в ту же позицию в стеке. Вторая функция (подгон композиций под 1920×1080 и добавление слоёв из «Source» и «Scene 2») в файле есть, но не вызывается.",
+    "en": "Needs a folder named “Scenes” in the project. For each item selected in the Project panel it creates a subfolder in “Scenes” with that item’s name; inside compositions, every layer whose name contains “.MP4” (uppercase) is copied into a new comp “Scene <name> 25 fps” sized to the layer and trimmed to its in/out points, and that precomp takes the original layer’s place at the same time and stack position. A second function (resize comps to 1920×1080, add layers from “Source” and “Scene 2”) is in the file but never called."
+  },
+  "usage": {
+    "ru": "Создайте в проекте папку «Scenes», выделите композиции в панели Project и запустите скрипт.",
+    "en": "Create a “Scenes” folder in the project, select the compositions in the Project panel and run the script."
+  },
+  "tags": [
+    "precompose",
+    "frame-rate",
+    "footage",
+    "batch",
+    "composition"
+  ],
+  "hostVersions": {
+    "min": null,
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Сделан под конкретный проект: без папки «Scenes» скрипт падает с ошибкой. Подпапка создаётся и для выделенных элементов, которые не являются композициями. Ищутся только имена с «.MP4» заглавными. Трансформации исходного слоя переезжают внутрь прекомпа — проверьте кадрирование.",
+    "en": "Built for a specific project: without a “Scenes” folder the script stops with an error. A subfolder is created even for selected items that are not comps. Only names with uppercase “.MP4” are matched. The original layer’s transforms end up inside the precomp, so check the framing."
+  }
+}

@@ -300,14 +300,14 @@ table.xp-table tr.zero td { color: var(--dust); }
 table.xp-table tr.zero td.num { color: var(--ash); }
 .ranks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .rank { border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; background: var(--rock-1); display: grid; gap: 6px; }
-.rank b { font: 700 var(--step-1)/1.1 var(--f-display); }
+.rank b { font: 600 var(--step-1)/1.25 var(--f-body); }
 .rank span { font: 400 0.75rem/1 var(--f-mono); color: var(--ash); }
 .rank.current { border-color: var(--torch); box-shadow: 0 0 24px -10px var(--torch); }
 .meter { height: 10px; background: var(--rock-2); border: 1px solid var(--rock-3); border-radius: var(--radius); overflow: hidden; }
 .meter i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--torch) 0 8px, var(--torch-dim) 8px 10px); }
 pre.manifest { margin: 0; background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; overflow: auto; font: 400 0.78rem/1.55 var(--f-mono); color: var(--dust); }
 .glossary { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; margin: 0; }
-.glossary dt { font: 500 var(--step-0)/1.4 var(--f-display); color: var(--torch); }
+.glossary dt { font: 600 var(--step-0)/1.4 var(--f-body); color: var(--torch); }
 .glossary dd { margin: 0; color: var(--dust); }
 ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
 ul.plain li::marker { color: var(--torch-dim); content: "▪  "; }
@@ -378,6 +378,10 @@ footer.foot a { color: var(--dust); }
   var INDEX = DATA.index;
   var SOURCES = DATA.sources;
   var ITEMS = INDEX.items;
+  // Inside the claude.ai artifact viewer pages can't start downloads, so the
+  // preview offers copying instead. Everywhere else (disk, GitHub Pages)
+  // window.claude is absent and the download link works.
+  var PREVIEW = !!(window.claude && typeof window.claude.use === "function");
   var BY_ID = {};
   ITEMS.forEach(function (it) { BY_ID[it.id] = it; });
 
@@ -446,6 +450,7 @@ footer.foot a { color: var(--dust); }
         "es5-object": "Object.keys, Array.isArray и другие API из ES5. В ExtendScript их нет без полифила.",
         "embedded-data": "Внутри большой блок данных, например бинарный пресет. Его нельзя прочитать глазами."
       },
+      warnShort: { json: "JSON", "es5-array": "ES5-массивы", "es5-trim": "trim()", "es5-object": "ES5 Object", "embedded-data": "бинарные данные" },
       polyfilled: "полифил есть в сборке",
       syntax: {
         es3: "Синтаксис ES3: совместим с движком ExtendScript.",
@@ -454,6 +459,7 @@ footer.foot a { color: var(--dust); }
         modern: "Современный синтаксис. ExtendScript его не выполнит.",
         invalid: "Синтаксическая ошибка: файл не разбирается."
       },
+      constNote: "Есть const: это не ES3, но ExtendScript его поддерживает.",
       missing: function (spec, from) { return "Не найден подключаемый файл " + spec + " (из " + from + "). Скачивание закрыто, пока автор не исправит путь."; },
       inlined: function (n) { return n ? "Встроено подключаемых файлов: " + n + ". Скачивается один готовый файл." : "Один файл, без подключений."; },
       declared: function (n) { return n ? "Все найденные возможности объявлены автором." : "Особых возможностей не найдено: скрипт меняет только проект."; },
@@ -463,6 +469,7 @@ footer.foot a { color: var(--dust); }
       copied: "Код скопирован",
       copyFail: "Не удалось скопировать. Выделите код вручную.",
       blockedBtn: "Скачивание закрыто",
+      previewNote: "В этом превью файлы не скачиваются. Скопируйте код или откройте сайт из папки portal/site.",
       sections: { what: "Что делает", how: "Как пользоваться", notes: "Важно знать", install: "Установка", source: "Исходник", check: "Проверка пещеры", file: "Файл", compat: "Совместимость" },
       showSource: function (n) { return "Показать собранный файл (" + n + " строк). Подсвечены строки, из-за которых стоят бейджи."; },
       tabPanel: "Через панель VFX Cave",
@@ -638,6 +645,7 @@ footer.foot a { color: var(--dust); }
         "es5-object": "Object.keys, Array.isArray and other ES5 APIs. ExtendScript lacks them without a polyfill.",
         "embedded-data": "Contains a large data block, such as a binary preset, that can't be read by eye."
       },
+      warnShort: { json: "JSON", "es5-array": "ES5 arrays", "es5-trim": "trim()", "es5-object": "ES5 Object", "embedded-data": "binary data" },
       polyfilled: "polyfilled in the bundle",
       syntax: {
         es3: "ES3 syntax: compatible with the ExtendScript engine.",
@@ -646,6 +654,7 @@ footer.foot a { color: var(--dust); }
         modern: "Modern syntax. ExtendScript won't run it.",
         invalid: "Syntax error: the file doesn't parse."
       },
+      constNote: "Uses const: not ES3, but ExtendScript supports it.",
       missing: function (spec, from) { return "Included file " + spec + " not found (from " + from + "). Downloads stay closed until the author fixes the path."; },
       inlined: function (n) { return n ? n + " included file(s) inlined. You download one ready file." : "Single file, no includes."; },
       declared: function (n) { return n ? "Every capability found is declared by the author." : "No special capabilities found: the script only changes the project."; },
@@ -655,6 +664,7 @@ footer.foot a { color: var(--dust); }
       copied: "Code copied",
       copyFail: "Couldn't copy. Select the code by hand.",
       blockedBtn: "Download closed",
+      previewNote: "Files can't be downloaded in this preview. Copy the code or open the site from portal/site.",
       sections: { what: "What it does", how: "How to use", notes: "Good to know", install: "Install", source: "Source", check: "Cave check", file: "File", compat: "Compatibility" },
       showSource: function (n) { return "Show the bundled file (" + n + " lines). Lines behind the badges are highlighted."; },
       tabPanel: "With the VFX Cave panel",
@@ -860,7 +870,7 @@ footer.foot a { color: var(--dust); }
       return '<span class="' + cls + '" title="' + esc(s.caps[c.id][1] + (c.declared ? "" : " (" + s.undeclared + ")")) + '">' + esc(s.caps[c.id][0]) + "</span>";
     }).join("");
     var w = openWarnings(it);
-    if (w.length && !compact) html += w.map(function (x) { return '<span class="cap warn" title="' + esc(s.warns[x.code]) + '">' + esc(x.code) + "</span>"; }).join("");
+    if (w.length && !compact) html += w.map(function (x) { return '<span class="cap warn" title="' + esc(s.warns[x.code]) + '">' + esc(s.warnShort[x.code] || x.code) + "</span>"; }).join("");
     else if (w.length) html += '<span class="cap warn" title="' + esc(w.map(function (x) { return s.warns[x.code]; }).join(" ")) + '">ES5 / JSON</span>';
     if (it.checks.syntax && it.checks.syntax.level === "es3") html += '<span class="cap" title="' + esc(s.syntax.es3) + '">ES3 ✓</span>';
     return html;
@@ -989,6 +999,7 @@ footer.foot a { color: var(--dust); }
       var lvl = c.syntax.level;
       var cls = lvl === "es3" ? "ok" : lvl === "es5" ? "warn" : "bad";
       var extra = c.syntax.es3Error && lvl !== "es3" ? "<small>ES3: " + esc(c.syntax.es3Error.message) + (c.syntax.es3Error.line ? " · line " + c.syntax.es3Error.line : "") + "</small>" : "";
+      if (c.syntax.constExtension) extra += "<small>" + esc(s.constNote) + "</small>";
       out.push([cls, esc(s.syntax[lvl]) + extra]);
     }
     if (it.kind !== "preset") out.push(["info", esc(s.inlined(it.inlined.length))]);
@@ -1049,9 +1060,12 @@ footer.foot a { color: var(--dust); }
           '<div class="actions">' +
             (blocked
               ? '<span class="btn" aria-disabled="true">' + esc(s.blockedBtn) + "</span>"
-              : '<a class="btn primary" href="' + esc(it.file) + '" download="' + esc(it.id + ext) + '">' + esc(s.download) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></a>") +
-            (SOURCES[id] ? '<button type="button" class="btn" id="copy">' + esc(s.copy) + "</button>" : "") +
+              : PREVIEW
+                ? (SOURCES[id] ? '<button type="button" class="btn primary" id="copy">' + esc(s.copy) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></button>" : "")
+                : '<a class="btn primary" href="' + esc(it.file) + '" download="' + esc(it.id + ext) + '">' + esc(s.download) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></a>") +
+            (SOURCES[id] && (blocked || !PREVIEW) ? '<button type="button" class="btn" id="copy">' + esc(s.copy) + "</button>" : "") +
           "</div>" +
+          (PREVIEW && !blocked ? '<p class="fine">' + esc(s.previewNote) + "</p>" : "") +
         "</header>" +
         '<div class="layout">' +
           '<div class="prose">' +

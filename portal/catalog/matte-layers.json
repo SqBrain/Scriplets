@@ -1,0 +1,50 @@
+{
+  "id": "matte-layers",
+  "version": "1.0.0",
+  "entry": "matteLayers.jsx",
+  "host": "aftereffects",
+  "kind": "script",
+  "category": "mattes",
+  "title": {
+    "ru": "Трек-матт от слоя выше",
+    "en": "Track Matte from Layer Above"
+  },
+  "summary": {
+    "ru": "Назначает каждому выделенному слою трек-маттом слой над ним: альфа, люма или инвертированные.",
+    "en": "Sets the layer directly above as the track matte for each selected layer: alpha, luma or inverted."
+  },
+  "description": {
+    "ru": "Для каждого выделенного слоя (кроме самого верхнего) вызывает setTrackMatte со слоем прямо над ним. Тип матта задаётся аргументом кнопки KBar: alpha, luma, alpha_inverted или luma_inverted; при обычном запуске — Alpha.",
+    "en": "For each selected layer (except the top one) it calls setTrackMatte with the layer right above it. The matte type comes from the KBar button argument: alpha, luma, alpha_inverted or luma_inverted; run on its own it uses Alpha."
+  },
+  "usage": {
+    "ru": "Поставьте каждый матт прямо над слоем-заливкой, выделите слои-заливки и запустите скрипт (или кнопку KBar с нужным типом).",
+    "en": "Put each matte directly above its fill layer, select the fill layers and run the script (or a KBar button with the matte type)."
+  },
+  "tags": [
+    "track-matte",
+    "alpha",
+    "luma",
+    "kbar"
+  ],
+  "hostVersions": {
+    "min": "2023 (23.0)",
+    "tested": []
+  },
+  "author": {
+    "name": "Mihail",
+    "github": "SqBrain"
+  },
+  "license": "MIT",
+  "ai": {
+    "level": "unknown",
+    "model": null,
+    "humanReviewed": true
+  },
+  "permissions": [],
+  "requires": [],
+  "notes": {
+    "ru": "Нужен AE 2023+ (setTrackMatte и новая модель трек-маттов).",
+    "en": "Needs AE 2023+ (setTrackMatte and the new track matte model)."
+  }
+}
