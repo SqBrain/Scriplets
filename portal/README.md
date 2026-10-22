@@ -1,59 +1,61 @@
-# VFX Cave — прототип
+# VFX Cave — prototype
 
-Рабочий прототип портала для самописных и написанных с нейросетью скриптов к After Effects. Каталог собран из скриптов этого репозитория. Имя VFX Cave рабочее: оно задаётся в `cave.config.json` и в шаблоне сайта.
+A working prototype of a free catalog for self-written and AI-written After Effects scripts. The seed catalog is the scripts in this repository. "VFX Cave" is a working name, set in `cave.config.json` and the site template.
 
-Что внутри:
+The product is English-first. Russian is an optional second language for the site and the AE panel.
 
-| Часть | Где | Что делает |
+| Part | Where | What it does |
 |---|---|---|
-| Манифесты | `catalog/<id>.json` | Описание каждого скрипта на двух языках, объявленные возможности, пометка про ИИ |
-| Сборщик | `tools/build.mjs` | Встраивает `//@include` в один файл, проверяет совместимость с ExtendScript, ищет опасные возможности, считает sha256, пишет открытый индекс и сайт |
-| Сайт | `site/index.html` | Каталог RU/EN с поиском и фильтрами, страницы скриптов с проверкой и исходником, доска заказов, «путь хранителя», страница для авторов |
-| Индекс | `site/data/index.json` | Открытый JSON для панели, лаунчеров и ИИ-ассистентов |
-| Файлы для скачивания | `site/dl/<id>.jsx` | Собранные скрипты с шапкой: автор, лицензия, ссылка на страницу |
-| Панель для AE | `panel/VFX Cave.jsx` | Поиск, установка с проверкой sha256, запуск с подтверждением возможностей |
+| Manifests | `catalog/<id>.json` | One per script: description in English and Russian, declared capabilities, AI disclosure |
+| Build | `tools/build.mjs` | Inlines `//@include` into one file, checks ExtendScript compatibility, finds risky capabilities, hashes every file, writes the open index and the site |
+| Site | `site/index.html` | Catalog with search and filters, script pages with checks and source, request board, keeper's path, page for authors |
+| Index | `site/data/index.json` | Open JSON for the panel, launchers and AI assistants |
+| Downloads | `site/dl/<id>.jsx` | Bundled scripts with a header: author, license, link to the catalog page |
+| AE panel | `panel/VFX Cave.jsx` | Search, install with sha256 check, run with a capability prompt |
 
-## Запуск
+## Run
 
 ```sh
 cd portal
 npm install
-npm run build   # пересобрать dl/, data/index.json и index.html
-npm test        # проверить панель вне AE: ES3, JSON, sha256
+npm run build   # rebuild dl/, data/index.json and index.html
+npm test        # check the panel outside AE: ES3, JSON, sha256
 ```
 
-Сайт открывается прямо с диска: `site/index.html`. Данные встроены в страницу, сервер не нужен. Для публикации достаточно отдать папку `site/` любым статическим хостингом, например GitHub Pages через Actions.
+Open `site/index.html` straight from disk: the data is embedded, no server needed. To publish, serve the `site/` folder from any static host, for example GitHub Pages through Actions.
 
-## Что проверяет сборка
+## What the build checks
 
-- Все `//@include` и `#include` встраиваются на место, пути считаются от подключающего файла, как в ExtendScript. Если файл подключается дважды, он встраивается один раз. Если путь не найден, скрипт получает статус «на доработке», и скачать его нельзя.
-- Синтаксис разбирается как ES3: так работает движок ExtendScript. Если файл разбирается только как ES5, это предупреждение. Если нужен ES2015+ (`let`, `const`, стрелочные функции), скрипт блокируется.
-- API из ES5 без полифила: `JSON`, `forEach`/`map`/`filter`, `trim`, `Object.keys`. Если полифил есть где-то в сборке, это отмечается.
-- Возможности: файлы, shell, сеть, eval, изменение прототипов, настройки, команды меню. Найденное сравнивается с полем `permissions` манифеста. Необъявленная возможность показывается с восклицательным знаком.
-- Shell, сеть и eval переводят скрипт в статус «нужно ревью». Публикацию это не задерживает, но бейдж виден.
-- sha256 каждого собранного файла попадает в индекс. Панель сверяет его перед установкой и перед каждым запуском.
+- Every `//@include` and `#include` is inlined in place, with paths resolved from the including file as ExtendScript does. A file included twice is inlined once. A missing path marks the script "needs work" and closes its download.
+- Syntax is parsed as ES3, the ExtendScript engine. `const` is accepted because ExtendScript supports it. ES5-only syntax is a warning; ES2015+ (`let`, arrow functions, template strings) blocks the script.
+- ES5 APIs without a polyfill: `JSON`, `forEach`/`map`/`filter`, `trim`, `Object.keys`. A polyfill anywhere in the bundle is noted.
+- Capabilities: files, shell, network, eval, prototype changes, settings, menu commands. What's found is compared with the manifest's `permissions`; an undeclared capability is flagged.
+- Shell, network and eval mark a script "needs review". Publishing isn't held up, but the badge shows.
+- Each bundled file's sha256 goes into the index. The panel checks it before installing and before every run.
 
-## Панель в After Effects
+## The AE panel
 
-1. Положите `panel/VFX Cave.jsx` в `Scripts/ScriptUI Panels` внутри папки After Effects и перезапустите AE.
-2. Включите `Preferences → Scripting & Expressions → Allow Scripts to Write Files and Access Network`.
-3. Откройте `Window → VFX Cave.jsx`, нажмите «Источник…» и укажите адрес индекса или путь к локальному `portal/site/data/index.json`.
-4. «Обновить», выберите артефакт, «Установить», затем «Запустить».
+1. Put `panel/VFX Cave.jsx` into `Scripts/ScriptUI Panels` inside the After Effects folder and restart AE.
+2. Turn on `Preferences → Scripting & Expressions → Allow Scripts to Write Files and Access Network`.
+3. Open `Window → VFX Cave.jsx`, click **Source…** and enter the index URL or the path to a local `portal/site/data/index.json`.
+4. **Refresh**, pick an artifact, **Install**, then **Run**.
 
-По адресу `https://` панель скачивает файлы через `curl`: он есть в macOS и в Windows 10 и новее. Установленные скрипты лежат в папке пользователя (`Folder.userData/VFX Cave`), права администратора не нужны. **Панель в настоящем After Effects ещё не запускалась.** Проверено только то, что можно проверить вне AE: синтаксис ES3, чтение JSON и sha256 (`npm test`).
+Over `https://` the panel downloads with `curl`, which ships with macOS and Windows 10 or later. Installed scripts live in the user data folder (`Folder.userData/VFX Cave`), so no admin rights are needed. The panel speaks English; to switch it to Russian, set `lang` to `ru` in `app.settings` section `VFX Cave`.
 
-## Как добавить скрипт
+**The panel has not been run inside After Effects yet.** `npm test` covers only what can be checked outside AE: ES3 syntax, JSON reading and sha256.
 
-1. Положите скрипт с читаемым исходником в репозиторий.
-2. Создайте `catalog/<id>.json` по образцу любого существующего манифеста. `id` пишется латиницей через дефис и совпадает с именем файла.
-3. `npm run build` и посмотрите отчёт в консоли.
-4. Закоммитьте манифест вместе с пересобранной папкой `site/`.
+## Add a script
 
-Поля манифеста: `id`, `version`, `entry` (путь от корня репозитория), `host`, `kind` (`script`, `panel`, `preset`), `category`, `title`, `summary`, `description`, `usage`, `notes` (у текстов есть `ru` и `en`), `tags`, `hostVersions`, `author`, `license`, `ai` (`level`: `none`, `assisted`, `generated` или `unknown`, плюс `model` и `humanReviewed`), `permissions`, `requires`.
+1. Put the script with readable source into the repository.
+2. Create `catalog/<id>.json` modelled on any existing manifest. The `id` is lowercase latin with hyphens and matches the file name.
+3. Run `npm run build` and read the report in the console.
+4. Commit the manifest together with the rebuilt `site/` folder.
 
-## Что в прототипе ненастоящее
+Manifest fields: `id`, `version`, `entry` (path from the repository root), `host`, `kind` (`script`, `panel`, `preset`), `category`, `title`, `summary`, `description`, `usage`, `notes` (text fields have `en` and `ru`), `tags`, `hostVersions`, `author`, `license`, `ai` (`level`: `none`, `assisted`, `generated` or `unknown`, plus `model` and `humanReviewed`), `permissions`, `requires`.
 
-- Отметки «работает / сломалось», опыт (XP) и заявки на доске хранятся только в браузере (`localStorage`). Для общего каталога нужен бэкенд или GitHub-авторизация.
-- Публикация через pull request описана на сайте, но CI для неё ещё не настроен.
-- Другие программы (Blender, Houdini, Nuke, Resolve) показаны как «скоро».
-- Поле `ai.level` у скриптов из этого репозитория стоит `unknown`: укажите, где нейросеть помогала, а где нет.
+## Not real yet
+
+- "Works / broken" marks, XP and requests live only in the browser (`localStorage`). A shared catalog needs a backend or GitHub sign-in.
+- Publishing through pull requests is described on the site, but there's no CI for it yet.
+- Other hosts (Blender, Houdini, Nuke, Resolve) show as "soon".
+- `ai.level` for the scripts in this repository is `unknown`: mark where an AI helped.
