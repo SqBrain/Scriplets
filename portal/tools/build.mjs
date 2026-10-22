@@ -213,6 +213,25 @@ function analyze(bundled, manifest) {
   return { syntax, capabilities, warnings };
 }
 
+// What Edit › Undo shows after the script runs: the first literal
+// app.beginUndoGroup("…") name in the bundle.
+function undoName(code) {
+  const m = /\bbeginUndoGroup\s*\(\s*(["'])([^"'\\\n]+)\1\s*\)/.exec(code);
+  return m ? m[2].trim() : null;
+}
+
+// AE major version from a manifest minimum like "2023 (23.0)" or "CC 2019".
+const YEAR_TO_MAJOR = { 2018: 15, 2019: 16, 2020: 17, 2021: 18 };
+function minMajor(min) {
+  if (!min) return null;
+  const inParens = /\((\d+)(?:\.\d+)*\)/.exec(min);
+  if (inParens) return Number(inParens[1]);
+  const year = /(20\d\d)/.exec(min);
+  if (!year) return null;
+  const y = Number(year[1]);
+  return YEAR_TO_MAJOR[y] ?? y - 2000;
+}
+
 // -------------------------------------------------------------------- git
 
 function gitDate(entry, first) {
@@ -268,7 +287,7 @@ function buildItem(m) {
     usage: m.usage,
     notes: m.notes,
     tags: m.tags,
-    hostVersions: m.hostVersions,
+    hostVersions: { ...m.hostVersions, minMajor: minMajor(m.hostVersions?.min) },
     author: m.author,
     license: m.license,
     ai: m.ai,
@@ -307,6 +326,8 @@ function buildItem(m) {
       size: buf.length,
       sha256: sha256(buf),
       lines: bundled.split("\n").length,
+      // From the entry file itself, so a shared lib's undo groups don't win.
+      undoName: undoName(readText(entryAbs).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "")),
       inlined,
       checks: {
         status,

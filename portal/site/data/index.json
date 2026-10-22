@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "VFX Cave",
-  "generated": "2026-10-21T19:34:08.796Z",
+  "generated": "2026-10-22T06:59:29.097Z",
   "repo": "https://github.com/SqBrain/Scriplets",
   "site": "https://sqbrain.github.io/Scriplets/",
   "hosts": [
@@ -63,7 +63,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -82,6 +83,7 @@
       "size": 66895,
       "sha256": "2e61543bd7fb0a5febf303508ae419b1ea053e34b58be289f45c3caa463f7086",
       "lines": 1484,
+      "undoName": "Create Matte",
       "inlined": [
         "lib/index.jsx",
         "lib/constants.jsx",
@@ -252,7 +254,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -271,6 +274,7 @@
       "size": 1310,
       "sha256": "a406c01b16603cd0dad54727a77ca9075702205aeed6e334fb7a8bf5375ecd70",
       "lines": 26,
+      "undoName": "AddFadeToBlack",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -320,7 +324,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -339,6 +344,7 @@
       "size": 3440,
       "sha256": "c0c230164d1b781e5d9b69c6d508149c76d25460471339c41e3a30e10d3fd4ee",
       "lines": 68,
+      "undoName": "Add Flicker",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -387,7 +393,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -406,6 +413,7 @@
       "size": 1875,
       "sha256": "f14b44f5ef5184920addacd22ec36a8ebcfc5d66ba082e0fe4a2bd7f6fd05443",
       "lines": 49,
+      "undoName": "Add Time Expression",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -453,7 +461,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -472,6 +481,7 @@
       "size": 1549,
       "sha256": "860940a79d1927c81cc0e51c3f0cd805c66ffb6bbd72dd6f5db7beca033f4573",
       "lines": 52,
+      "undoName": "add wiggle",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -520,7 +530,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -539,6 +550,7 @@
       "size": 2089,
       "sha256": "51c03dd154f85ff30dc58f6d50ac66bdf419257a6ad670f6d6837ddcb465e37b",
       "lines": 53,
+      "undoName": "Add Wiggle",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -587,7 +599,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -606,6 +619,7 @@
       "size": 3210,
       "sha256": "099944b2c3fb2e235ec03ae30d12e5c3105db4babca2eb97d68f230ef2adb402",
       "lines": 107,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -654,7 +668,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -673,6 +688,7 @@
       "size": 1841,
       "sha256": "3de7b9b5003f74a5436183c8215b0936842e2ed21f65e43d60750c07f7b5b3c6",
       "lines": 56,
+      "undoName": "Align Points",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -722,7 +738,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -741,6 +758,7 @@
       "size": 17161,
       "sha256": "cc2c415fcf7b3a2215719d918cc66e18661201b5adbe0484844726b9b9687a07",
       "lines": 397,
+      "undoName": "Apply Animation",
       "inlined": [
         "lib/constants.jsx",
         "lib/Ease_Keyframes.jsx"
@@ -792,7 +810,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -811,6 +830,7 @@
       "size": 1549,
       "sha256": "a629103025d61d1d7096ac38e180622e4b7078f7e17407f342c3e41cd1486b56",
       "lines": 38,
+      "undoName": "changeOrder",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -859,7 +879,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -878,6 +899,7 @@
       "size": 1295,
       "sha256": "6194ef2d51a5262300f4c7fb3e966b8e3aff6512419fac18dce61129c14193a7",
       "lines": 30,
+      "undoName": "Bake Expressions",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -927,7 +949,8 @@
       ],
       "hostVersions": {
         "min": "2023 (23.0)",
-        "tested": []
+        "tested": [],
+        "minMajor": 23
       },
       "author": {
         "name": "Mihail",
@@ -946,6 +969,7 @@
       "size": 5306,
       "sha256": "ff38644cb080bfda07b8a36ceeb2367a070c7d0feb812afd2931c124cf07099a",
       "lines": 119,
+      "undoName": "Add Matte",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -995,7 +1019,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1014,6 +1039,7 @@
       "size": 3132,
       "sha256": "41ede9326536e27289521a017f63adc42834f469ab887c4ac6adc7dc9af9b915",
       "lines": 83,
+      "undoName": "Change Resolutions",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1062,7 +1088,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1081,6 +1108,7 @@
       "size": 2010,
       "sha256": "13544c20ae55469975466e786ab6b1db987252be582722f14c555d08df6eadbe",
       "lines": 62,
+      "undoName": "SQB rename items",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1130,7 +1158,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1149,6 +1178,7 @@
       "size": 4042,
       "sha256": "caa2d2911cd95e45d8c357152420cf61f20149ad2c887f47d59c0dd1251038b8",
       "lines": 108,
+      "undoName": "Change Comps",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1197,7 +1227,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1216,6 +1247,7 @@
       "size": 9236,
       "sha256": "dbd938028939e90a864a734c43a01eed67bcf348314ec0f1f98ca92ca7d417df",
       "lines": 213,
+      "undoName": "Convert masks to shapes",
       "inlined": [
         "lib/constants.jsx"
       ],
@@ -1266,7 +1298,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1285,6 +1318,7 @@
       "size": 2928,
       "sha256": "e276a11fc0731f0756f1bfd147053a87d84e69701c5463ace73e62b5fce3d2ce",
       "lines": 58,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1354,7 +1388,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1373,6 +1408,7 @@
       "size": 1656,
       "sha256": "042a7e1e2e0d0302fac6138ff33335a3aecfbb564a554a61b3a5ac823628fe01",
       "lines": 44,
+      "undoName": "Create Fitting Shape Layers",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1421,7 +1457,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1440,6 +1477,7 @@
       "size": 4329,
       "sha256": "35ac2b3ba963eabfbd1bccb4ef7895c57c621c9385a6d01be4f30753876b642c",
       "lines": 92,
+      "undoName": "Create Color Palette",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1488,7 +1526,8 @@
       ],
       "hostVersions": {
         "min": "2023 (23.0)",
-        "tested": []
+        "tested": [],
+        "minMajor": 23
       },
       "author": {
         "name": "Mihail",
@@ -1507,6 +1546,7 @@
       "size": 1689,
       "sha256": "901bffd4dcfe32d5b5ad2a924b29b784747c24a550074c10ad7469544770efe1",
       "lines": 43,
+      "undoName": "Dup Layer and matte to Selected Layers",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1555,7 +1595,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1574,6 +1615,7 @@
       "size": 1044,
       "sha256": "3e86d755292301a7803766d851ca3aaf9048a2e549ddb7a446856d5d6af26917",
       "lines": 26,
+      "undoName": "Duplicate Layer by masks",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1622,7 +1664,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1641,6 +1684,7 @@
       "size": 3430,
       "sha256": "fbe7cd81657ba1835bbd80ba29c0cdc3f5290131f83e3881f0e4d6fe4e6ed1b2",
       "lines": 78,
+      "undoName": "Duplicator",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1690,7 +1734,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1709,6 +1754,7 @@
       "size": 11771,
       "sha256": "20568332da097b6c94dac50893bb65bd5e7e1875dd3cb91f13d02bb8dc0fa481",
       "lines": 308,
+      "undoName": "SQB Add to expression",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1757,7 +1803,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1776,6 +1823,7 @@
       "size": 923,
       "sha256": "547bcb04c85b9c82e18d92d2fbae8567462b6a99dd79e076eeef329bb5c04222",
       "lines": 23,
+      "undoName": "Link Opacity to parent",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1824,7 +1872,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1843,6 +1892,7 @@
       "size": 1630,
       "sha256": "be717e3374aeca4e34920b9d2913b8aa9dc16eb1b7f6393e05d4439cb9e1233a",
       "lines": 38,
+      "undoName": "Loop Footage",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -1891,7 +1941,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -1910,6 +1961,7 @@
       "size": 5968,
       "sha256": "1a6072861737f86f5c6ad30198b95115ccb5921930cd34007fcba56ea5fe28e4",
       "lines": 136,
+      "undoName": "Masks",
       "inlined": [],
       "checks": {
         "status": "blocked",
@@ -1963,7 +2015,8 @@
       ],
       "hostVersions": {
         "min": "2023 (23.0)",
-        "tested": []
+        "tested": [],
+        "minMajor": 23
       },
       "author": {
         "name": "Mihail",
@@ -1982,6 +2035,7 @@
       "size": 1037,
       "sha256": "416f60c35f74ae09868ab64788c2a45c8ff5ddf9032e9fa0e3c4210434f36b6f",
       "lines": 27,
+      "undoName": "Make Matte",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2030,7 +2084,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2049,6 +2104,7 @@
       "size": 1567,
       "sha256": "813e052b4465f55f5ec396a1cbab5baf572d64e65b79e8041ace66005c46e12a",
       "lines": 41,
+      "undoName": "Create Shadow",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2097,7 +2153,8 @@
       ],
       "hostVersions": {
         "min": "2023 (23.0)",
-        "tested": []
+        "tested": [],
+        "minMajor": 23
       },
       "author": {
         "name": "Mihail",
@@ -2116,6 +2173,7 @@
       "size": 2045,
       "sha256": "20997823836c375da3a00a48f6f9fcbe69b62c2b346c442aee60aa3df1a355be",
       "lines": 64,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2165,7 +2223,8 @@
       ],
       "hostVersions": {
         "min": "2020 (17.0.1)",
-        "tested": []
+        "tested": [],
+        "minMajor": 17
       },
       "author": {
         "name": "Mihail",
@@ -2184,6 +2243,7 @@
       "size": 13347,
       "sha256": "ad9f49518cfde1d5fe75c9bf1aaa55be68c6c773714041503da72cb67ccd23ed",
       "lines": 313,
+      "undoName": "Create Plashka",
       "inlined": [
         "lib/constants.jsx"
       ],
@@ -2234,7 +2294,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2253,6 +2314,7 @@
       "size": 2205,
       "sha256": "40416ed818a7d5f0d73d52573c546a9368e8efe9a23decd1106250d312fdde85",
       "lines": 59,
+      "undoName": "Precomp",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2302,7 +2364,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2364,7 +2427,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2383,6 +2447,7 @@
       "size": 1101,
       "sha256": "a41ad084109cd0f2bb0a4f164a21dca610866f5ffbe83d516dea5b9d81b79bb9",
       "lines": 30,
+      "undoName": "Random Source",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2431,7 +2496,8 @@
       ],
       "hostVersions": {
         "min": "2022 (22.6)",
-        "tested": []
+        "tested": [],
+        "minMajor": 22
       },
       "author": {
         "name": "Mihail",
@@ -2450,6 +2516,7 @@
       "size": 3498,
       "sha256": "c2ba8fd4ed441ebc6bb79946943bfe932f0427a716eeea9d7ebe17dc94e58674",
       "lines": 74,
+      "undoName": "rearange keys",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2497,7 +2564,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2516,6 +2584,7 @@
       "size": 784,
       "sha256": "bb0b1118ecb85c7033accdbd47fce1def0918d22bbb2804681f4f0d7eab69729",
       "lines": 22,
+      "undoName": "Rename Layers",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2564,7 +2633,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2583,6 +2653,7 @@
       "size": 5121,
       "sha256": "fac0e6a22b9e89bc6101b1001f63279e812a6c2501ef7da3e903fe54dfd86774",
       "lines": 127,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2632,7 +2703,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2651,6 +2723,7 @@
       "size": 50220,
       "sha256": "a142de651b59657d375b12b8baba60114de204a8c4e91d6c4e391b0ae6c86471",
       "lines": 1445,
+      "undoName": null,
       "inlined": [
         "lib/index.jsx",
         "lib/constants.jsx",
@@ -2813,7 +2886,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2832,6 +2906,7 @@
       "size": 1005,
       "sha256": "3ba3027877d7f37fe02ea0d7823542b5ec65e36419537c757cbad90e84aec8ad",
       "lines": 35,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2880,7 +2955,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2899,6 +2975,7 @@
       "size": 1413,
       "sha256": "98e8797d3f10cb2a581fd4eeb2cd7e5f8a3b505e242d4a67f808ad561d9daa7c",
       "lines": 33,
+      "undoName": "Shift Channels",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -2947,7 +3024,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -2966,6 +3044,7 @@
       "size": 1191,
       "sha256": "b6706036c27c4f6c5e4782e2af291597af018c7ea4d239234b4a4fa16293c5f6",
       "lines": 32,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -3014,7 +3093,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -3033,6 +3113,7 @@
       "size": 44451,
       "sha256": "54fbd64905c982e5be7597c9f45f90294deb3804d9fd604e7d8c778c904b03be",
       "lines": 1350,
+      "undoName": "Split Text to words",
       "inlined": [
         "lib/index.jsx",
         "lib/constants.jsx",
@@ -3195,7 +3276,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -3214,6 +3296,7 @@
       "size": 974,
       "sha256": "9ef214cba6dfce99513e1218fe3ca8dc68362002b604a6cb8289b8e1eee416e6",
       "lines": 30,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -3262,7 +3345,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "Mihail",
@@ -3281,6 +3365,7 @@
       "size": 1067,
       "sha256": "4f0ff7491d5533b24a135fee3f0549f1ada1d15fe620daee8162e87604fe9fbf",
       "lines": 26,
+      "undoName": "Trim Layers",
       "inlined": [],
       "checks": {
         "status": "ok",
@@ -3329,7 +3414,8 @@
       ],
       "hostVersions": {
         "min": null,
-        "tested": []
+        "tested": [],
+        "minMajor": null
       },
       "author": {
         "name": "VFX Cave",
@@ -3343,11 +3429,12 @@
       },
       "entry": "portal/panel/VFX Cave.jsx",
       "added": "2026-10-21T19:24:43+00:00",
-      "updated": "2026-10-21T19:24:43+00:00",
+      "updated": "2026-10-22T06:41:01+00:00",
       "file": "dl/vfx-cave-panel.jsx",
-      "size": 25554,
-      "sha256": "de31471d9e14444456260f189a3af82f78f899c9c5d454bdd27e4f683e3e21b7",
-      "lines": 555,
+      "size": 25924,
+      "sha256": "14de2a0e5a5346ad452d617ebf9e37e512fd1eeb00612b501cb42d9c8d09d112",
+      "lines": 562,
+      "undoName": null,
       "inlined": [],
       "checks": {
         "status": "review",
@@ -3365,11 +3452,11 @@
             "count": 2,
             "samples": [
               {
-                "line": 310,
+                "line": 317,
                 "code": "var out = system.callSystem(isWindows ? \"cmd /c \" + cmd : cmd);"
               },
               {
-                "line": 521,
+                "line": 528,
                 "code": "system.callSystem(isWindows ? 'cmd /c start \"\" \"' + url + '\"' : 'open \"' + url + '\"');"
               }
             ]
@@ -3381,7 +3468,7 @@
             "count": 1,
             "samples": [
               {
-                "line": 309,
+                "line": 316,
                 "code": "var cmd = 'curl -sSfL --max-time 60 -o \"' + file.fsName + '\" \"' + url + '\"';"
               }
             ]
@@ -3393,15 +3480,15 @@
             "count": 10,
             "samples": [
               {
-                "line": 289,
+                "line": 296,
                 "code": "var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"
               },
               {
-                "line": 289,
+                "line": 296,
                 "code": "var home = new Folder(Folder.userData.fsName + \"/VFX Cave\");"
               },
               {
-                "line": 290,
+                "line": 297,
                 "code": "var artifacts = new Folder(home.fsName + \"/artifacts\");"
               }
             ]
@@ -3413,7 +3500,7 @@
             "count": 1,
             "samples": [
               {
-                "line": 500,
+                "line": 507,
                 "code": "$.evalFile(file);"
               }
             ]
@@ -3425,7 +3512,7 @@
             "count": 1,
             "samples": [
               {
-                "line": 270,
+                "line": 217,
                 "code": "try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}"
               }
             ]

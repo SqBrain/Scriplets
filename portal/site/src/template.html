@@ -1,364 +1,406 @@
 <title>VFX Cave</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Бесплатные скрипты для After Effects с автоматической проверкой: синтаксис ExtendScript, доступ к файлам, shell и сети.">
+<meta name="description" content="Free After Effects scripts written by artists, by hand or with AI. Every file is parsed for ExtendScript, scanned for risky calls and hashed before it's listed.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Sofia+Sans+Extra+Condensed:wght@500;700;800&display=swap">
 <style>
-/* Layout: one torch-lit passage. Sticky bar, a compact hero with a terminal-style
-   search, then the catalog as a grid of artifact cards (3 → 2 → 1 columns).
-   A script opens as its own view: reading column on the left, the cave check
-   (trust panel) pinned on the right. The cave is one dark world by design. */
+/* Layout: the catalog is a composition. A panel-tab strip on top, a short
+   statement and search, then the timeline: layer rows (label, name, capability
+   switches) on the left and a ruler of After Effects versions on the right with
+   a draggable playhead. Script pages open with a slate. One dark world built
+   from AE's panel greys, coloured only by the 16 AE label colours. */
 :root {
-  --rock-0: #0f0d0a;     /* deepest wall, page ground */
-  --rock-1: #19160f;     /* raised surfaces */
-  --rock-2: #241f17;     /* cards, inputs */
-  --rock-3: #3b3326;     /* edges */
-  --bone: #efe6d2;       /* primary text */
-  --dust: #b0a38b;       /* secondary text */
-  --ash: #7f7462;        /* tertiary text */
-  --torch: #f2a444;      /* the one accent: torchlight */
-  --torch-dim: #8a5a22;
-  --moss: #9cc270;       /* semantic: checked */
-  --amber: #e9c159;      /* semantic: needs review */
-  --ember: #e8684f;      /* semantic: blocked, risky capability */
-  --f-display: "Pixelify Sans", ui-monospace, "SFMono-Regular", Menlo, monospace;
-  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --step--1: 0.8125rem;
-  --step-0: 0.9375rem;
-  --step-1: 1.125rem;
-  --step-2: 1.5rem;
-  --step-3: 2.25rem;
-  --radius: 3px;
+  --well: #181818;      /* page, panel well */
+  --panel: #222222;     /* panels, timeline body */
+  --row: #2a2a2a;       /* layer rows */
+  --row-hi: #383838;    /* hovered / selected layer */
+  --hair: #3a3a3a;      /* row separators, panel edges */
+  --ink: #e4e4e4;       /* primary text */
+  --ink-2: #a6a6a6;     /* secondary text */
+  --ink-3: #747474;     /* tertiary text, unlit switches */
+  --cti: #2d8ceb;       /* current-time indicator: the playhead */
+  --cti-ink: #67adf3;   /* playhead blue for text on dark */
+  --done: #4aa44c;      /* render queue: Done (label Green) */
+  --queued: #e4d84c;    /* render queue: Queued (label Yellow) */
+  --err: #e35d5d;       /* render queue: Err Stopped (label Red, lifted for text) */
+  --err-fill: #b53838;
+  --chalk: #ece8dc;     /* slate chalk */
+  --slate: #121212;     /* slate board */
+  /* After Effects default label colours, 1–16 */
+  --l-red: #b53838; --l-yellow: #e4d84c; --l-aqua: #a9cbc7; --l-pink: #e5bcc9;
+  --l-lavender: #a9a9ca; --l-peach: #e7c19e; --l-seafoam: #b3c7b3; --l-blue: #677de0;
+  --l-green: #4aa44c; --l-purple: #8e2c9a; --l-orange: #e8920d; --l-brown: #7f452a;
+  --l-fuchsia: #f46dd6; --l-cyan: #3da2a5; --l-sandstone: #a89677; --l-darkgreen: #1e401e;
+  --f-ui: "Onest", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-slate: "Sofia Sans Extra Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --t-xs: 0.75rem; --t-s: 0.8125rem; --t-m: 0.9375rem; --t-l: 1.125rem; --t-xl: 1.625rem; --t-xxl: 2.75rem;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html { background: var(--rock-0); }
-body {
-  background:
-    radial-gradient(1200px 520px at 12% -10%, rgba(242, 164, 68, 0.13), transparent 60%),
-    radial-gradient(900px 600px at 100% 0%, rgba(232, 104, 79, 0.06), transparent 65%),
-    var(--rock-0);
-  background-attachment: fixed;
-  color: var(--bone);
-  font: 400 var(--step-0)/1.55 var(--f-body);
-  min-height: 100%;
-  margin: 0;
-}
-body::before {
-  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
-  z-index: 10; background: var(--rock-1);
-}
-a { color: var(--torch); text-underline-offset: 3px; }
-a:hover { color: var(--bone); }
-:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+html { background: var(--well); }
+body { margin: 0; background: var(--well); color: var(--ink); font: 400 var(--t-m)/1.55 var(--f-ui); min-height: 100%; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+a { color: var(--cti-ink); text-underline-offset: 3px; }
+a:hover { color: var(--ink); }
+:focus-visible { outline: 2px solid var(--cti); outline-offset: 2px; }
 button, input, select, textarea { font: inherit; color: inherit; }
-code, kbd, pre { font-family: var(--f-mono); }
-h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+code, pre { font-family: var(--f-mono); }
 .wrap {
-  max-width: 1120px; margin: 0 auto;
+  max-width: 1200px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 
-/* ---------- top bar ---------- */
-.top {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: color-mix(in srgb, var(--rock-1) 92%, transparent);
-  backdrop-filter: blur(6px);
+/* ---------------- panel-tab strip ---------------- */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: var(--panel); border-bottom: 1px solid #111; }
+.bar-in { display: flex; align-items: stretch; gap: 22px; min-height: 48px; }
+.mark { display: flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; font-weight: 700; letter-spacing: -0.01em; font-size: 1.0625rem; }
+.mark:hover { color: var(--ink); }
+.ease { /* the Easy Ease keyframe glyph */
+  width: 11px; height: 14px; background: var(--ink); flex: none;
+  clip-path: polygon(0 0, 100% 0, 58% 50%, 100% 100%, 0 100%, 42% 50%);
 }
-.top .wrap { display: flex; align-items: center; gap: 20px; padding-block: 10px; flex-wrap: wrap; }
-.logo {
-  display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--bone);
-  font: 700 1.25rem/1 var(--f-display); letter-spacing: 0.02em;
+.mark:hover .ease { background: var(--cti); }
+.tabs { display: flex; align-items: stretch; margin-right: auto; overflow-x: auto; scrollbar-width: none; }
+.tabs a {
+  display: flex; align-items: center; padding: 0 13px; color: var(--ink-2); text-decoration: none; font-size: var(--t-s);
+  border-left: 1px solid transparent; border-right: 1px solid transparent; white-space: nowrap;
 }
-.logo:hover { color: var(--bone); }
-.torch { width: 14px; height: 22px; position: relative; flex: none; }
-.torch::before { /* handle */
-  content: ""; position: absolute; left: 5px; top: 10px; width: 4px; height: 12px; background: var(--torch-dim);
-}
-.torch::after { /* flame, pixel-stepped */
-  content: ""; position: absolute; left: 1px; top: 0; width: 12px; height: 11px; background: var(--torch);
-  clip-path: polygon(33% 0, 66% 0, 66% 18%, 83% 18%, 83% 45%, 100% 45%, 100% 100%, 0 100%, 0 45%, 16% 45%, 16% 18%, 33% 18%);
-  box-shadow: 0 0 14px 4px rgba(242, 164, 68, 0.45);
-  animation: flicker 3.2s steps(1) infinite;
-}
-@keyframes flicker { 0%, 100% { opacity: 1; } 47% { opacity: 0.82; } 52% { opacity: 1; } 78% { opacity: 0.9; } }
-.nav { display: flex; gap: 4px; flex-wrap: wrap; margin-right: auto; }
-.nav a {
-  color: var(--dust); text-decoration: none; padding: 6px 10px; border-radius: var(--radius); font-size: var(--step--1);
-}
-.nav a:hover { color: var(--bone); background: var(--rock-2); }
-.nav a[aria-current="page"] { color: var(--bone); background: var(--rock-2); box-shadow: inset 0 -2px 0 var(--torch); }
-.top-side { display: flex; align-items: center; gap: 12px; }
-.xp {
-  font: 500 var(--step--1)/1 var(--f-mono); color: var(--dust); text-decoration: none;
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--rock-3); border-radius: var(--radius);
-}
-.xp b { color: var(--torch); font-weight: 500; }
-.lang { display: flex; border: 1px solid var(--rock-3); border-radius: var(--radius); overflow: hidden; }
-.lang button {
-  background: none; border: 0; padding: 6px 9px; cursor: pointer; color: var(--ash);
-  font: 500 var(--step--1)/1 var(--f-mono); letter-spacing: 0.06em;
-}
-.lang button[aria-pressed="true"] { background: var(--rock-3); color: var(--bone); }
+.tabs a:hover { color: var(--ink); }
+.tabs a[aria-current="page"] { color: var(--ink); background: var(--well); border-color: #111; box-shadow: inset 0 2px 0 var(--cti); }
+.bar-side { display: flex; align-items: center; gap: 12px; }
+.xp { color: var(--ink-2); text-decoration: none; font-size: var(--t-s); white-space: nowrap; }
+.xp b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.lang { display: flex; border: 1px solid var(--hair); border-radius: 3px; overflow: hidden; }
+.lang button { background: none; border: 0; padding: 4px 8px; cursor: pointer; color: var(--ink-3); font-size: var(--t-xs); font-weight: 600; }
+.lang button[aria-pressed="true"] { background: var(--hair); color: var(--ink); }
 
-/* ---------- hero ---------- */
-.hero { padding-block: 44px 30px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 36px; align-items: end; }
-.eyebrow {
-  font: 500 var(--step--1)/1.2 var(--f-mono); color: var(--torch); letter-spacing: 0.12em; text-transform: uppercase; margin: 0 0 14px;
-}
-.hero h1 { font: 700 var(--step-3)/1.05 var(--f-display); letter-spacing: 0.01em; margin-bottom: 14px; }
-.hero p.lead { color: var(--dust); margin: 0; max-width: 56ch; font-size: var(--step-1); line-height: 1.5; }
-.term {
-  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 20px 50px -30px rgba(242,164,68,0.5);
-}
-.term-bar {
-  display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--rock-3);
-  font: 400 var(--step--1)/1 var(--f-mono); color: var(--ash);
-}
-.term-bar i { width: 8px; height: 8px; background: var(--rock-3); display: inline-block; }
-.term-bar span { margin-left: 6px; }
-.term label { display: flex; align-items: center; gap: 10px; padding: 14px; cursor: text; }
-.prompt { font: 500 var(--step-1)/1 var(--f-mono); color: var(--torch); white-space: nowrap; }
-.term input {
-  flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
-  font: 400 var(--step-1)/1.3 var(--f-mono); color: var(--bone); caret-color: var(--torch);
-}
-.term input::placeholder { color: var(--ash); }
-.term:focus-within { border-color: var(--torch-dim); }
-.term-hint { padding: 0 14px 12px; font: 400 var(--step--1)/1.4 var(--f-mono); color: var(--ash); }
-.term-hint button {
-  background: none; border: 0; padding: 0; margin: 0 8px 0 0; color: var(--dust); cursor: pointer;
-  font: inherit; text-decoration: underline dotted; text-underline-offset: 3px;
-}
-.term-hint button:hover { color: var(--torch); }
-.ledger {
-  display: flex; flex-wrap: wrap; gap: 8px 28px; padding-block: 14px; margin-top: 4px;
-  border-top: 1px dashed var(--rock-3); border-bottom: 1px dashed var(--rock-3);
-  font: 400 var(--step--1)/1.3 var(--f-mono); color: var(--dust);
-}
-.ledger b { color: var(--bone); font-weight: 500; font-variant-numeric: tabular-nums; margin-right: 6px; }
-.ledger a { color: var(--dust); }
-.stalactites { /* pixel drips hanging from the top bar */
-  position: absolute; left: 0; right: 0; top: 100%; height: 14px; background: var(--rock-1); pointer-events: none;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='14' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h96v4H88v4h-4v4h-2V8h-4V4H62v4h-4v6h-2V8h-2V4H34v4h-4v2h-4V4H14v4h-4v3H8V8H6V4H0z'/%3E%3C/svg%3E") repeat-x;
-          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='14' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h96v4H88v4h-4v4h-2V8h-4V4H62v4h-4v6h-2V8h-2V4H34v4h-4v2h-4V4H14v4h-4v3H8V8H6V4H0z'/%3E%3C/svg%3E") repeat-x;
-}
+/* ---------------- hero ---------------- */
+.hero { padding-block: 46px 26px; display: grid; gap: 18px; }
+.hero h1 { font-size: var(--t-xxl); line-height: 1.04; font-weight: 700; letter-spacing: -0.035em; max-width: 19ch; }
+.hero p { color: var(--ink-2); font-size: var(--t-l); max-width: 60ch; line-height: 1.5; }
+.find { display: flex; align-items: center; gap: 10px; max-width: 560px; background: var(--panel); border: 1px solid var(--hair); border-radius: 4px; padding: 0 12px; }
+.find:focus-within { border-color: var(--cti); }
+.find svg { flex: none; color: var(--ink-3); }
+.find input { flex: 1; min-width: 0; background: none; border: 0; outline: none; padding: 11px 0; font-size: var(--t-m); }
+.find input::placeholder { color: var(--ink-3); }
+.find kbd { font: 500 var(--t-xs)/1 var(--f-mono); color: var(--ink-3); border: 1px solid var(--hair); border-radius: 3px; padding: 3px 6px; }
 
-/* ---------- catalog controls ---------- */
-.controls { display: grid; gap: 14px; padding-block: 22px 18px; }
-.hosts { display: flex; flex-wrap: wrap; gap: 8px; }
-.host {
-  display: inline-flex; align-items: baseline; gap: 8px; padding: 8px 12px;
-  border: 1px solid var(--rock-3); border-radius: var(--radius); background: var(--rock-1);
-  font-size: var(--step--1); color: var(--dust);
+/* ---------------- composition (timeline) ---------------- */
+.comp { background: var(--panel); border: 1px solid #111; border-radius: 4px; margin-bottom: 56px; }
+.comp-head { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "ctd opts" "labels labels"; gap: 14px 26px; align-items: end; padding: 14px 16px; border-bottom: 1px solid #111; }
+.comp-head .ctd { grid-area: ctd; }
+.comp-head .opts { grid-area: opts; justify-content: flex-end; }
+.comp-head .labels { grid-area: labels; }
+.ctd { display: grid; gap: 2px; }
+.ctd span { font-size: var(--t-xs); color: var(--ink-3); }
+.ctd output { font: 500 1.5rem/1 var(--f-mono); color: var(--cti-ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.ctd small { font-size: var(--t-xs); color: var(--ink-2); }
+.labels { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.lbl {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 8px 4px 6px; border-radius: 3px; cursor: pointer;
+  background: transparent; border: 1px solid transparent; color: var(--ink-2); font-size: var(--t-s); line-height: 1.2;
 }
-.host[aria-pressed="true"] { border-color: var(--torch-dim); color: var(--bone); background: var(--rock-2); }
-.host small { font-family: var(--f-mono); color: var(--ash); }
-.host:disabled { opacity: 0.55; cursor: not-allowed; }
-button.host { cursor: pointer; }
-.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.chip {
-  border: 1px solid var(--rock-3); background: transparent; color: var(--dust); cursor: pointer;
-  padding: 5px 10px; border-radius: 999px; font-size: var(--step--1); line-height: 1.2;
-}
-.chip:hover { color: var(--bone); border-color: var(--ash); }
-.chip[aria-pressed="true"] { background: var(--torch); border-color: var(--torch); color: var(--rock-0); font-weight: 500; }
-.chip small { font-family: var(--f-mono); opacity: 0.75; margin-left: 4px; }
-.selects { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; justify-content: space-between; }
-.selects label { display: inline-flex; gap: 8px; align-items: center; font-size: var(--step--1); color: var(--dust); }
+.lbl:hover { background: var(--row); color: var(--ink); }
+.lbl i { width: 11px; height: 11px; border-radius: 2px; background: var(--lc, var(--ink-3)); flex: none; }
+.lbl small { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.lbl[aria-pressed="true"] { background: var(--row-hi); border-color: #4a4a4a; color: var(--ink); }
+.opts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.opts label { display: inline-flex; gap: 7px; align-items: center; font-size: var(--t-s); color: var(--ink-3); }
 select, input[type="text"], textarea {
-  background: var(--rock-2); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 6px 8px;
+  background: var(--well); border: 1px solid var(--hair); border-radius: 3px; padding: 5px 8px; font-size: var(--t-s);
 }
-select:focus, input[type="text"]:focus, textarea:focus { border-color: var(--torch-dim); outline: none; }
-.found { font: 400 var(--step--1)/1 var(--f-mono); color: var(--ash); }
+select:focus, input[type="text"]:focus, textarea:focus { border-color: var(--cti); outline: none; }
 
-/* ---------- cards ---------- */
-.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding-bottom: 40px; }
-.card {
-  display: grid; grid-template-rows: auto auto 1fr auto; gap: 10px;
-  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 16px;
-  min-width: 0; position: relative;
+.tl { --cols: 2.6rem 4px minmax(0, 1fr) 8.4rem minmax(15rem, 34%) 7.4rem; position: relative; }
+.tl-head, .row { display: grid; grid-template-columns: var(--cols); align-items: center; }
+.tl-head { height: 40px; border-bottom: 1px solid #111; font-size: var(--t-xs); color: var(--ink-3); background: var(--panel); position: sticky; top: calc(env(safe-area-inset-top, 0px) + 48px); z-index: 3; }
+.tl-head > span { padding: 0 8px; }
+.sw-head, .sw { display: grid; grid-template-columns: repeat(5, 1fr); justify-items: center; align-items: center; height: 100%; border-left: 1px solid #1a1a1a; border-right: 1px solid #1a1a1a; }
+.sw-head svg { color: var(--ink-3); }
+.ruler { position: relative; height: 100%; cursor: ew-resize; touch-action: none; user-select: none; }
+.ticks { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--n), 1fr); }
+.ticks button {
+  all: unset; cursor: pointer; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px;
+  padding-bottom: 5px; font: 400 0.6875rem/1 var(--f-mono); color: var(--ink-3); position: relative;
 }
-.card:hover { border-color: var(--ash); }
-.card-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-.meta { font: 400 var(--step--1)/1.2 var(--f-mono); color: var(--ash); letter-spacing: 0.02em; }
-.card h3 { font: 600 var(--step-1)/1.25 var(--f-body); }
-.card h3 a { color: var(--bone); text-decoration: none; }
-.card h3 a::after { content: ""; position: absolute; inset: 0; } /* whole card opens the script */
-.card p { margin: 0; color: var(--dust); font-size: var(--step--1); line-height: 1.5; }
-.badges { display: flex; flex-wrap: wrap; gap: 6px; position: relative; z-index: 1; }
-.status {
-  display: inline-flex; align-items: center; gap: 6px; font: 500 0.75rem/1 var(--f-mono);
-  padding: 4px 7px; border-radius: var(--radius); letter-spacing: 0.03em; white-space: nowrap;
+.ticks button::after { content: ""; width: 1px; height: 6px; background: #555; }
+.ticks button[aria-current="true"] { color: var(--cti-ink); }
+.ticks button:focus-visible { outline: 2px solid var(--cti); }
+.cti-head { /* the playhead handle */
+  position: absolute; top: 3px; width: 13px; height: 13px; margin-left: -6px; background: var(--cti);
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%); pointer-events: none;
 }
-.status::before { content: ""; width: 6px; height: 6px; background: currentColor; }
-.status.ok { color: var(--moss); background: color-mix(in srgb, var(--moss) 12%, transparent); }
-.status.review { color: var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); }
-.status.blocked { color: var(--ember); background: color-mix(in srgb, var(--ember) 13%, transparent); }
-.cap {
-  font: 400 0.75rem/1 var(--f-mono); padding: 4px 6px; border-radius: var(--radius);
-  border: 1px solid var(--rock-3); color: var(--dust); white-space: nowrap;
+.rows { margin: 0; padding: 0; }
+.row {
+  min-height: 52px; color: var(--ink); text-decoration: none; background: var(--row); border-bottom: 1px solid #1c1c1c;
+  position: relative;
 }
-.cap.risk { border-color: color-mix(in srgb, var(--ember) 55%, transparent); color: var(--ember); }
-.cap.warn { border-color: color-mix(in srgb, var(--amber) 45%, transparent); color: var(--amber); }
-.cap.undeclared::after { content: " !"; }
-.empty {
-  grid-column: 1 / -1; border: 1px dashed var(--rock-3); border-radius: var(--radius); padding: 32px; text-align: center; color: var(--dust);
+.row:hover, .row:focus-visible { background: var(--row-hi); color: var(--ink); }
+.row:focus-visible { outline-offset: -2px; }
+.row.out { opacity: 0.42; }
+.row .idx { font: 400 var(--t-xs)/1 var(--f-mono); color: var(--ink-3); text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
+.row .lc { align-self: stretch; background: var(--lc); }
+.row .nm { padding: 8px 12px; min-width: 0; display: grid; gap: 1px; }
+.row .nm b { font-weight: 500; font-size: var(--t-m); line-height: 1.3; }
+.row .nm span { color: var(--ink-2); font-size: var(--t-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw span { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 3px; color: #4b4b4b; position: relative; }
+.sw span.on { color: var(--ink-2); background: #1f1f1f; }
+.sw span.risk { color: var(--err); }
+.sw span.undeclared::after { content: ""; position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--queued); }
+.trk { position: relative; align-self: stretch; display: grid; grid-template-columns: repeat(var(--n), 1fr); align-items: center; padding: 0; }
+.trk i { height: 16px; display: block; }
+.trk i.works { background: var(--lc); }
+.trk i.untested {
+  background:
+    repeating-conic-gradient(color-mix(in srgb, var(--lc) 62%, #2a2a2a) 0 25%, color-mix(in srgb, var(--lc) 26%, #2a2a2a) 0 50%) 0 0 / 8px 8px;
 }
+.trk i.broken { background: repeating-linear-gradient(135deg, var(--err-fill) 0 4px, #4d1717 4px 8px); }
+.trk i.first { position: relative; border-radius: 2px 0 0 2px; }
+.trk i.first::before { /* release keyframe */
+  content: ""; position: absolute; left: -4px; top: 50%; width: 8px; height: 8px; background: var(--ink); transform: translateY(-50%) rotate(45deg);
+}
+.trk i.last { border-radius: 0 2px 2px 0; }
+.cti-line { position: absolute; top: 0; bottom: -1px; width: 1px; background: var(--cti); pointer-events: none; z-index: 1; }
+.rq { padding: 0 12px; font-size: var(--t-s); display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.rq::before { content: ""; width: 8px; height: 8px; border-radius: 1px; background: currentColor; flex: none; }
+.rq.ok { color: var(--done); }
+.rq.review { color: var(--queued); }
+.rq.blocked { color: var(--err); }
+.rq.needs { color: var(--ink-2); }
+.rq.needs::before { background: transparent; border: 1px solid currentColor; }
+.empty { padding: 34px 16px; color: var(--ink-2); text-align: center; background: var(--row); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 12px 16px; border-top: 1px solid #111; font-size: var(--t-xs); color: var(--ink-3); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 22px; height: 10px; display: inline-block; --lc: var(--l-aqua); border-radius: 2px; }
+.legend i.works { background: var(--lc); }
+.legend i.untested { background: repeating-conic-gradient(color-mix(in srgb, var(--lc) 62%, #2a2a2a) 0 25%, color-mix(in srgb, var(--lc) 26%, #2a2a2a) 0 50%) 0 0 / 6px 6px; }
+.legend i.broken { background: repeating-linear-gradient(135deg, var(--err-fill) 0 3px, #4d1717 3px 6px); }
+.legend b { font-weight: 500; }
+.legend .ok { color: var(--done); } .legend .review { color: var(--queued); } .legend .blocked { color: var(--err); }
+.opts .ver-pick { display: none; }
 
-/* ---------- script view ---------- */
-.back { display: inline-block; margin-block: 22px 8px; font: 400 var(--step--1)/1 var(--f-mono); color: var(--dust); text-decoration: none; }
-.back:hover { color: var(--torch); }
-.script-head { display: grid; gap: 10px; padding-bottom: 18px; border-bottom: 1px dashed var(--rock-3); }
-.script-head h1 { font: 700 var(--step-3)/1.08 var(--f-display); }
-.script-head .lead { color: var(--dust); font-size: var(--step-1); margin: 0; max-width: 62ch; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+/* ---------------- script page ---------------- */
+.crumbs { padding-block: 22px 14px; font-size: var(--t-s); color: var(--ink-3); display: flex; gap: 8px; flex-wrap: wrap; }
+.crumbs a { color: var(--ink-2); text-decoration: none; }
+.crumbs a:hover { color: var(--ink); }
+.slate { background: var(--slate); color: var(--chalk); border-radius: 4px; overflow: hidden; border: 1px solid #000; }
+.sticks { position: relative; height: 38px; background: #0b0b0b; }
+.stick {
+  position: absolute; left: 0; right: 0; height: 19px;
+  background: repeating-linear-gradient(-55deg, var(--chalk) 0 22px, #141414 22px 44px);
+}
+.stick.bottom { bottom: 0; }
+.stick.top { top: 0; transform-origin: 6px 100%; transform: rotate(-4deg); transition: transform 0.12s ease-in; }
+.slate.done .stick { background: repeating-linear-gradient(-55deg, #bfbfbf 0 22px, #bfbf00 22px 44px, #00bfbf 44px 66px, #00bf00 66px 88px, #bf00bf 88px 110px, #bf0000 110px 132px, #0000bf 132px 154px); }
+.slate.clap .stick.top { transform: rotate(0deg); }
+.slate-body { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sf { padding: 10px 14px 12px; border-right: 1px solid #3b3a36; border-top: 1px solid #3b3a36; min-width: 0; display: grid; gap: 3px; }
+.sf:last-child { border-right: 0; }
+.sf.wide { grid-column: span 4; border-right: 0; }
+.sf span { font: 700 0.8125rem/1 var(--f-slate); letter-spacing: 0.12em; text-transform: uppercase; color: #9d998c; }
+.sf b { font: 700 1.375rem/1.15 var(--f-slate); color: var(--chalk); overflow-wrap: anywhere; }
+.sf.title b { font-size: clamp(2.25rem, 6vw, 3.75rem); line-height: 0.95; font-weight: 800; letter-spacing: -0.005em; }
+.sf.wide.hash b span { font: inherit; letter-spacing: 0; text-transform: none; color: inherit; overflow-wrap: anywhere; }
+.sf.wide.hash b { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font: 400 0.8125rem/1.3 var(--f-mono); color: #bcb8ab; }
+.strip { display: inline-grid; grid-template-columns: repeat(16, 14px); height: 14px; flex: none; }
+.strip i { display: block; }
+.strip.small { grid-template-columns: repeat(16, 6px); height: 8px; }
+.lead2 { color: var(--ink-2); font-size: var(--t-l); max-width: 64ch; padding-block: 18px 6px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding-block: 8px 4px; }
 .btn {
-  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius); cursor: pointer;
-  border: 1px solid var(--rock-3); background: var(--rock-2); color: var(--bone); text-decoration: none; font-weight: 500;
+  display: inline-flex; align-items: center; gap: 9px; padding: 9px 15px; border-radius: 4px; cursor: pointer; text-decoration: none;
+  border: 1px solid var(--hair); background: var(--panel); color: var(--ink); font-weight: 500; font-size: var(--t-m);
 }
-.btn:hover { border-color: var(--ash); color: var(--bone); }
-.btn.primary { background: var(--torch); border-color: var(--torch); color: var(--rock-0); }
-.btn.primary:hover { background: #f6b766; color: var(--rock-0); }
+.btn:hover { background: var(--row-hi); color: var(--ink); }
+.btn.primary { background: var(--cti); border-color: var(--cti); color: #fff; }
+.btn.primary:hover { background: #4a9df0; color: #fff; }
+.btn small { font: 400 var(--t-xs)/1 var(--f-mono); opacity: 0.8; }
 .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
-.btn small { font: 400 0.75rem/1 var(--f-mono); opacity: 0.8; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; padding-block: 24px 48px; align-items: start; }
-.prose { display: grid; gap: 26px; min-width: 0; }
+.fine { font-size: var(--t-xs); color: var(--ink-3); }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 30px; padding-block: 26px 60px; align-items: start; }
+.prose { display: grid; gap: 28px; min-width: 0; }
 .prose section { display: grid; gap: 10px; min-width: 0; }
-.prose h2, .side h2, .page h2 {
-  font: 500 var(--step--1)/1.2 var(--f-mono); color: var(--torch); text-transform: uppercase; letter-spacing: 0.1em;
-}
-.prose p { margin: 0; max-width: 68ch; }
-.note { border-left: 2px solid var(--amber); padding: 8px 12px; color: var(--bone); background: color-mix(in srgb, var(--amber) 7%, transparent); }
-.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.tabs button {
-  background: none; border: 1px solid var(--rock-3); color: var(--dust); padding: 6px 10px; border-radius: var(--radius); cursor: pointer; font-size: var(--step--1);
-}
-.tabs button[aria-selected="true"] { color: var(--bone); border-color: var(--torch-dim); background: var(--rock-2); }
-ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 6px; }
-ol.steps li::marker { font-family: var(--f-mono); color: var(--ash); }
-.path { font: 400 var(--step--1)/1.5 var(--f-mono); background: var(--rock-2); border: 1px solid var(--rock-3); padding: 2px 6px; border-radius: var(--radius); overflow-wrap: anywhere; }
-.code {
-  background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius);
-  max-height: 520px; overflow: auto; font: 400 0.78rem/1.55 var(--f-mono);
-}
+h2.h { font-size: var(--t-l); font-weight: 600; letter-spacing: -0.01em; }
+.prose p { max-width: 68ch; }
+.note { border-left: 3px solid var(--queued); padding: 9px 13px; background: #29271c; max-width: 68ch; }
+.undo { font-size: var(--t-s); color: var(--ink-2); }
+.undo code { color: var(--ink); background: var(--panel); border: 1px solid var(--hair); border-radius: 3px; padding: 1px 6px; font-size: 0.8125rem; }
+.seg { display: inline-flex; border: 1px solid var(--hair); border-radius: 4px; overflow: hidden; width: max-content; }
+.seg button { background: none; border: 0; padding: 7px 12px; cursor: pointer; color: var(--ink-2); font-size: var(--t-s); }
+.seg button + button { border-left: 1px solid var(--hair); }
+.seg button[aria-selected="true"] { background: var(--row-hi); color: var(--ink); }
+ol.steps { margin: 0; padding-left: 1.4em; display: grid; gap: 8px; max-width: 68ch; }
+ol.steps li::marker { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.path { font: 400 0.8125rem/1.5 var(--f-mono); background: var(--panel); border: 1px solid var(--hair); padding: 1px 6px; border-radius: 3px; overflow-wrap: anywhere; }
+.code { background: #141414; border: 1px solid #0d0d0d; border-radius: 4px; max-height: 540px; overflow: auto; font: 400 0.78rem/1.6 var(--f-mono); }
 .code ol { list-style: none; margin: 0; padding: 10px 0; counter-reset: ln; min-width: max-content; }
-.code li { counter-increment: ln; padding: 0 14px 0 0; white-space: pre; color: var(--dust); }
-.code li::before { content: counter(ln); display: inline-block; width: 4.2em; padding-right: 1em; text-align: right; color: var(--ash); opacity: 0.6; user-select: none; }
-.code li.hit { background: color-mix(in srgb, var(--amber) 13%, transparent); color: var(--bone); }
-.code li.cave { color: var(--torch-dim); }
-details.src summary { cursor: pointer; color: var(--dust); font-size: var(--step--1); }
-details.src summary:hover { color: var(--bone); }
-details.src[open] summary { margin-bottom: 10px; }
-.side { display: grid; gap: 16px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); min-width: 0; }
-.panel { background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 16px; display: grid; gap: 12px; min-width: 0; }
-.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; font-size: var(--step--1); line-height: 1.45; }
-.checks li::before { content: "■"; font-size: 0.7rem; line-height: 1.9; }
-.checks li.ok::before { color: var(--moss); }
-.checks li.warn::before { color: var(--amber); }
-.checks li.bad::before { color: var(--ember); }
-.checks li.info::before { color: var(--ash); }
-.checks small { display: block; color: var(--ash); font-family: var(--f-mono); font-size: 0.72rem; overflow-wrap: anywhere; }
-dl.facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: var(--step--1); }
-dl.facts dt { color: var(--ash); }
-dl.facts dd { margin: 0; color: var(--bone); overflow-wrap: anywhere; }
-.hash { font: 400 0.72rem/1.4 var(--f-mono); color: var(--dust); word-break: break-all; }
-.votes { display: grid; gap: 10px; }
+.code li { counter-increment: ln; padding-right: 16px; white-space: pre; color: #b9b9b9; }
+.code li::before { content: counter(ln); display: inline-block; width: 4.4em; padding-right: 1.1em; text-align: right; color: #555; user-select: none; }
+.code li.hit { background: #3a3417; color: #f2eccb; }
+.code li.cave { color: #5f8fbf; }
+details.src > summary { cursor: pointer; color: var(--ink-2); font-size: var(--t-s); }
+details.src > summary:hover { color: var(--ink); }
+details.src[open] > summary { margin-bottom: 10px; }
+
+/* Effect Controls-style side panels */
+.side { display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 64px); min-width: 0; }
+.pnl { background: var(--panel); border: 1px solid #111; border-radius: 4px; min-width: 0; }
+.pnl > header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid #111; font-size: var(--t-s); font-weight: 600; }
+.pnl > header em { font: italic 600 var(--t-s)/1 var(--f-ui); color: var(--ink-3); }
+.pnl-body { padding: 6px 0; }
+.prop { border-bottom: 1px solid #1d1d1d; }
+.prop:last-child { border-bottom: 0; }
+.prop > summary, .prop > div { list-style: none; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 7px 12px; font-size: var(--t-s); cursor: default; }
+.prop > summary { cursor: pointer; }
+.prop > summary::-webkit-details-marker { display: none; }
+.prop > summary::before, .prop > div::before { content: ""; width: 0; height: 0; border-left: 5px solid var(--ink-3); border-top: 4px solid transparent; border-bottom: 4px solid transparent; align-self: center; }
+.prop > div::before { border-left-color: transparent; }
+.prop[open] > summary::before { transform: rotate(90deg); }
+.prop .v { color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+.prop .v.ok { color: var(--done); } .prop .v.warn { color: var(--queued); } .prop .v.bad { color: var(--err); }
+.prop-more { padding: 0 12px 10px 34px; display: grid; gap: 4px; font-size: var(--t-xs); color: var(--ink-2); }
+.prop-more code { font-size: 0.7rem; color: var(--ink-3); overflow-wrap: anywhere; }
+.compat { padding: 10px 12px 12px; display: grid; gap: 10px; }
+.mini { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 2px; }
+.mini div { display: grid; gap: 4px; justify-items: center; }
+.mini i { height: 14px; width: 100%; display: block; border-radius: 1px; background: #1c1c1c; }
+.mini i.works { background: var(--lc); }
+.mini i.untested { background: repeating-conic-gradient(color-mix(in srgb, var(--lc) 62%, #2a2a2a) 0 25%, color-mix(in srgb, var(--lc) 26%, #2a2a2a) 0 50%) 0 0 / 6px 6px; }
+.mini i.broken { background: repeating-linear-gradient(135deg, var(--err-fill) 0 3px, #4d1717 3px 6px); }
+.mini span { font: 400 0.625rem/1 var(--f-mono); color: var(--ink-3); }
+.mini div.sel span { color: var(--cti-ink); }
+.mini div.sel i { outline: 1px solid var(--cti); outline-offset: 1px; }
 .vote-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.vote-row .btn { padding: 6px 10px; font-size: var(--step--1); }
-.vote-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-.vote-list li { font: 400 0.75rem/1 var(--f-mono); padding: 4px 6px; border-radius: var(--radius); border: 1px solid var(--rock-3); }
-.vote-list li.works { color: var(--moss); border-color: color-mix(in srgb, var(--moss) 40%, transparent); }
-.vote-list li.broken { color: var(--ember); border-color: color-mix(in srgb, var(--ember) 45%, transparent); }
-.fine { font-size: 0.75rem; color: var(--ash); margin: 0; }
+.vote-row .btn { padding: 6px 11px; font-size: var(--t-s); }
+dl.facts { margin: 0; padding: 10px 12px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: var(--t-s); }
+dl.facts dt { color: var(--ink-3); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.hash { font: 400 0.72rem/1.45 var(--f-mono); color: var(--ink-2); word-break: break-all; }
 
-/* ---------- other pages ---------- */
-.page { padding-block: 34px 56px; display: grid; gap: 28px; }
-.page > header { display: grid; gap: 10px; max-width: 70ch; }
-.page h1 { font: 700 var(--step-3)/1.08 var(--f-display); }
-.page .lead { color: var(--dust); font-size: var(--step-1); margin: 0; }
-.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
-.stack { display: grid; gap: 12px; min-width: 0; }
-.req { background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 8px; }
-.req h3 { font: 600 var(--step-0)/1.35 var(--f-body); }
-.req p { margin: 0; color: var(--dust); font-size: var(--step--1); }
-.req .row { justify-content: space-between; }
-.example { font: 500 0.7rem/1 var(--f-mono); color: var(--ash); border: 1px dashed var(--rock-3); padding: 3px 5px; border-radius: var(--radius); text-transform: uppercase; letter-spacing: 0.08em; }
-form.stack label { display: grid; gap: 6px; font-size: var(--step--1); color: var(--dust); }
-form.stack input, form.stack textarea, form.stack select { width: 100%; }
-textarea { resize: vertical; min-height: 90px; }
-table.xp-table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
-table.xp-table th, table.xp-table td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--rock-3); vertical-align: top; }
-table.xp-table th { color: var(--ash); font-weight: 400; font-family: var(--f-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
-table.xp-table td.num { font-family: var(--f-mono); color: var(--torch); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-table.xp-table tr.zero td { color: var(--dust); }
-table.xp-table tr.zero td.num { color: var(--ash); }
-.ranks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.rank { border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; background: var(--rock-1); display: grid; gap: 6px; }
-.rank b { font: 600 var(--step-1)/1.25 var(--f-body); }
-.rank span { font: 400 0.75rem/1 var(--f-mono); color: var(--ash); }
-.rank.current { border-color: var(--torch); box-shadow: 0 0 24px -10px var(--torch); }
-.meter { height: 10px; background: var(--rock-2); border: 1px solid var(--rock-3); border-radius: var(--radius); overflow: hidden; }
-.meter i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--torch) 0 8px, var(--torch-dim) 8px 10px); }
-pre.manifest { margin: 0; background: var(--rock-1); border: 1px solid var(--rock-3); border-radius: var(--radius); padding: 14px; overflow: auto; font: 400 0.78rem/1.55 var(--f-mono); color: var(--dust); }
-.glossary { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; margin: 0; }
-.glossary dt { font: 600 var(--step-0)/1.4 var(--f-body); color: var(--torch); }
-.glossary dd { margin: 0; color: var(--dust); }
-ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; }
-ul.plain li::marker { color: var(--torch-dim); content: "▪  "; }
-.toast {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20;
-  background: var(--bone); color: var(--rock-0); padding: 9px 14px; border-radius: var(--radius); font-weight: 500; font-size: var(--step--1);
-}
+/* ---------------- render queue (requests) ---------------- */
+.page { padding-block: 40px 64px; display: grid; gap: 30px; }
+.page > header { display: grid; gap: 12px; max-width: 68ch; }
+.page h1 { font-size: var(--t-xxl); line-height: 1.04; font-weight: 700; letter-spacing: -0.035em; }
+.page header p { color: var(--ink-2); font-size: var(--t-l); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start; }
+.cols.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.queue { background: var(--panel); border: 1px solid #111; border-radius: 4px; overflow: hidden; }
+.q-head, .q-row { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) 7.6rem 4.4rem 9.6rem; align-items: center; }
+.q-row .acts { display: flex; gap: 6px; }
+.q-head { font-size: var(--t-xs); color: var(--ink-3); border-bottom: 1px solid #111; height: 34px; }
+.q-head span, .q-row > * { padding: 0 10px; }
+.q-row { background: var(--row); border-bottom: 1px solid #1c1c1c; min-height: 64px; padding-block: 10px; }
+.q-row:last-child { border-bottom: 0; }
+.q-row .idx { font: 400 var(--t-xs)/1 var(--f-mono); color: var(--ink-3); text-align: right; }
+.q-row .rqt { display: grid; gap: 3px; min-width: 0; }
+.q-row .rqt b { font-weight: 500; }
+.q-row .rqt span { color: var(--ink-2); font-size: var(--t-s); }
+.q-row .tag { font-size: var(--t-xs); color: var(--ink-3); }
+.q-row .rq { padding: 0 10px; }
+.mini-btn { background: var(--well); border: 1px solid var(--hair); color: var(--ink-2); border-radius: 3px; padding: 4px 9px; cursor: pointer; font-size: var(--t-s); white-space: nowrap; }
+.mini-btn:hover { color: var(--ink); border-color: #555; }
+.mini-btn[aria-pressed="true"] { background: var(--row-hi); color: var(--ink); border-color: #555; }
+form.add { background: var(--panel); border: 1px solid #111; border-radius: 4px; padding: 16px; display: grid; gap: 12px; }
+form.add label { display: grid; gap: 6px; font-size: var(--t-s); color: var(--ink-2); }
+form.add input, form.add textarea, form.add select { width: 100%; font-size: var(--t-m); }
+textarea { resize: vertical; min-height: 92px; }
 
-footer.foot { border-top: 1px solid var(--rock-3); background: var(--rock-1); }
-footer.foot .wrap { padding-block: 18px 22px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; font: 400 var(--step--1)/1.5 var(--f-mono); color: var(--ash); }
-footer.foot a { color: var(--dust); }
+/* ---------------- keepers ---------------- */
+.progress { background: var(--panel); border: 1px solid #111; border-radius: 4px; padding: 16px; display: grid; gap: 10px; }
+.progress .top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--t-s); color: var(--ink-2); }
+.progress .top b { color: var(--ink); font-weight: 600; }
+.meter { height: 12px; background: #151515; border: 1px solid #0d0d0d; border-radius: 2px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--cti); }
+.ladder { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid #111; border-radius: 4px; overflow: hidden; }
+.rung { padding: 14px 16px; background: var(--row); display: grid; gap: 4px; border-right: 1px solid #1c1c1c; }
+.rung:last-child { border-right: 0; }
+.rung b { font-size: var(--t-l); font-weight: 600; }
+.rung span { font: 400 var(--t-xs)/1 var(--f-mono); color: var(--ink-3); }
+.rung.now { background: var(--row-hi); box-shadow: inset 0 -2px 0 var(--cti); }
+table.rules { width: 100%; border-collapse: collapse; font-size: var(--t-s); background: var(--panel); border: 1px solid #111; }
+table.rules th, table.rules td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1c1c1c; vertical-align: top; }
+table.rules th { color: var(--ink-3); font-weight: 400; font-size: var(--t-xs); }
+table.rules td.num { text-align: right; font: 500 var(--t-s)/1.5 var(--f-mono); color: var(--cti-ink); white-space: nowrap; }
+table.rules tr.zero td { color: var(--ink-3); }
+.live { font-size: var(--t-xs); color: var(--done); margin-left: 6px; white-space: nowrap; }
+dl.defs { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 18px; }
+dl.defs dt { font-weight: 600; }
+dl.defs dd { margin: 0; color: var(--ink-2); }
+ul.plain { margin: 0; padding-left: 1.1em; display: grid; gap: 7px; max-width: 68ch; }
+ul.plain li::marker { color: var(--ink-3); }
+pre.manifest { margin: 0; background: #141414; border: 1px solid #0d0d0d; border-radius: 4px; padding: 14px; overflow: auto; font: 400 0.78rem/1.6 var(--f-mono); color: #c3c3c3; }
+.card { background: var(--panel); border: 1px solid #111; border-radius: 4px; padding: 16px; display: grid; gap: 10px; }
+.hosts { display: grid; gap: 8px; }
+.host-row { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 12px; align-items: center; font-size: var(--t-s); }
+.host-row .mini i { height: 10px; }
+.host-row.soon { color: var(--ink-3); }
 
-@media (max-width: 960px) {
-  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .layout { grid-template-columns: minmax(0, 1fr); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 20; background: var(--ink); color: #111; padding: 9px 14px; border-radius: 4px; font-weight: 500; font-size: var(--t-s); }
+footer.foot { border-top: 1px solid #111; background: var(--panel); }
+footer.foot .wrap { padding-block: 18px 24px; display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: space-between; font-size: var(--t-s); color: var(--ink-3); }
+footer.foot nav { display: flex; gap: 18px; flex-wrap: wrap; }
+footer.foot a { color: var(--ink-2); }
+
+@media (max-width: 1020px) {
+  .tl { --cols: 2.2rem 4px minmax(0, 1fr) 7.4rem minmax(11rem, 30%) 6.8rem; }
+  .layout, .cols { grid-template-columns: minmax(0, 1fr); }
   .side { position: static; }
-  .ranks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 720px) {
-  .hero { grid-template-columns: minmax(0, 1fr); padding-block: 28px 22px; gap: 22px; }
-  .cols { grid-template-columns: minmax(0, 1fr); }
-  .top .wrap { gap: 10px 14px; }
-  .nav { order: 3; width: 100%; margin-right: 0; overflow-x: auto; flex-wrap: nowrap; }
-  .nav a { white-space: nowrap; }
-  .top-side { margin-left: auto; }
-}
-@media (max-width: 560px) {
-  :root { --step-3: 1.75rem; --step-1: 1.0625rem; }
-  .grid { grid-template-columns: minmax(0, 1fr); }
-  .ranks { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .hero { padding-block: 30px 20px; }
+  :root { --t-xxl: 2.1rem; }
+  .bar-in { flex-wrap: wrap; gap: 0 14px; }
+  .tabs { order: 3; width: 100%; margin-right: 0; border-top: 1px solid #111; }
+  .tabs a { padding: 10px 12px; }
+  .bar-side { margin-left: auto; }
+  .tl-head { display: none; }
+  .opts .ver-pick { display: inline-flex; }
+  .comp-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "ctd" "labels" "opts"; }
+  .comp-head .opts { justify-content: flex-start; }
+  .row { grid-template-columns: 4px minmax(0, 1fr) auto; grid-template-areas: "lc nm rq" "lc sw sw" "lc trk trk"; padding-bottom: 10px; }
+  .row .idx { display: none; }
+  .row .lc { grid-area: lc; }
+  .row .nm { grid-area: nm; padding-bottom: 4px; }
+  .row .rq { grid-area: rq; align-self: start; padding-top: 10px; }
+  .row .sw { grid-area: sw; justify-self: start; border: 0; padding-left: 8px; grid-template-columns: repeat(5, 26px); }
+  .row .trk { grid-area: trk; margin: 6px 12px 0; min-height: 16px; }
+  .row .trk i { height: 8px; }
+  .cti-line { display: none; }
+  .slate-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sf.wide { grid-column: span 2; }
+  .sf:nth-child(odd):not(.wide) { border-right: 1px solid #3b3a36; }
+  .q-head { display: none; }
+  .q-row { grid-template-columns: 2rem minmax(0, 1fr) auto; grid-template-areas: "idx rqt rqt" "idx st act"; row-gap: 8px; }
+  .q-row .idx { grid-area: idx; align-self: start; padding-top: 3px; }
+  .q-row .rqt { grid-area: rqt; }
+  .q-row .rq { grid-area: st; }
+  .q-row .acts { grid-area: act; display: flex; gap: 6px; }
+  .q-row .votes { display: none; }
+  .ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols.even { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .torch::after { animation: none; }
-  * { scroll-behavior: auto !important; }
+  .stick.top { transition: none; }
 }
 </style>
 
-<header class="top">
-  <div class="wrap">
-    <a class="logo" href="#" aria-label="VFX Cave"><span class="torch" aria-hidden="true"></span>VFX Cave</a>
-    <nav class="nav" id="nav" aria-label="Main"></nav>
-    <div class="top-side">
-      <a class="xp" id="xp" href="#path"></a>
+<header class="bar">
+  <div class="wrap bar-in">
+    <a class="mark" href="#" aria-label="VFX Cave, catalog"><i class="ease" aria-hidden="true"></i>VFX Cave</a>
+    <nav class="tabs" id="nav" aria-label="Main"></nav>
+    <div class="bar-side">
+      <a class="xp" id="xp" href="#keepers"></a>
       <div class="lang" role="group" aria-label="Language">
-        <button type="button" data-lang="ru">RU</button>
         <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="ru">RU</button>
       </div>
     </div>
   </div>
-  <div class="stalactites" aria-hidden="true"></div>
 </header>
 
 <main id="app"></main>
@@ -379,11 +421,38 @@ footer.foot a { color: var(--dust); }
   var SOURCES = DATA.sources;
   var ITEMS = INDEX.items;
   // Inside the claude.ai artifact viewer pages can't start downloads, so the
-  // preview offers copying instead. Everywhere else (disk, GitHub Pages)
-  // window.claude is absent and the download link works.
+  // preview offers copying instead. Everywhere else window.claude is absent.
   var PREVIEW = !!(window.claude && typeof window.claude.use === "function");
   var BY_ID = {};
   ITEMS.forEach(function (it) { BY_ID[it.id] = it; });
+
+  // After Effects versions on the timeline ruler.
+  var VERSIONS = [
+    { major: 15, name: "CC 2018" }, { major: 16, name: "CC 2019" }, { major: 17, name: "2020" },
+    { major: 18, name: "2021" }, { major: 22, name: "2022" }, { major: 23, name: "2023" },
+    { major: 24, name: "2024" }, { major: 25, name: "2025" }, { major: 26, name: "2026" }
+  ];
+  var LABELS = ["#b53838", "#e4d84c", "#a9cbc7", "#e5bcc9", "#a9a9ca", "#e7c19e", "#b3c7b3", "#677de0",
+    "#4aa44c", "#8e2c9a", "#e8920d", "#7f452a", "#f46dd6", "#3da2a5", "#a89677", "#1e401e"];
+  var CAT_LABEL = {
+    animation: "var(--l-orange)", keyframes: "var(--l-yellow)", expressions: "var(--l-seafoam)", layers: "var(--l-blue)",
+    "masks-shapes": "var(--l-aqua)", mattes: "var(--l-lavender)", text: "var(--l-pink)", comp: "var(--l-cyan)",
+    render: "var(--l-red)", color: "var(--l-fuchsia)", utility: "var(--l-sandstone)"
+  };
+  var SWITCHES = ["files", "shell", "network", "eval", "prototypes"];
+  var RISKY = { shell: 1, network: 1, eval: 1 };
+  var ICONS = {
+    files: '<path d="M2 4.5h4.2l1.4 1.5H14v6.5H2z"/>',
+    shell: '<path d="M3 4.5l3.2 3.5L3 11.5M8 11.5h5"/>',
+    network: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c2.3 2.2 2.3 8.8 0 11M8 2.5c-2.3 2.2-2.3 8.8 0 11"/>',
+    eval: '<path d="M6 2.5c-1.8 0-2 1-2 2.5s-.6 3-1.6 3c1 0 1.6 1.4 1.6 3s.2 2.5 2 2.5M10 2.5c1.8 0 2 1 2 2.5s.6 3 1.6 3c-1 0-1.6 1.4-1.6 3s-.2 2.5-2 2.5"/>',
+    prototypes: '<path d="M6.6 9.4l2.8-2.8M5.2 7.6L3.7 9.1a2.1 2.1 0 0 0 3 3l1.5-1.5M10.8 8.4l1.5-1.5a2.1 2.1 0 0 0-3-3L7.8 5.4"/>',
+    search: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/>'
+  };
+  function icon(name, size) {
+    var s = size || 16;
+    return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + "</svg>";
+  }
 
   // ------------------------------------------------------------ storage
   function load(key, fallback) {
@@ -394,413 +463,425 @@ footer.foot a { color: var(--dust); }
   }
 
   var state = {
-    lang: load("lang", /^(ru|uk|be|kk)/i.test(navigator.language || "ru") ? "ru" : "en"),
+    lang: load("lang", "en"),                       // English first, whatever the browser says
     query: "",
     category: "all",
     trust: load("trust", "all"),
-    sort: load("sort", "name"),
+    sort: load("sort", "fit"),
+    ver: load("ver", VERSIONS.length - 1),           // playhead position on the ruler
     installTab: "panel",
-    votes: load("votes", {}),          // { id: { "AE 2025": "works" | "broken" } }
-    requests: load("requests", []),    // created on this device
-    plus: load("plus", {}),            // request id -> true
-    takes: load("takes", {})           // request id -> true
+    votes: load("votes2", {}),                      // { id: { "25": "works" | "broken" } }
+    requests: load("requests", []),
+    plus: load("plus", {}),
+    takes: load("takes", {})
   };
+  if (!(state.ver >= 0 && state.ver < VERSIONS.length)) state.ver = VERSIONS.length - 1;
 
   // --------------------------------------------------------------- i18n
+  // English is the product language. Russian is a convenience layer; After
+  // Effects terms (Track Matte, Render Queue statuses, menus) stay in English.
   var T = {
-    ru: {
-      nav: { catalog: "Каталог", requests: "Доска заказов", submit: "Добавить скрипт", path: "Путь хранителя", about: "О пещере" },
-      heroEyebrow: "Открытый каталог · прототип",
-      heroTitle: "Пещера скриптов для After Effects",
-      heroLead: "Скрипты, которые люди написали для себя: руками или вместе с нейросетью. Скачивание без регистрации, каждый файл проверяется до публикации.",
-      termTitle: "cave — поиск",
-      searchLabel: "Поиск по пещере",
-      searchPh: "wiggle, маски, текст, матт…",
-      tryLabel: "попробуйте:",
-      tries: ["wiggle", "маски", "текст", "матт"],
-      ledger: { items: "артефактов", ok: "прошли проверки", review: "ждут ревью", blocked: "на доработке", signup: "регистраций для скачивания", index: "открытый индекс" },
-      hostsLabel: "Программа",
-      soon: "скоро",
-      allCats: "Все",
-      trustLabel: "Доверие",
-      trust: { all: "Все артефакты", safe: "Без shell, сети и eval", clean: "Только без замечаний" },
-      sortLabel: "Порядок",
-      sort: { name: "По названию", "new": "Сначала новые", category: "По категории" },
-      found: function (n) { return "Найдено: " + n; },
-      empty: "В этой части пещеры пусто. Уберите фильтр или оставьте заявку на доске заказов.",
-      emptyLink: "Оставить заявку",
-      status: { ok: "Проверен", review: "Нужно ревью", blocked: "На доработке" },
-      kind: { script: "Скрипт", panel: "Панель", preset: "Пресет" },
-      cats: { animation: "Анимация", keyframes: "Ключи", expressions: "Экспрешены", layers: "Слои", "masks-shapes": "Маски и шейпы", mattes: "Матты", text: "Текст", comp: "Композиции", render: "Рендер", color: "Цвет", utility: "Утилиты" },
-      caps: {
-        files: ["Файлы", "Создаёт, читает или пишет файлы и папки на диске."],
-        shell: ["Shell", "Запускает системные команды (system.callSystem или File.execute)."],
-        network: ["Сеть", "Обращается к сети."],
-        eval: ["Eval", "Выполняет код из строки или из другого файла."],
-        prototypes: ["Прототипы", "Добавляет методы встроенным объектам JavaScript или AE. Это влияет на другие скрипты в той же сессии AE."],
-        settings: ["Настройки", "Сохраняет настройки через app.settings или app.preferences."],
-        menu: ["Команды меню", "Вызывает команды меню AE через app.executeCommand."]
-      },
-      undeclared: "найдено, но автор не объявил",
-      declaredOnly: "объявлено автором, в коде не найдено",
-      warns: {
-        json: "Использует JSON. На чистой установке AE объекта JSON может не быть.",
-        "es5-array": "Методы массивов ES5 (forEach, map, filter…). В ExtendScript их нет без полифила.",
-        "es5-trim": "String.trim() из ES5. В ExtendScript его нет без полифила.",
-        "es5-object": "Object.keys, Array.isArray и другие API из ES5. В ExtendScript их нет без полифила.",
-        "embedded-data": "Внутри большой блок данных, например бинарный пресет. Его нельзя прочитать глазами."
-      },
-      warnShort: { json: "JSON", "es5-array": "ES5-массивы", "es5-trim": "trim()", "es5-object": "ES5 Object", "embedded-data": "бинарные данные" },
-      polyfilled: "полифил есть в сборке",
-      syntax: {
-        es3: "Синтаксис ES3: совместим с движком ExtendScript.",
-        es5: "Синтаксис ES5: обычно работает в ExtendScript, но проверьте в AE.",
-        es2015: "Современный синтаксис (let, const, стрелочные функции). ExtendScript его не выполнит.",
-        modern: "Современный синтаксис. ExtendScript его не выполнит.",
-        invalid: "Синтаксическая ошибка: файл не разбирается."
-      },
-      constNote: "Есть const: это не ES3, но ExtendScript его поддерживает.",
-      missing: function (spec, from) { return "Не найден подключаемый файл " + spec + " (из " + from + "). Скачивание закрыто, пока автор не исправит путь."; },
-      inlined: function (n) { return n ? "Встроено подключаемых файлов: " + n + ". Скачивается один готовый файл." : "Один файл, без подключений."; },
-      declared: function (n) { return n ? "Все найденные возможности объявлены автором." : "Особых возможностей не найдено: скрипт меняет только проект."; },
-      back: "← В каталог",
-      download: "Скачать",
-      copy: "Копировать код",
-      copied: "Код скопирован",
-      copyFail: "Не удалось скопировать. Выделите код вручную.",
-      blockedBtn: "Скачивание закрыто",
-      previewNote: "В этом превью файлы не скачиваются. Скопируйте код или откройте сайт из папки portal/site.",
-      sections: { what: "Что делает", how: "Как пользоваться", notes: "Важно знать", install: "Установка", source: "Исходник", check: "Проверка пещеры", file: "Файл", compat: "Совместимость" },
-      showSource: function (n) { return "Показать собранный файл (" + n + " строк). Подсвечены строки, из-за которых стоят бейджи."; },
-      tabPanel: "Через панель VFX Cave",
-      tabManual: "Вручную",
-      panelSteps: [
-        "Один раз поставьте панель: файл <span class=\"path\">VFX Cave.jsx</span> в папку <span class=\"path\">Scripts/ScriptUI Panels</span> внутри папки After Effects.",
-        "Откройте <b>Window → VFX Cave.jsx</b> и найдите артефакт по названию.",
-        "Нажмите <b>Установить</b>. Панель скачает файл, сверит sha256 с индексом и покажет бейджи до первого запуска."
-      ],
-      manualSteps: function (it) {
-        var folder = it.kind === "panel" ? "Scripts/ScriptUI Panels" : "Scripts";
-        if (it.kind === "preset") return [
-          "Скачайте <span class=\"path\">" + it.id + ".ffx</span>.",
-          "Положите его в <span class=\"path\">Документы/Adobe/After Effects &lt;версия&gt;/User Presets</span> или примените через <b>Animation → Apply Animation Preset</b>."
-        ];
-        return [
-          "Скачайте <span class=\"path\">" + it.id + ".jsx</span>. Это уже собранный файл: библиотеки встроены, ничего докладывать не нужно.",
-          "Windows: <span class=\"path\">C:\\Program Files\\Adobe\\Adobe After Effects &lt;версия&gt;\\Support Files\\" + folder.replace("/", "\\") + "</span>. macOS: <span class=\"path\">/Applications/Adobe After Effects &lt;версия&gt;/" + folder + "</span>.",
-          it.kind === "panel" ? "Перезапустите AE и откройте панель через меню <b>Window</b>." : "Перезапустите AE и запустите через <b>File → Scripts</b>. Без установки: <b>File → Scripts → Run Script File…</b>"
-        ];
-      },
-      prefNote: "Этому скрипту нужен доступ к файлам или системе. Включите <b>Preferences → Scripting &amp; Expressions → Allow Scripts to Write Files and Access Network</b> (в старых версиях AE этот флажок во вкладке General).",
-      facts: { author: "Автор", version: "Версия", license: "Лицензия", ai: "ИИ", added: "Добавлен", size: "Размер", lines: "Строк", sha: "sha256", entry: "Исходный файл" },
-      ai: { none: "без ИИ", assisted: "с помощью ИИ", generated: "в основном сгенерирован ИИ", unknown: "автор не указал" },
-      reviewed: "проверено человеком",
-      compatLead: "Работает ли этот артефакт в вашей версии AE? Первая отметка для каждой версии даёт +5 XP.",
-      compatVersion: "Версия AE",
-      works: "Работает",
-      broken: "Сломалось",
-      tested: function (list) { return list.length ? "Автор проверил в: " + list.join(", ") + "." : "Автор пока не указал версии. Станьте первым, кто проверит."; },
-      yourVotes: "Ваши отметки:",
-      localOnly: "Прототип: отметки, XP и заявки хранятся только в этом браузере.",
-      voted: "+5 XP · отметка сохранена",
-      reqTitle: "Доска заказов",
-      reqLead: "Опишите скрипт, которого вам не хватает. Авторы берут заявки, а за выполненный заказ получают XP. Денег и предоплаты здесь нет.",
-      reqFormTitle: "Новая заявка",
-      reqName: "Что нужно",
-      reqNamePh: "Скрипт, который раскладывает слои по сетке",
-      reqDesc: "Подробности",
-      reqDescPh: "Что выделяю перед запуском, что должно получиться, в какой версии AE",
-      reqHost: "Программа",
-      reqSubmit: "Повесить на доску",
-      reqAdded: "Заявка на доске",
-      reqEmptyName: "Напишите хотя бы, что нужно.",
-      plusOne: "Мне тоже",
-      take: "Возьмусь",
-      taken: "Вы взялись",
-      example: "пример",
-      yours: "ваша заявка",
-      examples: [
-        { id: "ex1", title: "Разложить выделенные слои по сетке с отступом", text: "Выделяю 12 слоёв, указываю число колонок и отступ в пикселях, скрипт ставит позиции. Нужен AE 2024+.", plus: 14 },
-        { id: "ex2", title: "Экспорт маркеров композиции в CSV для монтажёра", text: "Время, длительность и комментарий маркера, одна строка на маркер.", plus: 9 },
-        { id: "ex3", title: "Заменить шрифт во всех текстовых слоях проекта", text: "С выбором исходного и нового шрифта и отчётом, что поменялось.", plus: 6 }
-      ],
-      submitTitle: "Принести артефакт в пещеру",
-      submitLead: "Каталог живёт в Git-репозитории. Новый скрипт приходит pull request'ом, автоматическая сборка проверяет его и публикует сразу с бейджами. Ручное ревью нужно только для shell, сети и eval, и оно не задерживает публикацию.",
-      submitSteps: [
-        "Сделайте форк репозитория и положите скрипт с читаемым исходником. .jsxbin принимается только вместе с исходником, архивы (.zip, .rar) не принимаются.",
-        "Добавьте манифест <span class=\"path\">portal/catalog/&lt;id&gt;.json</span> по образцу справа: латинский id, описание на двух языках, объявленные возможности и честная пометка про ИИ.",
-        "Запустите <span class=\"path\">npm run build</span> в папке portal. Сборка встроит //@include, проверит синтаксис и покажет, что нашла.",
-        "Откройте pull request. После слияния артефакт появится в каталоге, в индексе и в панели."
-      ],
-      autoTitle: "Что проверяется автоматически",
-      autoList: [
-        "Все //@include и #include встраиваются в один файл. Если путь не найден, скрипт уходит на доработку.",
-        "Синтаксис разбирается как ES3, движок ExtendScript. Код с let, const и стрелками не пройдёт.",
-        "API из ES5 без полифила: JSON, forEach, map, filter, trim, Object.keys.",
-        "Возможности: файлы, shell, сеть, eval, изменение прототипов, настройки, команды меню. Найденное сравнивается с тем, что объявил автор.",
-        "sha256 каждого файла публикуется в индексе. Панель сверяет его перед установкой и не запускает отозванные версии."
-      ],
-      aiTitle: "Скрипты, написанные с нейросетью, здесь свои",
-      aiText: "Укажите уровень: без ИИ, с помощью ИИ или в основном сгенерирован ИИ. Назовите модель и отметьте, проверяли ли вы скрипт сами. Метка нужна, чтобы пользователи знали, чего ждать. На место в каталоге она не влияет.",
-      manifestTitle: "Образец манифеста",
-      noPoints: "За саму загрузку очков нет. XP дают за то, что делает пещеру надёжнее.",
-      pathTitle: "Путь хранителя",
-      pathLead: "В пещере растут не за количество загрузок, а за то, что делает каталог надёжнее: проверки, починки и подхваченные брошенные скрипты.",
-      yourXp: "Ваш опыт",
-      nextRank: function (n, r) { return "До ранга «" + r + "»: " + n + " XP"; },
-      maxRank: "Высший ранг. Пещера держится на вас.",
-      ranks: [["Новичок с факелом", 0], ["Следопыт", 25], ["Хранитель", 100], ["Старейшина", 300]],
-      xpRulesTitle: "Как начисляется опыт",
-      xpHead: ["Действие", "XP"],
-      xpRules: [
-        ["Отметка «работает / сломалось» в своей версии AE", 5, true],
-        ["Баг-репорт, который подтвердил автор", 10],
-        ["Ревью безопасности чужого артефакта", 20],
-        ["Починка артефакта, сломанного обновлением AE", 30],
-        ["Выполненный заказ с доски", 40],
-        ["Усыновление брошенного артефакта с открытой лицензией", 50],
-        ["Загрузка нового артефакта", 0]
-      ],
-      live: "работает в прототипе",
-      zeroNote: "Ноль за загрузку не опечатка. Если давать очки за количество, пещеру завалят ИИ-клонами.",
-      badgesTitle: "Знаки",
-      badges: [
-        ["Проверено в AE 26", "у артефакта есть подтверждённые отметки «работает» в текущей версии"],
-        ["Первооткрыватель", "автор, первым опубликовавший артефакт; защищает от перезаливов"],
-        ["Хранитель", "мейнтейнер, который отвечает на баги и чинит после обновлений"]
-      ],
-      aboutTitle: "О пещере",
-      aboutLead: "Убежище для маленьких инструментов, которые иначе пропадают в чатах, личных репозиториях и Telegram-лентах.",
-      aboutText: [
-        "Сегодня скрипт, написанный для себя за вечер с нейросетью, чаще всего умирает в окне чата. Если выживает, ломается при следующем обновлении AE. Форумы, где такие вещи копились раньше, закрываются: вместе с CGSociety в 2024 году исчезли больше 18 тысяч тредов о MAXScript.",
-        "Пещера собирает такие инструменты в одно место, проверяет их и помогает им пережить обновления."
-      ],
-      principlesTitle: "Правила пещеры",
-      principles: [
-        "Скачивание бесплатно и без регистрации. Аккаунт нужен только тем, кто публикует.",
-        "Открытый индекс: data/index.json может читать любая программа, панель или ИИ-ассистент.",
-        "Читаемый исходник обязателен. Ничего не запускается без вашего ведома.",
-        "Честные бейджи: что скрипт умеет, где проверен и сколько в нём ИИ.",
-        "Лицензия по умолчанию MIT. Брошенный артефакт можно подхватить."
-      ],
-      glossaryTitle: "Словарь пещеры",
-      glossary: [
-        ["Артефакт", "скрипт, панель или пресет в каталоге"],
-        ["Свиток", "экспрешен, которым делятся отдельно"],
-        ["Обвал", "поломка после обновления AE"],
-        ["Усыновление", "передача брошенного артефакта новому мейнтейнеру"],
-        ["Факел", "ваш опыт в пещере"]
-      ],
-      roadmapTitle: "Куда копаем дальше",
-      roadmap: [
-        "After Effects: каталог, панель установки, отметки совместимости.",
-        "Blender: свой репозиторий расширений, который Blender 4.2+ подключает штатно.",
-        "Houdini, Nuke, DaVinci Resolve: пакеты, меню и атомы Reactor.",
-        "MCP-сервер, чтобы ИИ-ассистенты находили проверенные скрипты вместо того, чтобы генерировать их заново."
-      ],
-      foot: function (d) { return "VFX Cave · прототип · индекс собран " + d; },
-      footIndex: "data/index.json",
-      footRepo: "исходники на GitHub",
-      xpShort: "XP"
-    },
     en: {
-      nav: { catalog: "Catalog", requests: "Request board", submit: "Add a script", path: "Keeper's path", about: "About" },
-      heroEyebrow: "Open catalog · prototype",
-      heroTitle: "The script cave for After Effects",
-      heroLead: "Scripts people wrote for themselves, by hand or together with an AI. No sign-up to download, and every file is checked before it goes live.",
-      termTitle: "cave — search",
-      searchLabel: "Search the cave",
-      searchPh: "wiggle, masks, text, matte…",
-      tryLabel: "try:",
-      tries: ["wiggle", "masks", "text", "matte"],
-      ledger: { items: "artifacts", ok: "passed checks", review: "await review", blocked: "need work", signup: "sign-ups to download", index: "open index" },
-      hostsLabel: "Application",
-      soon: "soon",
-      allCats: "All",
-      trustLabel: "Trust",
-      trust: { all: "All artifacts", safe: "No shell, network or eval", clean: "No remarks only" },
-      sortLabel: "Order",
-      sort: { name: "By name", "new": "Newest first", category: "By category" },
-      found: function (n) { return n + " found"; },
-      empty: "Nothing in this part of the cave. Clear a filter or post a request on the board.",
-      emptyLink: "Post a request",
-      status: { ok: "Checked", review: "Needs review", blocked: "Needs work" },
+      nav: { catalog: "Catalog", requests: "Requests", submit: "Add a script", keepers: "Keepers", about: "About" },
+      heroTitle: "Scripts artists wrote for themselves. Checked before you run them.",
+      heroLead: "Free After Effects scripts, written by hand or with AI. No account to download. Every file is parsed for ExtendScript, scanned for risky calls and hashed before it's listed.",
+      searchPh: function (n) { return "Search " + n + " scripts"; },
+      searchLabel: "Search scripts",
+      yourAe: "Your After Effects",
+      needNewer: function (n) { return n ? n + (n === 1 ? " script needs" : " scripts need") + " a newer version" : "Everything here runs in this version"; },
+      allLabels: "All",
+      trustLabel: "Show",
+      trust: { all: "All scripts", safe: "No shell, network or eval", clean: "Done, no warnings" },
+      sortLabel: "Sort",
+      sort: { fit: "Fits my version", name: "Name", "new": "Newest" },
+      col: { num: "#", name: "Script", status: "Status" },
+      sw: { files: "Files", shell: "Shell", network: "Network", eval: "Eval", prototypes: "Prototypes" },
+      swLong: {
+        files: "Reads or writes files and folders on disk.",
+        shell: "Runs system commands (system.callSystem, File.execute).",
+        network: "Talks to the network.",
+        eval: "Runs code from a string or another file.",
+        prototypes: "Adds methods to built-in JavaScript or AE objects, which other scripts in the session also see.",
+        settings: "Saves settings with app.settings or app.preferences.",
+        menu: "Calls AE menu commands with app.executeCommand."
+      },
+      undeclared: "found in the code but not declared by the author",
+      declaredOnly: "declared by the author, not found in the code",
+      rq: { ok: "Done", review: "Queued", blocked: "Err Stopped" },
+      rqLong: { ok: "Passed every automatic check.", review: "Uses shell, network or eval, so a person reviews it. You can still download it.", blocked: "Failed a check, so it can't be downloaded until the author fixes it." },
+      needs: function (v) { return "Needs AE " + v; },
+      legendWorks: "Works (your marks or the author's tests)",
+      legendUntested: "Untested",
+      legendBroken: "Reported broken",
+      empty: "No scripts match. Clear a filter, or ask for one on the request board.",
+      emptyLink: "Open the request board",
+      verPick: "Your AE",
       kind: { script: "Script", panel: "Panel", preset: "Preset" },
       cats: { animation: "Animation", keyframes: "Keyframes", expressions: "Expressions", layers: "Layers", "masks-shapes": "Masks & shapes", mattes: "Mattes", text: "Text", comp: "Comps", render: "Render", color: "Color", utility: "Utilities" },
-      caps: {
-        files: ["Files", "Creates, reads or writes files and folders on disk."],
-        shell: ["Shell", "Runs system commands (system.callSystem or File.execute)."],
-        network: ["Network", "Talks to the network."],
-        eval: ["Eval", "Runs code from a string or another file."],
-        prototypes: ["Prototypes", "Adds methods to built-in JavaScript or AE objects, which affects other scripts in the same AE session."],
-        settings: ["Settings", "Saves settings through app.settings or app.preferences."],
-        menu: ["Menu commands", "Calls AE menu commands through app.executeCommand."]
-      },
-      undeclared: "found but not declared by the author",
-      declaredOnly: "declared by the author, not found in code",
-      warns: {
-        json: "Uses JSON. A clean AE install may not have a JSON object.",
-        "es5-array": "ES5 array methods (forEach, map, filter…). ExtendScript lacks them without a polyfill.",
-        "es5-trim": "ES5 String.trim(). ExtendScript lacks it without a polyfill.",
-        "es5-object": "Object.keys, Array.isArray and other ES5 APIs. ExtendScript lacks them without a polyfill.",
-        "embedded-data": "Contains a large data block, such as a binary preset, that can't be read by eye."
-      },
-      warnShort: { json: "JSON", "es5-array": "ES5 arrays", "es5-trim": "trim()", "es5-object": "ES5 Object", "embedded-data": "binary data" },
-      polyfilled: "polyfilled in the bundle",
-      syntax: {
-        es3: "ES3 syntax: compatible with the ExtendScript engine.",
-        es5: "ES5 syntax: usually runs in ExtendScript, but test it in AE.",
-        es2015: "Modern syntax (let, const, arrow functions). ExtendScript won't run it.",
-        modern: "Modern syntax. ExtendScript won't run it.",
-        invalid: "Syntax error: the file doesn't parse."
-      },
-      constNote: "Uses const: not ES3, but ExtendScript supports it.",
-      missing: function (spec, from) { return "Included file " + spec + " not found (from " + from + "). Downloads stay closed until the author fixes the path."; },
-      inlined: function (n) { return n ? n + " included file(s) inlined. You download one ready file." : "Single file, no includes."; },
-      declared: function (n) { return n ? "Every capability found is declared by the author." : "No special capabilities found: the script only changes the project."; },
-      back: "← Back to catalog",
+      slate: { script: "Script", take: "Take", host: "Host", date: "Date", author: "Author", status: "Status", sha: "SHA-256", any: "any version" },
       download: "Download",
       copy: "Copy code",
       copied: "Code copied",
       copyFail: "Couldn't copy. Select the code by hand.",
       blockedBtn: "Download closed",
-      previewNote: "Files can't be downloaded in this preview. Copy the code or open the site from portal/site.",
-      sections: { what: "What it does", how: "How to use", notes: "Good to know", install: "Install", source: "Source", check: "Cave check", file: "File", compat: "Compatibility" },
-      showSource: function (n) { return "Show the bundled file (" + n + " lines). Lines behind the badges are highlighted."; },
+      previewNote: "Downloads don't work in this preview. Copy the code, or open the site from portal/site.",
+      sections: { what: "What it does", how: "How to use", notes: "Good to know", install: "Install", source: "Source" },
+      undoName: function (n) { return "After it runs, Edit › Undo reads"; },
+      showSource: function (n) { return "Show the bundled file, " + n + " lines. Lines behind the switches are highlighted."; },
       tabPanel: "With the VFX Cave panel",
       tabManual: "By hand",
       panelSteps: [
-        "Install the panel once: put <span class=\"path\">VFX Cave.jsx</span> into <span class=\"path\">Scripts/ScriptUI Panels</span> inside the After Effects folder.",
-        "Open <b>Window → VFX Cave.jsx</b> and find the artifact by name.",
-        "Click <b>Install</b>. The panel downloads the file, checks its sha256 against the index and shows the badges before the first run."
+        "Install the panel once: put <span class=\"path\">VFX Cave.jsx</span> into <span class=\"path\">Scripts/ScriptUI Panels</span> in the After Effects folder.",
+        "Open <b>Window › VFX Cave.jsx</b> and search for the script.",
+        "Click <b>Install</b>. The panel downloads the file, checks its SHA-256 against the catalog and shows the switches before the first run."
       ],
       manualSteps: function (it) {
         var folder = it.kind === "panel" ? "Scripts/ScriptUI Panels" : "Scripts";
         if (it.kind === "preset") return [
           "Download <span class=\"path\">" + it.id + ".ffx</span>.",
-          "Put it into <span class=\"path\">Documents/Adobe/After Effects &lt;version&gt;/User Presets</span> or apply it with <b>Animation → Apply Animation Preset</b>."
+          "Put it into <span class=\"path\">Documents/Adobe/After Effects &lt;version&gt;/User Presets</span>, or apply it with <b>Animation › Apply Animation Preset</b>."
         ];
         return [
           "Download <span class=\"path\">" + it.id + ".jsx</span>. It's already bundled: libraries are inlined, nothing else to copy.",
           "Windows: <span class=\"path\">C:\\Program Files\\Adobe\\Adobe After Effects &lt;version&gt;\\Support Files\\" + folder.replace("/", "\\") + "</span>. macOS: <span class=\"path\">/Applications/Adobe After Effects &lt;version&gt;/" + folder + "</span>.",
-          it.kind === "panel" ? "Restart AE and open the panel from the <b>Window</b> menu." : "Restart AE and run it from <b>File → Scripts</b>. Without installing: <b>File → Scripts → Run Script File…</b>"
+          it.kind === "panel" ? "Restart AE and open the panel from the <b>Window</b> menu." : "Restart AE and run it from <b>File › Scripts</b>. To run it without installing: <b>File › Scripts › Run Script File…</b>"
         ];
       },
-      prefNote: "This script needs file or system access. Turn on <b>Preferences → Scripting &amp; Expressions → Allow Scripts to Write Files and Access Network</b> (in older AE versions the checkbox is on the General tab).",
-      facts: { author: "Author", version: "Version", license: "License", ai: "AI", added: "Added", size: "Size", lines: "Lines", sha: "sha256", entry: "Source file" },
-      ai: { none: "no AI", assisted: "AI-assisted", generated: "mostly AI-generated", unknown: "not stated by the author" },
-      reviewed: "human-reviewed",
-      compatLead: "Does this artifact work in your AE version? The first mark for each version earns +5 XP.",
-      compatVersion: "AE version",
+      prefNote: "This script needs file or system access. Turn on <b>Preferences › Scripting &amp; Expressions › Allow Scripts to Write Files and Access Network</b> (on the General tab in older versions).",
+      check: "Cave check",
+      checkOf: function (n) { return n + " properties"; },
+      p: { syntax: "Syntax", includes: "Includes", json: "JSON", "es5-array": "ES5 array methods", "es5-trim": "String.trim()", "es5-object": "ES5 Object API", "embedded-data": "Embedded data", declared: "Declared vs found", missing: "Missing include" },
+      syntaxV: { es3: "ES3", es5: "ES5", es2015: "ES2015+", modern: "Modern JS", invalid: "Parse error" },
+      syntaxL: {
+        es3: "Parses as ES3, the ExtendScript engine.",
+        es5: "Needs ES5 syntax. Usually fine in ExtendScript, but test it.",
+        es2015: "Uses let, arrow functions or similar. ExtendScript won't run it.",
+        modern: "Uses modern JavaScript. ExtendScript won't run it.",
+        invalid: "The file doesn't parse."
+      },
+      constNote: "Uses const, which ExtendScript accepts on top of ES3.",
+      inlinedV: function (n) { return n ? n + " inlined" : "none"; },
+      inlinedL: function (n) { return n ? "Included files are inlined, so you download one ready file." : "A single file with no includes."; },
+      warnL: {
+        json: "Calls JSON. A clean AE install may not have a JSON object.",
+        "es5-array": "Uses forEach, map or filter. ExtendScript lacks them without a polyfill.",
+        "es5-trim": "Uses String.trim(), missing in ExtendScript without a polyfill.",
+        "es5-object": "Uses Object.keys, Array.isArray or similar ES5 APIs.",
+        "embedded-data": "Contains a large block of data, such as a binary preset, that can't be read by eye."
+      },
+      polyfilled: "polyfilled",
+      warnV: "warning",
+      found: "found",
+      notFound: "not found",
+      matchV: { ok: "match", bad: "mismatch", none: "nothing to declare" },
+      missingL: function (spec, from) { return spec + " (from " + from + ") doesn't exist."; },
+      at: "line",
+      compat: "Compatibility",
+      compatLead: "Does it work in your version? Pick it on the ruler, then mark it. The first mark per version is worth 5 XP.",
+      tested: function (list) { return list.length ? "The author tested it in " + list.join(", ") + "." : "The author hasn't listed tested versions yet."; },
+      minIs: function (v) { return "Needs After Effects " + v + " or newer."; },
       works: "Works",
       broken: "Broken",
-      tested: function (list) { return list.length ? "Author tested in: " + list.join(", ") + "." : "The author hasn't listed versions yet. Be the first to test it."; },
-      yourVotes: "Your marks:",
-      localOnly: "Prototype: marks, XP and requests stay in this browser only.",
-      voted: "+5 XP · mark saved",
+      markFor: function (v) { return "Mark for AE " + v; },
+      localOnly: "Prototype: marks, XP and requests stay in this browser.",
+      voted: "Marked. +5 XP",
+      revoted: "Mark updated",
+      file: "File",
+      facts: { kind: "Type", license: "License", ai: "AI", entry: "Source file", size: "Size", sha: "SHA-256", lines: "lines" },
+      ai: { none: "no AI", assisted: "AI-assisted", generated: "mostly AI-generated", unknown: "not stated" },
+      reviewed: "reviewed by a person",
       reqTitle: "Request board",
-      reqLead: "Describe the script you're missing. Authors pick up requests and earn XP for finished ones. No money or prepayment here.",
-      reqFormTitle: "New request",
+      reqLead: "Ask for the script you're missing. Requests line up like a render queue: an author takes one, renders it, and it lands in the catalog. No money changes hands.",
+      qHead: { num: "#", req: "Request", status: "Status", votes: "Votes", act: "" },
+      qStatus: { open: "Queued", taken: "Rendering", done: "Done" },
+      plusOne: "+1",
+      take: "Take it",
+      taken: "Taken",
+      example: "Example",
+      yours: "Your request",
+      reqForm: "Add to queue",
       reqName: "What you need",
-      reqNamePh: "A script that lays layers out on a grid",
+      reqNamePh: "Lay out selected layers on a grid",
       reqDesc: "Details",
-      reqDescPh: "What you select before running, what should happen, which AE version",
+      reqDescPh: "What you select before running it, what should happen, which AE version",
       reqHost: "Application",
-      reqSubmit: "Pin to the board",
-      reqAdded: "Request pinned",
-      reqEmptyName: "Write at least what you need.",
-      plusOne: "Me too",
-      take: "I'll take it",
-      taken: "You took it",
-      example: "example",
-      yours: "your request",
+      reqSubmit: "Add to queue",
+      reqAdded: "Added to the queue",
+      reqEmptyName: "Write what you need first.",
+      soon: "soon",
       examples: [
-        { id: "ex1", title: "Lay selected layers out on a grid with spacing", text: "I select 12 layers, set columns and spacing in pixels, the script sets positions. AE 2024+.", plus: 14 },
-        { id: "ex2", title: "Export comp markers to CSV for the editor", text: "Time, duration and marker comment, one row per marker.", plus: 9 },
-        { id: "ex3", title: "Replace the font in every text layer of a project", text: "Pick the source and target font and get a report of what changed.", plus: 6 }
+        { id: "ex1", title: "Lay out selected layers on a grid with spacing", text: "Select 12 layers, set columns and spacing in pixels, get positions. AE 2024+.", plus: 14, status: "taken" },
+        { id: "ex2", title: "Export comp markers to CSV for the editor", text: "Time, duration and comment, one row per marker.", plus: 9, status: "open" },
+        { id: "ex3", title: "Replace the font in every text layer of a project", text: "Pick the source and target font and get a report of what changed.", plus: 6, status: "open" }
       ],
-      submitTitle: "Bring an artifact to the cave",
-      submitLead: "The catalog lives in a Git repository. A new script arrives as a pull request; the automatic build checks it and publishes it right away with its badges. Manual review is only needed for shell, network and eval, and it doesn't hold up publishing.",
+      submitTitle: "Add a script",
+      submitLead: "The catalog lives in a Git repository. A script arrives as a pull request; the build checks it and lists it right away with its switches. A person reviews shell, network and eval, without holding the listing.",
       submitSteps: [
-        "Fork the repository and add your script with readable source. .jsxbin is accepted only together with its source; archives (.zip, .rar) are not accepted.",
-        "Add a manifest <span class=\"path\">portal/catalog/&lt;id&gt;.json</span> like the sample: a latin id, a description in two languages, declared capabilities and an honest AI label.",
-        "Run <span class=\"path\">npm run build</span> in the portal folder. The build inlines //@include, checks the syntax and reports what it found.",
-        "Open a pull request. Once merged, the artifact shows up in the catalog, the index and the panel."
+        "Fork the repository and add the script with readable source. A .jsxbin is accepted only next to its source; archives aren't accepted.",
+        "Add a manifest at <span class=\"path\">portal/catalog/&lt;id&gt;.json</span>: a lowercase id, a description, declared capabilities and an honest AI label.",
+        "Run <span class=\"path\">npm run build</span> in the portal folder. It inlines includes, checks syntax and prints what it found.",
+        "Open a pull request. Once merged, the script shows up in the catalog, the open index and the panel."
       ],
-      autoTitle: "What gets checked automatically",
+      autoTitle: "What the build checks",
       autoList: [
-        "Every //@include and #include is inlined into one file. A missing path sends the script back for work.",
-        "Syntax is parsed as ES3, the ExtendScript engine. Code with let, const and arrows won't pass.",
+        "Every //@include and #include is inlined into one file. A missing path stops the script with Err Stopped.",
+        "Syntax is parsed as ES3, the ExtendScript engine. let, arrow functions and template strings don't pass; const does.",
         "ES5 APIs without a polyfill: JSON, forEach, map, filter, trim, Object.keys.",
-        "Capabilities: files, shell, network, eval, prototype changes, settings, menu commands. What's found is compared with what the author declared.",
-        "Each file's sha256 is published in the index. The panel checks it before installing and refuses revoked versions."
+        "Capabilities: files, shell, network, eval, prototype changes, settings and menu commands, compared with what the author declared.",
+        "Every file's SHA-256 goes into the index. The panel checks it before installing and refuses revoked versions."
       ],
-      aiTitle: "Scripts written with AI are welcome",
-      aiText: "State the level: no AI, AI-assisted or mostly AI-generated. Name the model and say whether you tested the script yourself. The label tells users what to expect; it doesn't affect placement in the catalog.",
+      aiTitle: "Written with AI? Say so.",
+      aiText: "Pick a level: no AI, AI-assisted or mostly AI-generated. Name the model and say whether you tested it yourself. The label sets expectations; it doesn't change where the script is listed.",
       manifestTitle: "Sample manifest",
-      noPoints: "Uploading alone earns no points. XP goes to what makes the cave more reliable.",
-      pathTitle: "Keeper's path",
-      pathLead: "In the cave you grow by making the catalog more reliable, not by uploading more: checks, fixes and adopting abandoned scripts.",
-      yourXp: "Your experience",
-      nextRank: function (n, r) { return n + " XP to “" + r + "”"; },
-      maxRank: "Top rank. The cave stands on you.",
-      ranks: [["Torchbearer", 0], ["Tracker", 25], ["Keeper", 100], ["Elder", 300]],
-      xpRulesTitle: "How XP is earned",
-      xpHead: ["Action", "XP"],
-      xpRules: [
-        ["A “works / broken” mark in your AE version", 5, true],
-        ["A bug report the author confirmed", 10],
-        ["A security review of someone else's artifact", 20],
-        ["Fixing an artifact an AE update broke", 30],
-        ["A finished request from the board", 40],
-        ["Adopting an abandoned artifact with an open license", 50],
-        ["Uploading a new artifact", 0]
+      noPoints: "Uploading earns no XP. XP goes to work that makes the catalog more reliable.",
+      keepersTitle: "Keepers",
+      keepersLead: "You move up by making the catalog more reliable, not by uploading more: testing scripts in your version, fixing what an update broke, adopting abandoned tools.",
+      yourXp: "Your XP",
+      toNext: function (n, r) { return n + " XP to " + r; },
+      top: "Top of the ladder",
+      ranks: [["Runner", 0], ["Roto artist", 25], ["Compositor", 100], ["Supervisor", 300]],
+      rulesTitle: "How XP is earned",
+      rulesHead: ["Action", "XP"],
+      rules: [
+        ["Mark a script as working or broken in your AE version", 5, true],
+        ["A bug report the author confirms", 10],
+        ["A security review of someone else's script", 20],
+        ["Fix a script an AE update broke", 30],
+        ["Finish a request from the board", 40],
+        ["Adopt an abandoned script with an open license", 50],
+        ["Upload a new script", 0]
       ],
-      live: "works in the prototype",
-      zeroNote: "Zero for uploads is not a typo. Paying for volume would bury the cave under AI clones.",
-      badgesTitle: "Marks",
-      badges: [
-        ["Tested in AE 26", "the artifact has confirmed “works” marks in the current version"],
-        ["Pathfinder", "the author who published the artifact first; protects against re-uploads"],
-        ["Keeper", "a maintainer who answers bugs and fixes things after updates"]
+      live: "works in this prototype",
+      zero: "Zero for uploads is deliberate. Paying for volume would bury the catalog under AI clones.",
+      marksTitle: "Marks on a script",
+      marks: [
+        ["Tested in AE 26", "people confirmed it works in the current version"],
+        ["First take", "the author who published it first; protects against re-uploads"],
+        ["Keeper", "a maintainer who answers bug reports and fixes it after updates"]
       ],
-      aboutTitle: "About the cave",
-      aboutLead: "A shelter for small tools that otherwise vanish in chats, personal repositories and Telegram feeds.",
+      aboutTitle: "About",
+      aboutLead: "A home for the small tools artists build for themselves, which otherwise disappear in chats, personal repositories and Telegram feeds.",
       aboutText: [
-        "Today a script someone wrote for themselves in an evening with an AI usually dies in the chat window. If it survives, the next AE update breaks it. The forums where such things used to pile up keep closing: when CGSociety shut down in 2024, more than 18,000 MAXScript threads went with it.",
-        "The cave gathers these tools in one place, checks them and helps them survive updates."
+        "A script someone wrote in an evening with an AI usually dies in the chat window. If it survives, the next AE update breaks it. Forums where these tools used to collect keep closing: when CGSociety shut down in January 2024, more than 18,000 MAXScript threads went with it.",
+        "VFX Cave collects them, checks them and keeps track of which versions they still run in."
       ],
-      principlesTitle: "House rules",
-      principles: [
-        "Downloads are free and need no sign-up. Only publishers need an account.",
-        "Open index: any app, panel or AI assistant can read data/index.json.",
-        "Readable source is required. Nothing runs without you knowing.",
-        "Honest badges: what a script can do, where it was tested and how much AI is in it.",
-        "MIT by default. An abandoned artifact can be adopted."
+      rulesHouse: "House rules",
+      house: [
+        "Downloads are free and need no account. Only publishers sign in.",
+        "The index is open: any panel, launcher or AI assistant can read data/index.json.",
+        "Readable source is required. Nothing runs without you seeing what it can do.",
+        "Switches tell the truth: what a script can touch, where it was tested, how much AI is in it.",
+        "MIT by default, so an abandoned script can be adopted."
       ],
-      glossaryTitle: "Cave glossary",
-      glossary: [
-        ["Artifact", "a script, panel or preset in the catalog"],
-        ["Scroll", "an expression shared on its own"],
-        ["Cave-in", "breakage after an AE update"],
-        ["Adoption", "handing an abandoned artifact to a new maintainer"],
-        ["Torch", "your experience in the cave"]
+      hostsTitle: "Every host gets its own ruler",
+      hostsLead: "After Effects is open now. The same timeline works for any application with versions.",
+      foot: function (d) { return "Index built " + d; },
+      footIndex: "Open index",
+      footRepo: "Source on GitHub",
+      footLicense: "MIT"
+    },
+    ru: {
+      nav: { catalog: "Каталог", requests: "Заявки", submit: "Добавить скрипт", keepers: "Хранители", about: "О проекте" },
+      heroTitle: "Скрипты, которые художники написали для себя. Проверены до запуска.",
+      heroLead: "Бесплатные скрипты для After Effects, написанные руками или с ИИ. Скачивание без аккаунта. Каждый файл разбирается как ExtendScript, проверяется на опасные вызовы и хешируется до публикации.",
+      searchPh: function (n) { return "Поиск по " + n + " скриптам"; },
+      searchLabel: "Поиск скриптов",
+      yourAe: "Ваш After Effects",
+      needNewer: function (n) { return n ? "Новее нужна версия для " + n : "Все скрипты работают в этой версии"; },
+      allLabels: "Все",
+      trustLabel: "Показать",
+      trust: { all: "Все скрипты", safe: "Без shell, сети и eval", clean: "Done без замечаний" },
+      sortLabel: "Порядок",
+      sort: { fit: "Подходят моей версии", name: "По названию", "new": "Сначала новые" },
+      col: { num: "#", name: "Скрипт", status: "Статус" },
+      sw: { files: "Files", shell: "Shell", network: "Network", eval: "Eval", prototypes: "Prototypes" },
+      swLong: {
+        files: "Читает или пишет файлы и папки на диске.",
+        shell: "Запускает системные команды (system.callSystem, File.execute).",
+        network: "Обращается к сети.",
+        eval: "Выполняет код из строки или другого файла.",
+        prototypes: "Добавляет методы встроенным объектам JavaScript или AE; это видят и другие скрипты в сессии.",
+        settings: "Сохраняет настройки через app.settings или app.preferences.",
+        menu: "Вызывает команды меню AE через app.executeCommand."
+      },
+      undeclared: "найдено в коде, но автор не объявил",
+      declaredOnly: "объявлено автором, в коде не найдено",
+      rq: { ok: "Done", review: "Queued", blocked: "Err Stopped" },
+      rqLong: { ok: "Прошёл все автоматические проверки.", review: "Использует shell, сеть или eval, поэтому его смотрит человек. Скачать можно уже сейчас.", blocked: "Не прошёл проверку: скачать нельзя, пока автор не исправит." },
+      needs: function (v) { return "Нужен AE " + v; },
+      legendWorks: "Работает (ваши отметки или тесты автора)",
+      legendUntested: "Не проверено",
+      legendBroken: "Сообщили о поломке",
+      empty: "Ничего не нашлось. Уберите фильтр или попросите скрипт на доске заявок.",
+      emptyLink: "Открыть доску заявок",
+      verPick: "Ваш AE",
+      kind: { script: "Скрипт", panel: "Панель", preset: "Пресет" },
+      cats: { animation: "Анимация", keyframes: "Ключи", expressions: "Экспрешены", layers: "Слои", "masks-shapes": "Маски и шейпы", mattes: "Матты", text: "Текст", comp: "Композиции", render: "Рендер", color: "Цвет", utility: "Утилиты" },
+      slate: { script: "Script", take: "Take", host: "Host", date: "Date", author: "Author", status: "Status", sha: "SHA-256", any: "любая версия" },
+      download: "Скачать",
+      copy: "Копировать код",
+      copied: "Код скопирован",
+      copyFail: "Не удалось скопировать. Выделите код вручную.",
+      blockedBtn: "Скачивание закрыто",
+      previewNote: "В этом превью файлы не скачиваются. Скопируйте код или откройте сайт из portal/site.",
+      sections: { what: "Что делает", how: "Как пользоваться", notes: "Важно знать", install: "Установка", source: "Исходник" },
+      undoName: function () { return "После запуска в Edit › Undo будет"; },
+      showSource: function (n) { return "Показать собранный файл, строк: " + n + ". Подсвечены строки, из-за которых горят переключатели."; },
+      tabPanel: "Через панель VFX Cave",
+      tabManual: "Вручную",
+      panelSteps: [
+        "Один раз поставьте панель: <span class=\"path\">VFX Cave.jsx</span> в папку <span class=\"path\">Scripts/ScriptUI Panels</span> внутри папки After Effects.",
+        "Откройте <b>Window › VFX Cave.jsx</b> и найдите скрипт.",
+        "Нажмите <b>Install</b>. Панель скачает файл, сверит SHA-256 с каталогом и покажет переключатели до первого запуска."
       ],
-      roadmapTitle: "Where we dig next",
-      roadmap: [
-        "After Effects: catalog, install panel, compatibility marks.",
-        "Blender: an extensions repository that Blender 4.2+ connects natively.",
-        "Houdini, Nuke, DaVinci Resolve: packages, menus and Reactor atoms.",
-        "An MCP server so AI assistants find checked scripts instead of generating them again."
+      manualSteps: function (it) {
+        var folder = it.kind === "panel" ? "Scripts/ScriptUI Panels" : "Scripts";
+        if (it.kind === "preset") return [
+          "Скачайте <span class=\"path\">" + it.id + ".ffx</span>.",
+          "Положите в <span class=\"path\">Documents/Adobe/After Effects &lt;version&gt;/User Presets</span> или примените через <b>Animation › Apply Animation Preset</b>."
+        ];
+        return [
+          "Скачайте <span class=\"path\">" + it.id + ".jsx</span>. Файл уже собран: библиотеки встроены.",
+          "Windows: <span class=\"path\">C:\\Program Files\\Adobe\\Adobe After Effects &lt;version&gt;\\Support Files\\" + folder.replace("/", "\\") + "</span>. macOS: <span class=\"path\">/Applications/Adobe After Effects &lt;version&gt;/" + folder + "</span>.",
+          it.kind === "panel" ? "Перезапустите AE и откройте панель через меню <b>Window</b>." : "Перезапустите AE и запустите через <b>File › Scripts</b>. Без установки: <b>File › Scripts › Run Script File…</b>"
+        ];
+      },
+      prefNote: "Скрипту нужен доступ к файлам или системе. Включите <b>Preferences › Scripting &amp; Expressions › Allow Scripts to Write Files and Access Network</b> (в старых версиях на вкладке General).",
+      check: "Cave check",
+      checkOf: function (n) { return "свойств: " + n; },
+      p: { syntax: "Syntax", includes: "Includes", json: "JSON", "es5-array": "ES5 array methods", "es5-trim": "String.trim()", "es5-object": "ES5 Object API", "embedded-data": "Embedded data", declared: "Declared vs found", missing: "Missing include" },
+      syntaxV: { es3: "ES3", es5: "ES5", es2015: "ES2015+", modern: "Modern JS", invalid: "Parse error" },
+      syntaxL: {
+        es3: "Разбирается как ES3, движок ExtendScript.",
+        es5: "Нужен синтаксис ES5. Обычно работает, но проверьте.",
+        es2015: "Есть let, стрелочные функции или похожее. ExtendScript это не выполнит.",
+        modern: "Современный JavaScript. ExtendScript это не выполнит.",
+        invalid: "Файл не разбирается."
+      },
+      constNote: "Есть const: ExtendScript поддерживает его поверх ES3.",
+      inlinedV: function (n) { return n ? "встроено " + n : "нет"; },
+      inlinedL: function (n) { return n ? "Подключаемые файлы встроены: скачивается один готовый файл." : "Один файл без подключений."; },
+      warnL: {
+        json: "Вызывает JSON. На чистой установке AE объекта JSON может не быть.",
+        "es5-array": "Использует forEach, map или filter. В ExtendScript их нет без полифила.",
+        "es5-trim": "Использует String.trim(), которого нет в ExtendScript без полифила.",
+        "es5-object": "Использует Object.keys, Array.isArray и похожие API из ES5.",
+        "embedded-data": "Внутри большой блок данных, например бинарный пресет. Глазами его не прочитать."
+      },
+      polyfilled: "есть полифил",
+      warnV: "внимание",
+      found: "найдено",
+      notFound: "не найдено",
+      matchV: { ok: "совпадает", bad: "расходится", none: "объявлять нечего" },
+      missingL: function (spec, from) { return spec + " (из " + from + ") не существует."; },
+      at: "строка",
+      compat: "Совместимость",
+      compatLead: "Работает ли в вашей версии? Выберите её на линейке и отметьте. Первая отметка для каждой версии даёт 5 XP.",
+      tested: function (list) { return list.length ? "Автор проверил в " + list.join(", ") + "." : "Автор пока не указал проверенные версии."; },
+      minIs: function (v) { return "Нужен After Effects " + v + " или новее."; },
+      works: "Работает",
+      broken: "Сломалось",
+      markFor: function (v) { return "Отметка для AE " + v; },
+      localOnly: "Прототип: отметки, XP и заявки хранятся только в этом браузере.",
+      voted: "Отмечено. +5 XP",
+      revoted: "Отметка обновлена",
+      file: "Файл",
+      facts: { kind: "Тип", license: "Лицензия", ai: "ИИ", entry: "Исходный файл", size: "Размер", sha: "SHA-256", lines: "строк" },
+      ai: { none: "без ИИ", assisted: "с помощью ИИ", generated: "в основном ИИ", unknown: "не указано" },
+      reviewed: "проверено человеком",
+      reqTitle: "Доска заявок",
+      reqLead: "Попросите скрипт, которого не хватает. Заявки стоят в очереди, как в Render Queue: автор берёт заявку, делает скрипт, и он попадает в каталог. Денег здесь нет.",
+      qHead: { num: "#", req: "Заявка", status: "Статус", votes: "Голоса", act: "" },
+      qStatus: { open: "Queued", taken: "Rendering", done: "Done" },
+      plusOne: "+1",
+      take: "Возьмусь",
+      taken: "Взято",
+      example: "Пример",
+      yours: "Ваша заявка",
+      reqForm: "Add to queue",
+      reqName: "Что нужно",
+      reqNamePh: "Разложить выделенные слои по сетке",
+      reqDesc: "Подробности",
+      reqDescPh: "Что выделяете перед запуском, что должно получиться, какая версия AE",
+      reqHost: "Программа",
+      reqSubmit: "Добавить в очередь",
+      reqAdded: "Заявка в очереди",
+      reqEmptyName: "Сначала напишите, что нужно.",
+      soon: "скоро",
+      examples: [
+        { id: "ex1", title: "Разложить выделенные слои по сетке с отступом", text: "Выделяю 12 слоёв, задаю колонки и отступ в пикселях, получаю позиции. AE 2024+.", plus: 14, status: "taken" },
+        { id: "ex2", title: "Экспорт маркеров композиции в CSV для монтажёра", text: "Время, длительность и комментарий, одна строка на маркер.", plus: 9, status: "open" },
+        { id: "ex3", title: "Заменить шрифт во всех текстовых слоях проекта", text: "С выбором исходного и нового шрифта и отчётом об изменениях.", plus: 6, status: "open" }
       ],
-      foot: function (d) { return "VFX Cave · prototype · index built " + d; },
-      footIndex: "data/index.json",
-      footRepo: "source on GitHub",
-      xpShort: "XP"
+      submitTitle: "Добавить скрипт",
+      submitLead: "Каталог живёт в Git-репозитории. Скрипт приходит pull request'ом, сборка проверяет его и сразу публикует с переключателями. Shell, сеть и eval смотрит человек, но публикацию это не задерживает.",
+      submitSteps: [
+        "Сделайте форк и добавьте скрипт с читаемым исходником. .jsxbin только вместе с исходником, архивы не принимаются.",
+        "Добавьте манифест <span class=\"path\">portal/catalog/&lt;id&gt;.json</span>: id латиницей, описание, объявленные возможности и честная пометка про ИИ.",
+        "Запустите <span class=\"path\">npm run build</span> в папке portal. Сборка встроит подключения, проверит синтаксис и покажет, что нашла.",
+        "Откройте pull request. После слияния скрипт появится в каталоге, открытом индексе и панели."
+      ],
+      autoTitle: "Что проверяет сборка",
+      autoList: [
+        "Все //@include и #include встраиваются в один файл. Если путь не найден, скрипт получает Err Stopped.",
+        "Синтаксис разбирается как ES3, движок ExtendScript. let, стрелки и шаблонные строки не проходят, const проходит.",
+        "API из ES5 без полифила: JSON, forEach, map, filter, trim, Object.keys.",
+        "Возможности: файлы, shell, сеть, eval, изменение прототипов, настройки и команды меню; сравниваются с тем, что объявил автор.",
+        "SHA-256 каждого файла попадает в индекс. Панель сверяет его перед установкой и не ставит отозванные версии."
+      ],
+      aiTitle: "Писали с ИИ? Так и скажите.",
+      aiText: "Выберите уровень: без ИИ, с помощью ИИ или в основном ИИ. Назовите модель и отметьте, проверяли ли сами. Метка задаёт ожидания и не влияет на место в каталоге.",
+      manifestTitle: "Пример манифеста",
+      noPoints: "За загрузку XP нет. XP дают за то, что делает каталог надёжнее.",
+      keepersTitle: "Хранители",
+      keepersLead: "Растут здесь не за количество загрузок, а за надёжность каталога: проверки в своей версии, починки после обновлений, подхваченные брошенные инструменты.",
+      yourXp: "Ваш XP",
+      toNext: function (n, r) { return "До ранга " + r + ": " + n + " XP"; },
+      top: "Вершина лестницы",
+      ranks: [["Runner", 0], ["Roto artist", 25], ["Compositor", 100], ["Supervisor", 300]],
+      rulesTitle: "Как начисляется XP",
+      rulesHead: ["Действие", "XP"],
+      rules: [
+        ["Отметить, работает ли скрипт в вашей версии AE", 5, true],
+        ["Баг-репорт, который подтвердил автор", 10],
+        ["Ревью безопасности чужого скрипта", 20],
+        ["Починить скрипт, сломанный обновлением AE", 30],
+        ["Выполнить заявку с доски", 40],
+        ["Подхватить брошенный скрипт с открытой лицензией", 50],
+        ["Загрузить новый скрипт", 0]
+      ],
+      live: "работает в прототипе",
+      zero: "Ноль за загрузку не опечатка. Если платить за количество, каталог завалят ИИ-клонами.",
+      marksTitle: "Отметки на скрипте",
+      marks: [
+        ["Tested in AE 26", "люди подтвердили, что он работает в текущей версии"],
+        ["First take", "автор, опубликовавший первым; защищает от перезаливов"],
+        ["Keeper", "мейнтейнер, который отвечает на баги и чинит после обновлений"]
+      ],
+      aboutTitle: "О проекте",
+      aboutLead: "Дом для маленьких инструментов, которые художники делают для себя и которые иначе пропадают в чатах, личных репозиториях и Telegram-лентах.",
+      aboutText: [
+        "Скрипт, написанный за вечер с нейросетью, обычно умирает в окне чата. Если выживает, его ломает следующее обновление AE. Форумы, где такое копилось, закрываются: вместе с CGSociety в январе 2024 года исчезли больше 18 000 тредов о MAXScript.",
+        "VFX Cave собирает такие инструменты, проверяет их и следит, в каких версиях они ещё работают."
+      ],
+      rulesHouse: "Правила",
+      house: [
+        "Скачивание бесплатно и без аккаунта. Входят только авторы.",
+        "Индекс открыт: data/index.json может читать любая панель, лаунчер или ИИ-ассистент.",
+        "Читаемый исходник обязателен. Ничего не запускается, пока вы не видите, что скрипт умеет.",
+        "Переключатели говорят правду: к чему скрипт имеет доступ, где проверен, сколько в нём ИИ.",
+        "MIT по умолчанию, чтобы брошенный скрипт можно было подхватить."
+      ],
+      hostsTitle: "У каждой программы своя линейка",
+      hostsLead: "After Effects открыт уже сейчас. Тот же таймлайн подходит любой программе с версиями.",
+      foot: function (d) { return "Индекс собран " + d; },
+      footIndex: "Открытый индекс",
+      footRepo: "Исходники на GitHub",
+      footLicense: "MIT"
     }
   };
-  function t() { return T[state.lang]; }
-  function L(obj) { return obj ? (obj[state.lang] || obj.ru || obj.en || "") : ""; }
+  function t() { return T[state.lang] || T.en; }
+  function L(obj) { return obj ? (obj[state.lang] || obj.en || obj.ru || "") : ""; }
 
   // -------------------------------------------------------------- utils
   function esc(s) {
@@ -808,14 +889,44 @@ footer.foot a { color: var(--dust); }
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  var RISKY = { shell: 1, network: 1, eval: 1 };
-  function detectedCaps(it) { return it.checks.capabilities.filter(function (c) { return c.detected; }); }
+  function detected(it) { return it.checks.capabilities.filter(function (c) { return c.detected; }); }
+  function capOf(it, id) { for (var i = 0; i < it.checks.capabilities.length; i++) if (it.checks.capabilities[i].id === id) return it.checks.capabilities[i]; return null; }
   function openWarnings(it) { return it.checks.warnings.filter(function (w) { return !w.polyfilled; }); }
   function fmtDate(iso) {
     if (!iso) return "—";
-    try { return new Date(iso).toLocaleDateString(state.lang === "ru" ? "ru-RU" : "en-GB", { day: "numeric", month: "short", year: "numeric" }); } catch (e) { return iso.slice(0, 10); }
+    try { return new Date(iso).toLocaleDateString(state.lang === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "short", year: "numeric" }); } catch (e) { return iso.slice(0, 10); }
   }
   function fmtSize(n) { return n < 1024 ? n + " B" : (n / 1024).toFixed(1) + " KB"; }
+  function labelOf(it) { return CAT_LABEL[it.category] || "var(--l-sandstone)"; }
+  function verIndexOf(major) { for (var i = 0; i < VERSIONS.length; i++) if (VERSIONS[i].major === major) return i; return -1; }
+  function minIndex(it) {
+    var m = it.hostVersions && it.hostVersions.minMajor;
+    if (!m) return 0;
+    for (var i = 0; i < VERSIONS.length; i++) if (VERSIONS[i].major >= m) return i;
+    return VERSIONS.length - 1;
+  }
+  function testedMajors(it) {
+    var out = {};
+    ((it.hostVersions && it.hostVersions.tested) || []).forEach(function (s) {
+      var y = /(20\d\d)/.exec(String(s)); if (!y) return;
+      var yr = +y[1], major = yr <= 2021 ? { 2018: 15, 2019: 16, 2020: 17, 2021: 18 }[yr] : yr - 2000;
+      if (major) out[major] = true;
+    });
+    return out;
+  }
+  function cellState(it, i) {
+    var major = VERSIONS[i].major, mine = (state.votes[it.id] || {})[major];
+    if (mine === "broken") return "broken";
+    if (mine === "works" || testedMajors(it)[major]) return "works";
+    return "untested";
+  }
+  function isOut(it) { return state.ver < minIndex(it); }
+  function minName(it) { return VERSIONS[minIndex(it)].name; }
+  function strip(sha, small) {
+    var cells = "";
+    for (var i = 0; i < 16; i++) cells += '<i style="background:' + LABELS[parseInt(sha.charAt(i), 16)] + '"></i>';
+    return '<span class="strip' + (small ? " small" : "") + '" aria-hidden="true">' + cells + "</span>";
+  }
   var toastTimer;
   function toast(msg) {
     var el = document.getElementById("toast");
@@ -837,8 +948,8 @@ footer.foot a { color: var(--dust); }
   }
 
   // ------------------------------------------------------------ chrome
-  var VIEWS = ["catalog", "requests", "submit", "path", "about"];
-  function currentView() {
+  var VIEWS = ["catalog", "requests", "submit", "keepers", "about"];
+  function route() {
     var h = location.hash.replace(/^#/, "");
     if (!h || h === "catalog") return { view: "catalog" };
     if (VIEWS.indexOf(h) >= 0) return { view: h };
@@ -853,174 +964,236 @@ footer.foot a { color: var(--dust); }
       return '<a href="#' + v + '"' + (active ? ' aria-current="page"' : "") + ">" + esc(s.nav[v]) + "</a>";
     }).join("");
     var xp = xpTotal();
-    document.getElementById("xp").innerHTML = '<span aria-hidden="true">▲</span><b>' + xp + "</b> " + s.xpShort + " · " + esc(s.ranks[rankFor(xp)][0]);
+    document.getElementById("xp").innerHTML = "<b>" + xp + " XP</b> " + esc(s.ranks[rankFor(xp)][0]);
     Array.prototype.forEach.call(document.querySelectorAll(".lang button"), function (b) {
       b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === state.lang));
     });
     document.getElementById("foot").innerHTML =
       "<span>" + esc(s.foot(fmtDate(INDEX.generated))) + "</span>" +
-      '<span><a href="data/index.json">' + s.footIndex + '</a> · <a href="' + esc(INDEX.repo) + '" target="_blank" rel="noopener">' + esc(s.footRepo) + "</a> · MIT</span>";
+      '<nav><a href="data/index.json">' + esc(s.footIndex) + '</a><a href="' + esc(INDEX.repo) + '" target="_blank" rel="noopener">' + esc(s.footRepo) + "</a><span>" + esc(s.footLicense) + "</span></nav>";
   }
 
   // ----------------------------------------------------------- catalog
-  function badgeRow(it, compact) {
-    var s = t();
-    var html = detectedCaps(it).map(function (c) {
-      var cls = "cap" + (RISKY[c.id] ? " risk" : "") + (c.declared ? "" : " undeclared");
-      return '<span class="' + cls + '" title="' + esc(s.caps[c.id][1] + (c.declared ? "" : " (" + s.undeclared + ")")) + '">' + esc(s.caps[c.id][0]) + "</span>";
-    }).join("");
-    var w = openWarnings(it);
-    if (w.length && !compact) html += w.map(function (x) { return '<span class="cap warn" title="' + esc(s.warns[x.code]) + '">' + esc(s.warnShort[x.code] || x.code) + "</span>"; }).join("");
-    else if (w.length) html += '<span class="cap warn" title="' + esc(w.map(function (x) { return s.warns[x.code]; }).join(" ")) + '">ES5 / JSON</span>';
-    if (it.checks.syntax && it.checks.syntax.level === "es3") html += '<span class="cap" title="' + esc(s.syntax.es3) + '">ES3 ✓</span>';
-    return html;
-  }
-
   function matches(it, q) {
     if (!q) return true;
-    var hay = [it.id, it.title.ru, it.title.en, it.summary.ru, it.summary.en, (it.tags || []).join(" "), t().cats[it.category] || ""].join(" ").toLowerCase();
+    var hay = [it.id, it.title.en, it.title.ru, it.summary.en, it.summary.ru, (it.tags || []).join(" "), it.entry, T.en.cats[it.category], T.ru.cats[it.category]].join(" ").toLowerCase();
     return q.toLowerCase().split(/\s+/).every(function (w) { return hay.indexOf(w) >= 0; });
   }
   function passesTrust(it) {
-    if (state.trust === "safe") return !detectedCaps(it).some(function (c) { return RISKY[c.id]; }) && it.checks.status !== "blocked";
-    if (state.trust === "clean") return it.checks.status === "ok" && !openWarnings(it).length && !detectedCaps(it).some(function (c) { return !c.declared; });
+    if (state.trust === "safe") return it.checks.status !== "blocked" && !detected(it).some(function (c) { return RISKY[c.id]; });
+    if (state.trust === "clean") return it.checks.status === "ok" && !openWarnings(it).length && !detected(it).some(function (c) { return !c.declared; });
     return true;
   }
-  function visibleItems() {
+  function visible() {
     var list = ITEMS.filter(function (it) {
       return matches(it, state.query) && (state.category === "all" || it.category === state.category) && passesTrust(it);
     });
-    var s = t();
     list.sort(function (a, b) {
       if (state.sort === "new") return (b.added || "").localeCompare(a.added || "") || L(a.title).localeCompare(L(b.title));
-      if (state.sort === "category") return (s.cats[a.category] || "").localeCompare(s.cats[b.category] || "") || L(a.title).localeCompare(L(b.title));
+      if (state.sort === "fit") {
+        var d = (isOut(a) ? 1 : 0) - (isOut(b) ? 1 : 0);
+        if (d) return d;
+      }
       return L(a.title).localeCompare(L(b.title), state.lang);
     });
     return list;
   }
 
-  function card(it) {
+  function switches(it) {
     var s = t();
-    return '<article class="card">' +
-      '<div class="card-top"><span class="meta">' + esc(s.kind[it.kind] || it.kind) + " · " + esc(s.cats[it.category] || it.category) + "</span>" +
-      '<span class="status ' + it.checks.status + '">' + esc(s.status[it.checks.status]) + "</span></div>" +
-      '<h3><a href="#' + it.id + '">' + esc(L(it.title)) + "</a></h3>" +
-      "<p>" + esc(L(it.summary)) + "</p>" +
-      '<div class="badges">' + badgeRow(it, true) + "</div>" +
-      "</article>";
+    return SWITCHES.map(function (id) {
+      var c = capOf(it, id), on = c && c.detected;
+      var cls = on ? "on" + (RISKY[id] ? " risk" : "") + (c.declared ? "" : " undeclared") : "";
+      var tip = s.sw[id] + ": " + (on ? s.swLong[id] + (c.declared ? "" : " (" + s.undeclared + ")") : s.notFound);
+      return '<span class="' + cls + '" title="' + esc(tip) + '">' + icon(id, 14) + "</span>";
+    }).join("");
+  }
+  function track(it) {
+    var first = minIndex(it), html = "";
+    for (var i = 0; i < VERSIONS.length; i++) {
+      if (i < first) { html += "<i></i>"; continue; }
+      var cls = cellState(it, i) + (i === first ? " first" : "") + (i === VERSIONS.length - 1 ? " last" : "");
+      html += '<i class="' + cls + '"></i>';
+    }
+    return html;
+  }
+  function rqCell(it) {
+    var s = t();
+    if (isOut(it)) return '<span class="rq needs" title="' + esc(s.minIs(minName(it))) + '">' + esc(s.needs(minName(it))) + "</span>";
+    return '<span class="rq ' + it.checks.status + '" title="' + esc(s.rqLong[it.checks.status]) + '">' + esc(s.rq[it.checks.status]) + "</span>";
+  }
+  function ctiLeft() { return ((state.ver + 0.5) / VERSIONS.length) * 100 + "%"; }
+
+  function row(it, n) {
+    return '<a class="row' + (isOut(it) ? " out" : "") + '" href="#' + it.id + '" style="--lc:' + labelOf(it) + '">' +
+      '<span class="idx">' + n + "</span>" +
+      '<span class="lc" aria-hidden="true"></span>' +
+      '<span class="nm"><b>' + esc(L(it.title)) + "</b><span>" + esc(L(it.summary)) + "</span></span>" +
+      '<span class="sw">' + switches(it) + "</span>" +
+      '<span class="trk" style="--n:' + VERSIONS.length + '">' + track(it) + '<span class="cti-line" style="left:' + ctiLeft() + '"></span></span>' +
+      rqCell(it) +
+      "</a>";
   }
 
-  function renderCatalog(app, keepFocus) {
+  function renderCatalog(app, partial) {
     var s = t();
-    var counts = { ok: 0, review: 0, blocked: 0 };
-    ITEMS.forEach(function (it) { counts[it.checks.status]++; });
-    var cats = {};
-    ITEMS.forEach(function (it) { cats[it.category] = (cats[it.category] || 0) + 1; });
-    var catKeys = Object.keys(s.cats).filter(function (k) { return cats[k]; });
-    var list = visibleItems();
+    var list = visible();
+    var counts = {};
+    ITEMS.forEach(function (it) { counts[it.category] = (counts[it.category] || 0) + 1; });
+    var cats = Object.keys(s.cats).filter(function (k) { return counts[k]; });
+    var outCount = ITEMS.filter(isOut).length;
 
-    if (!keepFocus) {
+    if (!partial) {
       app.innerHTML =
         '<section class="wrap hero">' +
-          "<div>" +
-            '<p class="eyebrow">' + esc(s.heroEyebrow) + "</p>" +
-            "<h1>" + esc(s.heroTitle) + "</h1>" +
-            '<p class="lead">' + esc(s.heroLead) + "</p>" +
-          "</div>" +
-          '<div class="term">' +
-            '<div class="term-bar"><i></i><i></i><i></i><span>' + esc(s.termTitle) + "</span></div>" +
-            '<label for="q"><span class="prompt">cave&gt;</span><input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="' + esc(s.searchPh) + '" aria-label="' + esc(s.searchLabel) + '"></label>' +
-            '<div class="term-hint">' + esc(s.tryLabel) + " " + s.tries.map(function (w) { return '<button type="button" data-try="' + esc(w) + '">' + esc(w) + "</button>"; }).join("") + "</div>" +
-          "</div>" +
+          "<h1>" + esc(s.heroTitle) + "</h1>" +
+          "<p>" + esc(s.heroLead) + "</p>" +
+          '<label class="find" for="q">' + icon("search", 16) +
+            '<input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="' + esc(s.searchPh(ITEMS.length)) + '" aria-label="' + esc(s.searchLabel) + '"><kbd>/</kbd></label>' +
         "</section>" +
-        '<div class="wrap"><div class="ledger">' +
-          "<span><b>" + ITEMS.length + "</b>" + esc(s.ledger.items) + "</span>" +
-          "<span><b>" + counts.ok + "</b>" + esc(s.ledger.ok) + "</span>" +
-          "<span><b>" + counts.review + "</b>" + esc(s.ledger.review) + "</span>" +
-          "<span><b>" + counts.blocked + "</b>" + esc(s.ledger.blocked) + "</span>" +
-          "<span><b>0</b>" + esc(s.ledger.signup) + "</span>" +
-          '<span><a href="data/index.json">' + esc(s.ledger.index) + "</a></span>" +
-        "</div></div>" +
-        '<div class="wrap"><div class="controls">' +
-          '<div class="hosts" role="group" aria-label="' + esc(s.hostsLabel) + '">' +
-            INDEX.hosts.map(function (h) {
-              if (h.status === "open") return '<button type="button" class="host" aria-pressed="true">' + esc(h.name || h.id) + " <small>" + ITEMS.length + "</small></button>";
-              var names = { blender: "Blender", houdini: "Houdini", nuke: "Nuke", resolve: "DaVinci Resolve" };
-              return '<button type="button" class="host" disabled>' + esc(names[h.id] || h.id) + " <small>" + esc(s.soon) + "</small></button>";
-            }).join("") +
-          "</div>" +
-          '<div class="row" id="cats" role="group"></div>' +
-          '<div class="selects">' +
-            '<div class="row">' +
+        '<div class="wrap"><section class="comp" aria-label="Catalog">' +
+          '<div class="comp-head">' +
+            '<div class="ctd"><span>' + esc(s.yourAe) + '</span><output id="ctd"></output><small id="ctd-note"></small></div>' +
+            '<div class="labels" id="labels" role="group"></div>' +
+            '<div class="opts">' +
+              '<label class="ver-pick" for="ver">' + esc(s.verPick) + ' <select id="ver">' + VERSIONS.map(function (v, i) { return '<option value="' + i + '">' + esc(v.name) + "</option>"; }).join("") + "</select></label>" +
               '<label for="trust">' + esc(s.trustLabel) + ' <select id="trust">' + ["all", "safe", "clean"].map(function (k) { return '<option value="' + k + '">' + esc(s.trust[k]) + "</option>"; }).join("") + "</select></label>" +
-              '<label for="sort">' + esc(s.sortLabel) + ' <select id="sort">' + ["name", "new", "category"].map(function (k) { return '<option value="' + k + '">' + esc(s.sort[k]) + "</option>"; }).join("") + "</select></label>" +
+              '<label for="sort">' + esc(s.sortLabel) + ' <select id="sort">' + ["fit", "name", "new"].map(function (k) { return '<option value="' + k + '">' + esc(s.sort[k]) + "</option>"; }).join("") + "</select></label>" +
             "</div>" +
-            '<span class="found" id="found" aria-live="polite"></span>' +
           "</div>" +
-        "</div></div>" +
-        '<div class="wrap"><div class="grid" id="grid"></div></div>';
+          '<div class="tl" style="--n:' + VERSIONS.length + '">' +
+            '<div class="tl-head" role="presentation">' +
+              "<span>" + esc(s.col.num) + "</span><span></span><span>" + esc(s.col.name) + "</span>" +
+              '<span class="sw-head">' + SWITCHES.map(function (id) { return '<span title="' + esc(s.sw[id] + ": " + s.swLong[id]) + '">' + icon(id, 14) + "</span>"; }).join("") + "</span>" +
+              '<div class="ruler" id="ruler">' +
+                '<div class="ticks" style="--n:' + VERSIONS.length + '">' + VERSIONS.map(function (v, i) {
+                  return '<button type="button" data-ver="' + i + '" aria-label="After Effects ' + esc(v.name) + '">' + esc(v.name.replace("CC ", "")) + "</button>";
+                }).join("") + "</div>" +
+                '<span class="cti-head" id="cti-head"></span>' +
+              "</div>" +
+              "<span>" + esc(s.col.status) + "</span>" +
+            "</div>" +
+            '<div class="rows" id="rows"></div>' +
+          "</div>" +
+          '<div class="legend">' +
+            '<span><i class="works"></i>' + esc(s.legendWorks) + "</span>" +
+            '<span><i class="untested"></i>' + esc(s.legendUntested) + "</span>" +
+            '<span><i class="broken"></i>' + esc(s.legendBroken) + "</span>" +
+            '<span><b class="ok">Done</b> ' + esc(s.rqLong.ok) + "</span>" +
+            '<span><b class="review">Queued</b> ' + esc(s.rqLong.review) + "</span>" +
+            '<span><b class="blocked">Err Stopped</b> ' + esc(s.rqLong.blocked) + "</span>" +
+          "</div>" +
+        "</section></div>";
 
       var q = document.getElementById("q");
       q.value = state.query;
       q.addEventListener("input", function () { state.query = q.value.trim(); renderCatalog(app, true); });
-      app.querySelector(".term-hint").addEventListener("click", function (e) {
-        var w = e.target.getAttribute && e.target.getAttribute("data-try");
-        if (!w) return;
-        q.value = w; state.query = w; renderCatalog(app, true); q.focus();
-      });
-      var trust = document.getElementById("trust"), sort = document.getElementById("sort");
+      var trust = document.getElementById("trust"), sort = document.getElementById("sort"), ver = document.getElementById("ver");
       trust.value = state.trust; sort.value = state.sort;
       trust.addEventListener("change", function () { state.trust = trust.value; save("trust", state.trust); renderCatalog(app, true); });
       sort.addEventListener("change", function () { state.sort = sort.value; save("sort", state.sort); renderCatalog(app, true); });
-      document.getElementById("cats").addEventListener("click", function (e) {
+      ver.addEventListener("change", function () { setVer(+ver.value); });
+      document.getElementById("labels").addEventListener("click", function (e) {
         var b = e.target.closest("[data-cat]");
         if (!b) return;
-        state.category = b.getAttribute("data-cat");
+        state.category = state.category === b.getAttribute("data-cat") ? "all" : b.getAttribute("data-cat");
         renderCatalog(app, true);
       });
+      wireRuler(document.getElementById("ruler"));
     }
 
-    document.getElementById("cats").innerHTML =
-      ['<button type="button" class="chip" data-cat="all" aria-pressed="' + (state.category === "all") + '">' + esc(s.allCats) + " <small>" + ITEMS.length + "</small></button>"]
-        .concat(catKeys.map(function (k) {
-          return '<button type="button" class="chip" data-cat="' + k + '" aria-pressed="' + (state.category === k) + '">' + esc(s.cats[k]) + " <small>" + cats[k] + "</small></button>";
+    document.getElementById("ver").value = String(state.ver);
+    document.getElementById("ctd").textContent = "AE " + VERSIONS[state.ver].major + ".x";
+    document.getElementById("ctd-note").textContent = "After Effects " + VERSIONS[state.ver].name + ". " + s.needNewer(outCount) + ".";
+    document.getElementById("cti-head").style.left = ctiLeft();
+    var head = document.getElementById("cti-head").parentNode;
+    head.setAttribute("role", "slider");
+    head.setAttribute("tabindex", "0");
+    head.setAttribute("aria-label", s.yourAe);
+    head.setAttribute("aria-valuemin", "0");
+    head.setAttribute("aria-valuemax", String(VERSIONS.length - 1));
+    head.setAttribute("aria-valuenow", String(state.ver));
+    head.setAttribute("aria-valuetext", "After Effects " + VERSIONS[state.ver].name);
+    Array.prototype.forEach.call(document.querySelectorAll(".ticks button"), function (b) {
+      b.setAttribute("aria-current", String(+b.getAttribute("data-ver") === state.ver));
+    });
+    document.getElementById("labels").innerHTML =
+      ['<button type="button" class="lbl" data-cat="all" aria-pressed="' + (state.category === "all") + '" style="--lc:var(--ink-3)"><i></i>' + esc(s.allLabels) + " <small>" + ITEMS.length + "</small></button>"]
+        .concat(cats.map(function (k) {
+          return '<button type="button" class="lbl" data-cat="' + k + '" aria-pressed="' + (state.category === k) + '" style="--lc:' + CAT_LABEL[k] + '"><i></i>' + esc(s.cats[k]) + " <small>" + counts[k] + "</small></button>";
         })).join("");
-    document.getElementById("found").textContent = s.found(list.length);
-    document.getElementById("grid").innerHTML = list.length
-      ? list.map(card).join("")
+    document.getElementById("rows").innerHTML = list.length
+      ? list.map(function (it, i) { return row(it, i + 1); }).join("")
       : '<div class="empty">' + esc(s.empty) + ' <a href="#requests">' + esc(s.emptyLink) + "</a></div>";
   }
 
-  // ------------------------------------------------------------ script
-  function checkList(it) {
-    var s = t(), c = it.checks, out = [];
-    if (c.missingIncludes.length) c.missingIncludes.forEach(function (m) { out.push(["bad", s.missing(m.spec, m.from)]); });
-    if (c.syntax) {
-      var lvl = c.syntax.level;
-      var cls = lvl === "es3" ? "ok" : lvl === "es5" ? "warn" : "bad";
-      var extra = c.syntax.es3Error && lvl !== "es3" ? "<small>ES3: " + esc(c.syntax.es3Error.message) + (c.syntax.es3Error.line ? " · line " + c.syntax.es3Error.line : "") + "</small>" : "";
-      if (c.syntax.constExtension) extra += "<small>" + esc(s.constNote) + "</small>";
-      out.push([cls, esc(s.syntax[lvl]) + extra]);
+  function setVer(i) {
+    i = Math.max(0, Math.min(VERSIONS.length - 1, i));
+    if (i === state.ver) return;
+    state.ver = i;
+    save("ver", i);
+    var r = route();
+    if (r.view === "catalog") renderCatalog(document.getElementById("app"), true);
+    else if (r.view === "script") renderScript(document.getElementById("app"), r.id, true);
+  }
+
+  // Drag the playhead along the ruler, click a tick, or use the arrow keys.
+  function wireRuler(ruler) {
+    var dragging = false;
+    function fromX(x) {
+      var r = ruler.getBoundingClientRect();
+      return Math.floor(((x - r.left) / r.width) * VERSIONS.length);
     }
-    if (it.kind !== "preset") out.push(["info", esc(s.inlined(it.inlined.length))]);
+    ruler.addEventListener("pointerdown", function (e) {
+      dragging = true;
+      try { ruler.setPointerCapture(e.pointerId); } catch (err) { /* older browsers */ }
+      setVer(fromX(e.clientX));
+    });
+    ruler.addEventListener("pointermove", function (e) { if (dragging) setVer(fromX(e.clientX)); });
+    ruler.addEventListener("pointerup", function () { dragging = false; });
+    ruler.addEventListener("pointercancel", function () { dragging = false; });
+    ruler.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowLeft" || e.key === "ArrowDown") { setVer(state.ver - 1); e.preventDefault(); }
+      else if (e.key === "ArrowRight" || e.key === "ArrowUp") { setVer(state.ver + 1); e.preventDefault(); }
+      else if (e.key === "Home") { setVer(0); e.preventDefault(); }
+      else if (e.key === "End") { setVer(VERSIONS.length - 1); e.preventDefault(); }
+    });
+  }
+
+  // ------------------------------------------------------------ script
+  function checksPanel(it) {
+    var s = t(), c = it.checks, rows = [];
+    function prop(name, value, cls, more) {
+      if (!more) return '<div class="prop"><div><span>' + esc(name) + '</span><span class="v ' + (cls || "") + '">' + esc(value) + "</span></div></div>";
+      return '<details class="prop"><summary><span>' + esc(name) + '</span><span class="v ' + (cls || "") + '">' + esc(value) + '</span></summary><div class="prop-more">' + more + "</div></details>";
+    }
+    function lines(samples) {
+      return samples.map(function (x) { return "<code>" + esc(s.at + " " + x.line + ": " + x.code) + "</code>"; }).join("");
+    }
+    c.missingIncludes.forEach(function (m) { rows.push(prop(s.p.missing, "Err Stopped", "bad", "<span>" + esc(s.missingL(m.spec, m.from)) + "</span>")); });
+    if (c.syntax) {
+      var lvl = c.syntax.level, cls = lvl === "es3" ? "ok" : lvl === "es5" ? "warn" : "bad";
+      var more = "<span>" + esc(s.syntaxL[lvl]) + "</span>" + (c.syntax.constExtension ? "<span>" + esc(s.constNote) + "</span>" : "") +
+        (c.syntax.es3Error && lvl !== "es3" ? "<code>ES3: " + esc(c.syntax.es3Error.message) + "</code>" : "");
+      rows.push(prop(s.p.syntax, s.syntaxV[lvl] + (c.syntax.constExtension ? " + const" : ""), cls, more));
+      rows.push(prop(s.p.includes, s.inlinedV(it.inlined.length), "", "<span>" + esc(s.inlinedL(it.inlined.length)) + "</span>" + it.inlined.map(function (f) { return "<code>" + esc(f) + "</code>"; }).join("")));
+    }
     c.capabilities.forEach(function (cap) {
-      var label = s.caps[cap.id];
-      if (cap.detected) {
-        var where = cap.samples.map(function (x) { return "line " + x.line + ": " + x.code; }).join("\n");
-        out.push([RISKY[cap.id] ? "bad" : cap.declared ? "info" : "warn",
-          "<b>" + esc(label[0]) + ".</b> " + esc(label[1]) + (cap.declared ? "" : " <b>" + esc(s.undeclared) + ".</b>") +
-          (where ? "<small>" + esc(where).replace(/\n/g, "<br>") + "</small>" : "")]);
-      } else {
-        out.push(["info", "<b>" + esc(label[0]) + ".</b> " + esc(s.declaredOnly) + "."]);
-      }
+      var risky = RISKY[cap.id];
+      var value = cap.detected ? s.found + (cap.count ? " ×" + cap.count : "") : s.notFound;
+      var cls = cap.detected ? (risky ? "bad" : cap.declared ? "" : "warn") : "";
+      var more = "<span>" + esc(s.swLong[cap.id]) + "</span>" +
+        (!cap.declared ? "<span>" + esc(s.undeclared) + ".</span>" : !cap.detected ? "<span>" + esc(s.declaredOnly) + ".</span>" : "") + lines(cap.samples);
+      rows.push(prop(s.sw[cap.id] || cap.id.charAt(0).toUpperCase() + cap.id.slice(1), value, cls, more));
     });
     c.warnings.forEach(function (w) {
-      var where = w.samples.map(function (x) { return "line " + x.line + ": " + x.code; }).join("\n");
-      out.push([w.polyfilled ? "ok" : "warn", esc(s.warns[w.code]) + (w.polyfilled ? " <b>" + esc(s.polyfilled) + ".</b>" : "") + (where ? "<small>" + esc(where).replace(/\n/g, "<br>") + "</small>" : "")]);
+      rows.push(prop(s.p[w.code] || w.code, w.polyfilled ? s.polyfilled : s.warnV, w.polyfilled ? "ok" : "warn", "<span>" + esc(s.warnL[w.code]) + "</span>" + lines(w.samples)));
     });
-    if (!c.capabilities.length && it.kind !== "preset") out.push(["ok", esc(s.declared(0))]);
-    else if (c.capabilities.length && c.capabilities.every(function (x) { return x.declared === x.detected; })) out.push(["ok", esc(s.declared(1))]);
-    return '<ul class="checks">' + out.map(function (o) { return '<li class="' + o[0] + '"><span>' + o[1] + "</span></li>"; }).join("") + "</ul>";
+    if (it.kind !== "preset") {
+      var mismatch = c.capabilities.some(function (x) { return x.declared !== x.detected; });
+      rows.push(prop(s.p.declared, c.capabilities.length ? (mismatch ? s.matchV.bad : s.matchV.ok) : s.matchV.none, mismatch ? "warn" : "ok"));
+    }
+    return '<section class="pnl"><header><em>fx</em>' + esc(s.check) + '</header><div class="pnl-body">' + rows.join("") + "</div></section>";
   }
 
   function sourceView(it) {
@@ -1029,89 +1202,108 @@ footer.foot a { color: var(--dust); }
     var hits = {};
     it.checks.capabilities.forEach(function (c) { c.samples.forEach(function (x) { hits[x.line] = 1; }); });
     it.checks.warnings.forEach(function (w) { if (!w.polyfilled) w.samples.forEach(function (x) { hits[x.line] = 1; }); });
-    var lines = src.split("\n");
-    return '<ol>' + lines.map(function (ln, i) {
+    return "<ol>" + src.split("\n").map(function (ln, i) {
       var cls = hits[i + 1] ? "hit" : /^\s*\/\/ \[cave\]/.test(ln) ? "cave" : "";
       return "<li" + (cls ? ' class="' + cls + '"' : "") + ">" + (esc(ln) || " ") + "</li>";
     }).join("") + "</ol>";
   }
 
-  var AE_VERSIONS = ["AE 2026 (26.x)", "AE 2025 (25.x)", "AE 2024 (24.x)", "AE 2023 (23.x)", "AE 2022 (22.x)"];
+  function compatPanel(it) {
+    var s = t(), first = minIndex(it), mine = state.votes[it.id] || {}, cur = VERSIONS[state.ver];
+    var tested = Object.keys(testedMajors(it)).map(function (m) { return "AE " + m; });
+    var cells = VERSIONS.map(function (v, i) {
+      var st = i < first ? "" : cellState(it, i);
+      return '<div class="' + (i === state.ver ? "sel" : "") + '"><i class="' + st + '"></i><span>' + (v.major) + "</span></div>";
+    }).join("");
+    var out = isOut(it);
+    return '<section class="pnl"><header>' + esc(s.compat) + '</header><div class="compat" style="--lc:' + labelOf(it) + '">' +
+      '<div class="mini" style="--n:' + VERSIONS.length + '">' + cells + "</div>" +
+      (it.hostVersions && it.hostVersions.minMajor ? '<p class="fine">' + esc(s.minIs(minName(it))) + "</p>" : "") +
+      '<p class="fine">' + esc(s.tested(tested)) + "</p>" +
+      '<p class="fine">' + esc(s.compatLead) + "</p>" +
+      '<label class="fine" for="ver">' + esc(s.markFor(cur.name)) + ' <select id="ver">' + VERSIONS.map(function (v, i) { return '<option value="' + i + '"' + (i === state.ver ? " selected" : "") + ">" + esc(v.name) + "</option>"; }).join("") + "</select></label>" +
+      '<div class="vote-row">' +
+        '<button type="button" class="btn" data-vote="works"' + (out ? " disabled" : "") + ' aria-pressed="' + (mine[cur.major] === "works") + '">' + esc(s.works) + "</button>" +
+        '<button type="button" class="btn" data-vote="broken"' + (out ? " disabled" : "") + ' aria-pressed="' + (mine[cur.major] === "broken") + '">' + esc(s.broken) + "</button>" +
+      "</div>" +
+      '<p class="fine">' + esc(s.localOnly) + "</p>" +
+    "</div></section>";
+  }
 
-  function renderScript(app, id) {
+  function renderScript(app, id, partial) {
     var s = t(), it = BY_ID[id], blocked = it.checks.status === "blocked";
-    var caps = detectedCaps(it);
+    var caps = detected(it);
     var needsPref = caps.some(function (c) { return c.id === "files" || c.id === "shell" || c.id === "network"; });
-    var my = state.votes[id] || {};
     var ext = it.kind === "preset" ? ".ffx" : ".jsx";
-    var tested = (it.hostVersions && it.hostVersions.tested) || [];
     var notes = L(it.notes);
-    var aiText = s.ai[(it.ai && it.ai.level) || "unknown"] + (it.ai && it.ai.model ? " · " + it.ai.model : "") + (it.ai && it.ai.humanReviewed && it.ai.level !== "none" && it.ai.level !== "unknown" ? " · " + s.reviewed : "");
+    var aiText = s.ai[(it.ai && it.ai.level) || "unknown"] + (it.ai && it.ai.model ? ", " + it.ai.model : "") + (it.ai && it.ai.humanReviewed && it.ai.level !== "none" && it.ai.level !== "unknown" ? ", " + s.reviewed : "");
     var steps = state.installTab === "panel" ? s.panelSteps : s.manualSteps(it);
+    var hostText = "After Effects " + (it.hostVersions && it.hostVersions.minMajor ? minName(it) + "+" : s.slate.any);
+
+    if (partial) {
+      var side = document.getElementById("compat-slot");
+      if (side) { side.innerHTML = compatPanel(it); wireVotes(app, it); }
+      return;
+    }
 
     app.innerHTML =
       '<div class="wrap">' +
-        '<a class="back" href="#catalog">' + esc(s.back) + "</a>" +
-        '<header class="script-head">' +
-          '<div class="row"><span class="status ' + it.checks.status + '">' + esc(s.status[it.checks.status]) + '</span><span class="meta">' + esc(s.kind[it.kind]) + " · " + esc(s.cats[it.category]) + " · After Effects · " + esc(it.id) + "</span></div>" +
-          "<h1>" + esc(L(it.title)) + "</h1>" +
-          '<p class="lead">' + esc(L(it.summary)) + "</p>" +
-          '<div class="badges">' + badgeRow(it, false) + "</div>" +
-          '<div class="actions">' +
-            (blocked
-              ? '<span class="btn" aria-disabled="true">' + esc(s.blockedBtn) + "</span>"
-              : PREVIEW
-                ? (SOURCES[id] ? '<button type="button" class="btn primary" id="copy">' + esc(s.copy) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></button>" : "")
-                : '<a class="btn primary" href="' + esc(it.file) + '" download="' + esc(it.id + ext) + '">' + esc(s.download) + " <small>" + esc(it.id + ext) + " · " + fmtSize(it.size) + "</small></a>") +
-            (SOURCES[id] && (blocked || !PREVIEW) ? '<button type="button" class="btn" id="copy">' + esc(s.copy) + "</button>" : "") +
+        '<nav class="crumbs" aria-label="Breadcrumb"><a href="#catalog">' + esc(s.nav.catalog) + "</a><span>/</span><span>" + esc(s.cats[it.category]) + "</span></nav>" +
+        '<div class="slate' + (it.checks.status === "ok" ? " done" : "") + '" id="slate">' +
+          '<div class="sticks" aria-hidden="true"><div class="stick top"></div><div class="stick bottom"></div></div>' +
+          '<div class="slate-body">' +
+            '<div class="sf wide title"><span>' + esc(s.slate.script) + "</span><b>" + esc(L(it.title)) + "</b></div>" +
+            '<div class="sf"><span>' + esc(s.slate.take) + "</span><b>" + esc(it.version) + "</b></div>" +
+            '<div class="sf"><span>' + esc(s.slate.host) + "</span><b>" + esc(hostText) + "</b></div>" +
+            '<div class="sf"><span>' + esc(s.slate.author) + "</span><b>" + esc(it.author.name) + "</b></div>" +
+            '<div class="sf"><span>' + esc(s.slate.status) + "</span><b>" + esc(s.rq[it.checks.status]) + "</b></div>" +
+            '<div class="sf wide hash"><span>' + esc(s.slate.sha) + "</span><b>" + strip(it.sha256) + "<span>" + esc(it.sha256) + "</span></b></div>" +
           "</div>" +
-          (PREVIEW && !blocked ? '<p class="fine">' + esc(s.previewNote) + "</p>" : "") +
-        "</header>" +
+        "</div>" +
+        '<p class="lead2">' + esc(L(it.summary)) + "</p>" +
+        '<div class="actions">' +
+          (blocked
+            ? '<span class="btn" aria-disabled="true">' + esc(s.blockedBtn) + "</span>"
+            : PREVIEW
+              ? (SOURCES[id] ? '<button type="button" class="btn primary" data-clap="1" id="copy">' + esc(s.copy) + " <small>" + esc(it.id + ext) + ", " + fmtSize(it.size) + "</small></button>" : "")
+              : '<a class="btn primary" data-clap="1" href="' + esc(it.file) + '" download="' + esc(it.id + ext) + '">' + esc(s.download) + " <small>" + esc(it.id + ext) + ", " + fmtSize(it.size) + "</small></a>") +
+          (SOURCES[id] && (blocked || !PREVIEW) ? '<button type="button" class="btn" data-clap="1" id="copy">' + esc(s.copy) + "</button>" : "") +
+          (PREVIEW && !blocked ? '<span class="fine">' + esc(s.previewNote) + "</span>" : "") +
+        "</div>" +
         '<div class="layout">' +
           '<div class="prose">' +
-            "<section><h2>" + esc(s.sections.what) + "</h2><p>" + esc(L(it.description)) + "</p></section>" +
-            "<section><h2>" + esc(s.sections.how) + "</h2><p>" + esc(L(it.usage)) + "</p></section>" +
-            (notes ? "<section><h2>" + esc(s.sections.notes) + '</h2><p class="note">' + esc(notes) + "</p></section>" : "") +
-            "<section><h2>" + esc(s.sections.install) + "</h2>" +
-              '<div class="tabs" role="tablist">' +
+            '<section><h2 class="h">' + esc(s.sections.what) + "</h2><p>" + esc(L(it.description)) + "</p></section>" +
+            '<section><h2 class="h">' + esc(s.sections.how) + "</h2><p>" + esc(L(it.usage)) + "</p>" +
+              (it.undoName ? '<p class="undo">' + esc(s.undoName()) + " <code>Undo " + esc(it.undoName) + "</code></p>" : "") +
+            "</section>" +
+            (notes ? '<section><h2 class="h">' + esc(s.sections.notes) + '</h2><p class="note">' + esc(notes) + "</p></section>" : "") +
+            '<section><h2 class="h">' + esc(s.sections.install) + "</h2>" +
+              '<div class="seg" role="tablist">' +
                 '<button type="button" role="tab" data-tab="panel" aria-selected="' + (state.installTab === "panel") + '">' + esc(s.tabPanel) + "</button>" +
                 '<button type="button" role="tab" data-tab="manual" aria-selected="' + (state.installTab === "manual") + '">' + esc(s.tabManual) + "</button>" +
               "</div>" +
               '<ol class="steps">' + steps.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>" +
               (needsPref ? '<p class="note">' + s.prefNote + "</p>" : "") +
             "</section>" +
-            (SOURCES[id] ? "<section><h2>" + esc(s.sections.source) + '</h2><details class="src"><summary>' + esc(s.showSource(it.lines)) + '</summary><div class="code" id="code"></div></details></section>' : "") +
+            (SOURCES[id] ? '<section><h2 class="h">' + esc(s.sections.source) + '</h2><details class="src"><summary>' + esc(s.showSource(it.lines)) + '</summary><div class="code" id="code"></div></details></section>' : "") +
           "</div>" +
           '<aside class="side">' +
-            '<div class="panel"><h2>' + esc(s.sections.check) + "</h2>" + checkList(it) + "</div>" +
-            '<div class="panel"><h2>' + esc(s.sections.compat) + "</h2>" +
-              '<div class="votes">' +
-                '<p class="fine">' + esc(s.tested(tested)) + "</p>" +
-                '<p class="fine">' + esc(s.compatLead) + "</p>" +
-                '<label class="fine" for="ver">' + esc(s.compatVersion) + "</label>" +
-                '<select id="ver">' + AE_VERSIONS.map(function (v) { return "<option>" + esc(v) + "</option>"; }).join("") + "</select>" +
-                '<div class="vote-row"><button type="button" class="btn" data-vote="works">' + esc(s.works) + '</button><button type="button" class="btn" data-vote="broken">' + esc(s.broken) + "</button></div>" +
-                (Object.keys(my).length
-                  ? '<p class="fine">' + esc(s.yourVotes) + '</p><ul class="vote-list">' + Object.keys(my).map(function (v) { return '<li class="' + my[v] + '">' + esc(v.split(" (")[0]) + " · " + esc(my[v] === "works" ? s.works : s.broken) + "</li>"; }).join("") + "</ul>"
-                  : "") +
-                '<p class="fine">' + esc(s.localOnly) + "</p>" +
-              "</div>" +
-            "</div>" +
-            '<div class="panel"><h2>' + esc(s.sections.file) + '</h2><dl class="facts">' +
-              "<dt>" + esc(s.facts.author) + "</dt><dd>" + esc(it.author.name) + (it.author.github ? ' · <a href="https://github.com/' + esc(it.author.github) + '" target="_blank" rel="noopener">@' + esc(it.author.github) + "</a>" : "") + "</dd>" +
-              "<dt>" + esc(s.facts.version) + "</dt><dd>" + esc(it.version) + "</dd>" +
+            checksPanel(it) +
+            '<div id="compat-slot">' + compatPanel(it) + "</div>" +
+            '<section class="pnl"><header>' + esc(s.file) + '</header><dl class="facts">' +
+              "<dt>" + esc(s.facts.kind) + "</dt><dd>" + esc(s.kind[it.kind]) + "</dd>" +
               "<dt>" + esc(s.facts.license) + "</dt><dd>" + esc(it.license) + "</dd>" +
               "<dt>" + esc(s.facts.ai) + "</dt><dd>" + esc(aiText) + "</dd>" +
-              "<dt>" + esc(s.facts.added) + "</dt><dd>" + esc(fmtDate(it.added)) + "</dd>" +
+              "<dt>" + esc(s.slate.date) + "</dt><dd>" + esc(fmtDate(it.added)) + "</dd>" +
               "<dt>" + esc(s.facts.entry) + '</dt><dd><a href="' + esc(INDEX.repo) + "/blob/main/" + encodeURI(it.entry) + '" target="_blank" rel="noopener">' + esc(it.entry) + "</a></dd>" +
-              "<dt>" + esc(s.facts.size) + "</dt><dd>" + fmtSize(it.size) + (it.lines ? " · " + it.lines + " " + esc(s.facts.lines.toLowerCase()) : "") + "</dd>" +
+              "<dt>" + esc(s.facts.size) + "</dt><dd>" + fmtSize(it.size) + (it.lines ? ", " + it.lines + " " + esc(s.facts.lines) : "") + "</dd>" +
               "<dt>" + esc(s.facts.sha) + '</dt><dd class="hash">' + esc(it.sha256) + "</dd>" +
-            "</dl></div>" +
+            "</dl></section>" +
           "</aside>" +
         "</div>" +
       "</div>";
 
-    app.querySelector(".tabs").addEventListener("click", function (e) {
+    app.querySelector(".seg").addEventListener("click", function (e) {
       var b = e.target.closest("[data-tab]");
       if (!b) return;
       state.installTab = b.getAttribute("data-tab");
@@ -1124,63 +1316,84 @@ footer.foot a { color: var(--dust); }
       var box = document.getElementById("code");
       if (details.open && !box.firstChild) box.innerHTML = sourceView(it);
     });
+    // The clapper closes when you take the script.
+    Array.prototype.forEach.call(app.querySelectorAll("[data-clap]"), function (b) {
+      b.addEventListener("click", function () {
+        var slate = document.getElementById("slate");
+        slate.classList.add("clap");
+        setTimeout(function () { slate.classList.remove("clap"); }, 240);
+      });
+    });
     var copy = document.getElementById("copy");
     if (copy) copy.addEventListener("click", function () {
-      var text = SOURCES[id];
-      var done = function () { toast(s.copied); };
       var fail = function () {
         if (details) { details.open = true; var box = document.getElementById("code"); if (!box.firstChild) box.innerHTML = sourceView(it); }
         toast(s.copyFail);
       };
-      try { navigator.clipboard.writeText(text).then(done, fail); } catch (e) { fail(); }
+      try { navigator.clipboard.writeText(SOURCES[id]).then(function () { toast(s.copied); }, fail); } catch (e) { fail(); }
     });
-    app.querySelector(".vote-row").addEventListener("click", function (e) {
+    wireVotes(app, it);
+  }
+
+  function wireVotes(app, it) {
+    var s = t();
+    var sel = document.getElementById("ver");
+    if (sel) sel.addEventListener("change", function () { setVer(+sel.value); });
+    var rowEl = app.querySelector(".vote-row");
+    if (!rowEl) return;
+    rowEl.addEventListener("click", function (e) {
       var b = e.target.closest("[data-vote]");
-      if (!b) return;
-      var ver = document.getElementById("ver").value;
-      var votes = state.votes[id] || {};
-      var isNew = !votes[ver];
-      votes[ver] = b.getAttribute("data-vote");
-      state.votes[id] = votes;
-      save("votes", state.votes);
-      var y = window.scrollY;
-      render();
-      window.scrollTo(0, y);
-      var sel = document.getElementById("ver"); if (sel) sel.value = ver;
-      toast(isNew ? s.voted : s.voted.replace(/^\+5 XP · /, ""));
+      if (!b || b.disabled) return;
+      var major = VERSIONS[state.ver].major;
+      var votes = state.votes[it.id] || {};
+      var isNew = !votes[major];
+      votes[major] = b.getAttribute("data-vote");
+      state.votes[it.id] = votes;
+      save("votes2", state.votes);
+      renderChrome("script");
+      renderScript(app, it.id, true);
+      toast(isNew ? s.voted : s.revoted);
     });
   }
 
   // ---------------------------------------------------------- requests
   function renderRequests(app) {
     var s = t();
-    var mine = state.requests.map(function (r) { return { id: r.id, title: r.title, text: r.text, plus: 0, mine: true }; });
+    var mine = state.requests.map(function (r) { return { id: r.id, title: r.title, text: r.text, plus: 0, status: "open", mine: true }; });
     var all = mine.slice().reverse().concat(s.examples);
     app.innerHTML =
       '<div class="wrap page">' +
-        "<header><h1>" + esc(s.reqTitle) + '</h1><p class="lead">' + esc(s.reqLead) + "</p></header>" +
+        "<header><h1>" + esc(s.reqTitle) + "</h1><p>" + esc(s.reqLead) + "</p></header>" +
         '<div class="cols">' +
-          '<div class="stack" id="reqs">' + all.map(function (r) {
-            var plus = r.plus + (state.plus[r.id] ? 1 : 0);
-            return '<article class="req"><div class="row"><span class="' + (r.mine ? "meta" : "example") + '">' + esc(r.mine ? s.yours : s.example) + '</span><span class="meta">After Effects</span></div>' +
-              "<h3>" + esc(r.title) + "</h3>" + (r.text ? "<p>" + esc(r.text) + "</p>" : "") +
-              '<div class="row"><button type="button" class="chip" data-plus="' + esc(r.id) + '" aria-pressed="' + !!state.plus[r.id] + '">' + esc(s.plusOne) + " <small>" + plus + "</small></button>" +
-              '<button type="button" class="chip" data-take="' + esc(r.id) + '" aria-pressed="' + !!state.takes[r.id] + '">' + esc(state.takes[r.id] ? s.taken : s.take) + "</button></div></article>";
-          }).join("") + "</div>" +
-          '<form class="stack panel" id="req-form" novalidate>' +
-            "<h2>" + esc(s.reqFormTitle) + "</h2>" +
+          '<div class="queue" id="queue">' +
+            '<div class="q-head"><span>' + esc(s.qHead.num) + "</span><span>" + esc(s.qHead.req) + "</span><span>" + esc(s.qHead.status) + "</span><span>" + esc(s.qHead.votes) + "</span><span></span></div>" +
+            all.map(function (r, i) {
+              var st = state.takes[r.id] ? "taken" : r.status;
+              var cls = st === "done" ? "ok" : st === "taken" ? "review" : "needs";
+              var plus = r.plus + (state.plus[r.id] ? 1 : 0);
+              return '<div class="q-row">' +
+                '<span class="idx">' + (i + 1) + "</span>" +
+                '<span class="rqt"><b>' + esc(r.title) + "</b>" + (r.text ? "<span>" + esc(r.text) + "</span>" : "") + '<small class="tag">' + esc(r.mine ? s.yours : s.example) + "</small></span>" +
+                '<span class="rq ' + cls + '">' + esc(s.qStatus[st]) + "</span>" +
+                '<span class="votes">' + plus + "</span>" +
+                '<span class="acts"><button type="button" class="mini-btn" data-plus="' + esc(r.id) + '" aria-pressed="' + !!state.plus[r.id] + '">' + esc(s.plusOne) + '</button> <button type="button" class="mini-btn" data-take="' + esc(r.id) + '" aria-pressed="' + !!state.takes[r.id] + '">' + esc(state.takes[r.id] ? s.taken : s.take) + "</button></span>" +
+              "</div>";
+            }).join("") +
+          "</div>" +
+          '<form class="add" id="req-form" novalidate>' +
+            '<h2 class="h">' + esc(s.reqForm) + "</h2>" +
             '<label for="req-title">' + esc(s.reqName) + '<input type="text" id="req-title" maxlength="140" placeholder="' + esc(s.reqNamePh) + '"></label>' +
             '<label for="req-text">' + esc(s.reqDesc) + '<textarea id="req-text" maxlength="800" placeholder="' + esc(s.reqDescPh) + '"></textarea></label>' +
-            '<label for="req-host">' + esc(s.reqHost) + '<select id="req-host"><option>After Effects</option><option disabled>Blender — ' + esc(s.soon) + "</option><option disabled>Houdini — " + esc(s.soon) + "</option></select></label>" +
+            '<label for="req-host">' + esc(s.reqHost) + '<select id="req-host"><option>After Effects</option><option disabled>Blender (' + esc(s.soon) + ")</option><option disabled>Houdini (" + esc(s.soon) + ")</option><option disabled>Nuke (" + esc(s.soon) + ")</option></select></label>" +
             '<button type="submit" class="btn primary">' + esc(s.reqSubmit) + "</button>" +
             '<p class="fine">' + esc(s.localOnly) + "</p>" +
           "</form>" +
         "</div>" +
       "</div>";
-    document.getElementById("reqs").addEventListener("click", function (e) {
+    document.getElementById("queue").addEventListener("click", function (e) {
       var p = e.target.closest("[data-plus]"), tk = e.target.closest("[data-take]");
-      if (p) { var id = p.getAttribute("data-plus"); state.plus[id] = !state.plus[id]; save("plus", state.plus); }
-      else if (tk) { var id2 = tk.getAttribute("data-take"); state.takes[id2] = !state.takes[id2]; save("takes", state.takes); }
+      if (p) { var a = p.getAttribute("data-plus"); state.plus[a] = !state.plus[a]; save("plus", state.plus); }
+      else if (tk) { var b = tk.getAttribute("data-take"); state.takes[b] = !state.takes[b]; save("takes", state.takes); }
       else return;
       renderRequests(app);
     });
@@ -1198,64 +1411,57 @@ footer.foot a { color: var(--dust); }
 
   // ------------------------------------------------------------ submit
   var SAMPLE = {
-    id: "layer-grid",
-    version: "1.0.0",
-    entry: "scripts/layer-grid.jsx",
-    host: "aftereffects",
-    kind: "script",
-    category: "layers",
-    title: { ru: "Слои по сетке", en: "Layers to grid" },
-    summary: { ru: "Раскладывает выделенные слои по сетке с отступом.", en: "Lays selected layers out on a grid with spacing." },
-    description: { ru: "…", en: "…" },
-    usage: { ru: "Выделите слои и запустите скрипт.", en: "Select layers and run the script." },
+    id: "layer-grid", version: "1.0.0", entry: "scripts/layer-grid.jsx", host: "aftereffects", kind: "script", category: "layers",
+    title: { en: "Layers to grid", ru: "Слои по сетке" },
+    summary: { en: "Lays selected layers out on a grid with spacing.", ru: "Раскладывает выделенные слои по сетке с отступом." },
+    description: { en: "…", ru: "…" },
+    usage: { en: "Select layers and run the script.", ru: "Выделите слои и запустите скрипт." },
     tags: ["layout", "grid", "position"],
-    hostVersions: { min: "CC 2019", tested: ["AE 2025"] },
+    hostVersions: { min: "2019 (16.0)", tested: ["AE 2025"] },
     author: { name: "Your Name", github: "your-login" },
     license: "MIT",
     ai: { level: "assisted", model: "Claude", humanReviewed: true },
-    permissions: [],
-    requires: [],
-    notes: { ru: "", en: "" }
+    permissions: [], requires: [], notes: { en: "", ru: "" }
   };
   function renderSubmit(app) {
     var s = t();
     app.innerHTML =
       '<div class="wrap page">' +
-        "<header><h1>" + esc(s.submitTitle) + '</h1><p class="lead">' + esc(s.submitLead) + "</p></header>" +
-        '<div class="cols">' +
-          '<div class="stack">' +
+        "<header><h1>" + esc(s.submitTitle) + "</h1><p>" + esc(s.submitLead) + "</p></header>" +
+        '<div class="cols even">' +
+          '<div class="prose">' +
             '<ol class="steps">' + s.submitSteps.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>" +
-            '<div class="panel"><h2>' + esc(s.autoTitle) + '</h2><ul class="plain">' + s.autoList.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
-            '<div class="panel"><h2>' + esc(s.aiTitle) + "</h2><p class=\"fine\" style=\"font-size:var(--step--1);color:var(--dust)\">" + esc(s.aiText) + "</p></div>" +
-            '<p class="note">' + esc(s.noPoints) + ' <a href="#path">' + esc(s.nav.path) + "</a></p>" +
+            '<section class="card"><h2 class="h">' + esc(s.autoTitle) + '</h2><ul class="plain">' + s.autoList.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></section>" +
+            '<section class="card"><h2 class="h">' + esc(s.aiTitle) + "</h2><p>" + esc(s.aiText) + "</p></section>" +
+            '<p class="note">' + esc(s.noPoints) + ' <a href="#keepers">' + esc(s.nav.keepers) + "</a></p>" +
           "</div>" +
-          '<div class="stack"><h2 style="font:500 var(--step--1)/1.2 var(--f-mono);color:var(--torch);text-transform:uppercase;letter-spacing:.1em">' + esc(s.manifestTitle) + ' · catalog/layer-grid.json</h2><pre class="manifest">' + esc(JSON.stringify(SAMPLE, null, 2)) + "</pre></div>" +
+          '<section class="prose"><h2 class="h">' + esc(s.manifestTitle) + ': <code class="path">catalog/layer-grid.json</code></h2><pre class="manifest">' + esc(JSON.stringify(SAMPLE, null, 2)) + "</pre></section>" +
         "</div>" +
       "</div>";
   }
 
-  // -------------------------------------------------------------- path
-  function renderPath(app) {
-    var s = t(), xp = xpTotal(), r = rankFor(xp), ranks = s.ranks;
-    var next = ranks[r + 1];
+  // ----------------------------------------------------------- keepers
+  function renderKeepers(app) {
+    var s = t(), xp = xpTotal(), r = rankFor(xp), ranks = s.ranks, next = ranks[r + 1];
     var pct = next ? Math.round(((xp - ranks[r][1]) / (next[1] - ranks[r][1])) * 100) : 100;
     app.innerHTML =
       '<div class="wrap page">' +
-        "<header><h1>" + esc(s.pathTitle) + '</h1><p class="lead">' + esc(s.pathLead) + "</p></header>" +
-        '<div class="panel"><h2>' + esc(s.yourXp) + ": " + xp + " XP · " + esc(ranks[r][0]) + "</h2>" +
+        "<header><h1>" + esc(s.keepersTitle) + "</h1><p>" + esc(s.keepersLead) + "</p></header>" +
+        '<div class="progress">' +
+          '<div class="top"><span>' + esc(s.yourXp) + ": <b>" + xp + " XP</b>, " + esc(ranks[r][0]) + "</span><span>" + esc(next ? s.toNext(next[1] - xp, next[0]) : s.top) + "</span></div>" +
           '<div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
-          '<p class="fine">' + esc(next ? s.nextRank(next[1] - xp, next[0]) : s.maxRank) + " " + esc(s.localOnly) + "</p>" +
+          '<p class="fine">' + esc(s.localOnly) + "</p>" +
         "</div>" +
-        '<div class="ranks">' + ranks.map(function (x, i) {
-          return '<div class="rank' + (i === r ? " current" : "") + '"><b>' + esc(x[0]) + "</b><span>" + x[1] + "+ XP</span></div>";
+        '<div class="ladder">' + ranks.map(function (x, i) {
+          return '<div class="rung' + (i === r ? " now" : "") + '"><b>' + esc(x[0]) + "</b><span>" + x[1] + "+ XP</span></div>";
         }).join("") + "</div>" +
         '<div class="cols">' +
-          '<div class="stack"><h2>' + esc(s.xpRulesTitle) + '</h2><div style="overflow-x:auto"><table class="xp-table"><thead><tr><th>' + esc(s.xpHead[0]) + '</th><th style="text-align:right">' + esc(s.xpHead[1]) + "</th></tr></thead><tbody>" +
-            s.xpRules.map(function (x) {
-              return '<tr class="' + (x[1] === 0 ? "zero" : "") + '"><td>' + esc(x[0]) + (x[2] ? ' <span class="example" style="color:var(--moss);border-color:var(--moss)">' + esc(s.live) + "</span>" : "") + '</td><td class="num">' + (x[1] ? "+" + x[1] : "0") + "</td></tr>";
+          '<section class="prose"><h2 class="h">' + esc(s.rulesTitle) + '</h2><div style="overflow-x:auto"><table class="rules"><thead><tr><th>' + esc(s.rulesHead[0]) + '</th><th style="text-align:right">' + esc(s.rulesHead[1]) + "</th></tr></thead><tbody>" +
+            s.rules.map(function (x) {
+              return '<tr class="' + (x[1] === 0 ? "zero" : "") + '"><td>' + esc(x[0]) + (x[2] ? '<span class="live">' + esc(s.live) + "</span>" : "") + '</td><td class="num">' + (x[1] ? "+" + x[1] : "0") + "</td></tr>";
             }).join("") +
-          '</tbody></table></div><p class="note">' + esc(s.zeroNote) + "</p></div>" +
-          '<div class="stack"><h2>' + esc(s.badgesTitle) + '</h2><dl class="glossary">' + s.badges.map(function (b) { return "<dt>" + esc(b[0]) + "</dt><dd>" + esc(b[1]) + "</dd>"; }).join("") + "</dl></div>" +
+          '</tbody></table></div><p class="note">' + esc(s.zero) + "</p></section>" +
+          '<section class="card"><h2 class="h">' + esc(s.marksTitle) + '</h2><dl class="defs">' + s.marks.map(function (b) { return "<dt>" + esc(b[0]) + "</dt><dd>" + esc(b[1]) + "</dd>"; }).join("") + "</dl></section>" +
         "</div>" +
       "</div>";
   }
@@ -1263,17 +1469,26 @@ footer.foot a { color: var(--dust); }
   // ------------------------------------------------------------- about
   function renderAbout(app) {
     var s = t();
+    var hosts = [
+      { name: "After Effects", versions: VERSIONS.map(function (v) { return String(v.major); }), open: true },
+      { name: "Blender", versions: ["3.6", "4.0", "4.1", "4.2", "4.3", "4.4", "4.5", "5.0", "5.1"] },
+      { name: "Houdini", versions: ["19.0", "19.5", "20.0", "20.5", "21.0"] },
+      { name: "Nuke", versions: ["13", "14", "15", "16", "17"] },
+      { name: "DaVinci Resolve", versions: ["17", "18", "19", "20", "21"] }
+    ];
     app.innerHTML =
       '<div class="wrap page">' +
-        "<header><h1>" + esc(s.aboutTitle) + '</h1><p class="lead">' + esc(s.aboutLead) + "</p></header>" +
-        '<div class="cols">' +
-          '<div class="stack">' + s.aboutText.map(function (p) { return '<p style="margin:0;max-width:62ch">' + esc(p) + "</p>"; }).join("") +
-            '<div class="panel"><h2>' + esc(s.principlesTitle) + '</h2><ul class="plain">' + s.principles.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
+        "<header><h1>" + esc(s.aboutTitle) + "</h1><p>" + esc(s.aboutLead) + "</p></header>" +
+        '<div class="cols even">' +
+          '<div class="prose">' + s.aboutText.map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("") +
+            '<section class="card"><h2 class="h">' + esc(s.rulesHouse) + '</h2><ul class="plain">' + s.house.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></section>" +
           "</div>" +
-          '<div class="stack">' +
-            '<div class="panel"><h2>' + esc(s.glossaryTitle) + '</h2><dl class="glossary">' + s.glossary.map(function (g) { return "<dt>" + esc(g[0]) + "</dt><dd>" + esc(g[1]) + "</dd>"; }).join("") + "</dl></div>" +
-            '<div class="panel"><h2>' + esc(s.roadmapTitle) + '</h2><ul class="plain">' + s.roadmap.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></div>" +
-          "</div>" +
+          '<section class="card"><h2 class="h">' + esc(s.hostsTitle) + '</h2><p class="fine">' + esc(s.hostsLead) + '</p><div class="hosts">' +
+            hosts.map(function (h, k) {
+              return '<div class="host-row' + (h.open ? "" : " soon") + '"><span>' + esc(h.name) + (h.open ? "" : " (" + esc(s.soon) + ")") + '</span><div class="mini" style="--n:' + h.versions.length + ";--lc:" + ["var(--l-blue)", "var(--l-orange)", "var(--l-red)", "var(--l-yellow)", "var(--l-cyan)"][k] + '">' +
+                h.versions.map(function (v) { return '<div><i class="' + (h.open ? "works" : "untested") + '"></i><span>' + esc(v) + "</span></div>"; }).join("") + "</div></div>";
+            }).join("") +
+          "</div></section>" +
         "</div>" +
       "</div>";
   }
@@ -1281,18 +1496,17 @@ footer.foot a { color: var(--dust); }
   // ------------------------------------------------------------ router
   var lastView = null;
   function render() {
-    var route = currentView();
-    var app = document.getElementById("app");
-    renderChrome(route.view);
-    if (route.view === "script") renderScript(app, route.id);
-    else if (route.view === "requests") renderRequests(app);
-    else if (route.view === "submit") renderSubmit(app);
-    else if (route.view === "path") renderPath(app);
-    else if (route.view === "about") renderAbout(app);
+    var r = route(), app = document.getElementById("app");
+    renderChrome(r.view);
+    if (r.view === "script") renderScript(app, r.id);
+    else if (r.view === "requests") renderRequests(app);
+    else if (r.view === "submit") renderSubmit(app);
+    else if (r.view === "keepers") renderKeepers(app);
+    else if (r.view === "about") renderAbout(app);
     else renderCatalog(app, false);
-    var key = route.view + (route.id || "");
+    var key = r.view + (r.id || "");
     if (key !== lastView) { window.scrollTo(0, 0); lastView = key; }
-    document.title = route.view === "script" ? L(BY_ID[route.id].title) + " · VFX Cave" : "VFX Cave";
+    document.title = r.view === "script" ? L(BY_ID[r.id].title) + " · VFX Cave" : "VFX Cave";
   }
 
   document.querySelector(".lang").addEventListener("click", function (e) {
@@ -1301,9 +1515,14 @@ footer.foot a { color: var(--dust); }
     state.lang = b.getAttribute("data-lang");
     save("lang", state.lang);
     var y = window.scrollY;
-    lastView = currentView().view + (currentView().id || "");
+    lastView = route().view + (route().id || "");
     render();
     window.scrollTo(0, y);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ""))) return;
+    var q = document.getElementById("q");
+    if (q) { e.preventDefault(); q.focus(); }
   });
   window.addEventListener("hashchange", render);
   render();

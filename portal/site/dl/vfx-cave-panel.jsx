@@ -208,7 +208,24 @@
         return;
     }
 
+    // ---------------------------------------------------------- settings
+    function getSetting(key, fallback) {
+        try { if (app.settings.haveSetting(SECTION, key)) return app.settings.getSetting(SECTION, key); } catch (e) {}
+        return fallback;
+    }
+    function setSetting(key, value) {
+        try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}
+    }
+
     // ----------------------------------------------------------- strings
+    // English first: most artists run AE in English and expect its terms.
+    // Russian is opt-in through the "lang" setting (app.settings, section "VFX Cave").
+    var LANG = getSetting("lang", "en") === "ru" ? "ru" : "en";
+    function localize(o) {
+        var s = typeof o === "string" ? o : (o[LANG] || o.en);
+        for (var i = 1; i < arguments.length; i++) s = s.split("%" + i).join(String(arguments[i]));
+        return s;
+    }
     var S = {
         search: localize({ en: "Search", ru: "Поиск" }),
         refresh: localize({ en: "Refresh", ru: "Обновить" }),
@@ -258,17 +275,7 @@
             menu: localize({ en: "call menu commands", ru: "вызывать команды меню" })
         }
     };
-    var LANG = $.locale && $.locale.indexOf("ru") === 0 ? "ru" : "en";
     function L(o) { return o ? (o[LANG] || o.en || o.ru || "") : ""; }
-
-    // ---------------------------------------------------------- settings
-    function getSetting(key, fallback) {
-        try { if (app.settings.haveSetting(SECTION, key)) return app.settings.getSetting(SECTION, key); } catch (e) {}
-        return fallback;
-    }
-    function setSetting(key, value) {
-        try { app.settings.saveSetting(SECTION, key, value); } catch (e) {}
-    }
     // installed: "id=sha|id=sha"
     function readMap(key) {
         var out = {}, raw = getSetting(key, ""), parts = raw ? raw.split("|") : [];
