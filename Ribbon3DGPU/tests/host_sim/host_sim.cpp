@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include "core/RibbonGeometry.h"
@@ -13,8 +14,10 @@
 #include <vector>
 
 #include "Ribbon3D.h"
+#include "Ribbon3D_Presets.h"
 
 static std::vector<PF_ParamDef> gDefs;
+static std::vector<PF_ParamDef> gInitialDefs;  // right after PARAMS_SETUP
 static const int W = 960, H = 540;
 
 // ---- param callbacks
@@ -327,7 +330,11 @@ static void MakeGradientLayer() {
             p[0] = f * a; p[1] = 0; p[2] = (1 - f) * a; p[3] = a;  // BGRA premultiplied
         }
 }
-static float InputGrey(int x) { return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f; }
+static bool gBackdrop = false;  // preview images: a dark studio backdrop with a faint checker
+static float InputGrey(int x, int y) {
+    if (gBackdrop) return 0.17f - 0.11f * float(y) / H + (((x / 48) + (y / 48)) % 2 ? 0.025f : 0.0f);
+    return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f;
+}
 static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderRequest* req, A_long, A_long, A_u_long, PF_CheckoutResult* r) {
     std::memset(r, 0, sizeof(*r));
     if (index == RB_INPUT) {
@@ -408,7 +415,7 @@ static std::vector<float> RunCPU(int bpc) {
     std::vector<char> sbuf(W * H * px), dbuf(W * H * px);
     gSrc = {sbuf.data(), A_long(W * px), W, H}; gDst = {dbuf.data(), A_long(W * px), W, H};
     for (int i = 0; i < W * H; i++) {  // opaque input: dark grey, or vertical stripes
-        float v = InputGrey(i % W);
+        float v = InputGrey(i % W, i / W);
         if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)sbuf.data() + i; p->alpha = 1; p->red = p->green = p->blue = v; }
         else { PF_Pixel8* p = (PF_Pixel8*)sbuf.data() + i; p->alpha = 255; p->red = p->green = p->blue = (unsigned char)(v * 255 + 0.5f); }
     }
@@ -485,7 +492,7 @@ static std::vector<float> RunGPU() {
     PreRenderChecked(&in, &out, &pre);
     if (!(pout.flags & PF_RenderOutputFlag_GPU_RENDER_POSSIBLE)) { std::printf("GPU render not offered\n"); return {}; }
     std::vector<float> host(W * H * 4);
-    for (int i = 0; i < W * H; i++) { host[i * 4] = host[i * 4 + 1] = host[i * 4 + 2] = InputGrey(i % W); host[i * 4 + 3] = 1; }
+    for (int i = 0; i < W * H; i++) { host[i * 4] = host[i * 4 + 1] = host[i * 4 + 2] = InputGrey(i % W, i / W); host[i * 4 + 3] = 1; }
     cl_mem envMem = nullptr;
     if (gEnvOn) {  // GPU worlds live on the device: the effect has to read the HDRI back
         cl_int ee;
@@ -1329,6 +1336,109 @@ static int TestMultiMask() {
     return fails;
 }
 
+// Presets: picking one in the popup applies it, Apply Preset applies it again; either way the look
+// starts from the defaults (whatever was set before), while the path, its trim, Path Transform,
+// lights and render settings stay. Every preset renders, on CPU and GPU alike. With dir set, a
+// preview of each preset goes there (preset_NN.ppm).
+static int TestPresets(const char* dir) {
+    int fails = 0;
+    ResetComp();
+    gDefs = gInitialDefs;
+    const int n = RibbonPresetCount();
+    const std::string menu = RibbonPresetMenu();
+    const int items = 1 + int(std::count(menu.begin(), menu.end(), '|'));
+    if (n != 20 || items != n + 1 || menu.compare(0, 5, "None|") != 0) { std::printf("FAIL: preset menu (%d presets, %d items)\n", n, items); fails++; }
+    // The user's own settings outside the look.
+    gDefs[RB_START - 1].u.fs_d.value = 5;
+    gDefs[RB_END - 1].u.fs_d.value = 95;
+    gDefs[RB_XF_OFF_Y - 1].u.fs_d.value = 10;
+    gDefs[RB_LIGHT_INTENSITY - 1].u.fs_d.value = 110;
+    gDefs[RB_TEX_REPEAT - 1].u.fs_d.value = 3;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;  // Over Layer
+    const std::vector<PF_ParamDef> user = gDefs;
+    auto same = [](const PF_ParamDef& a, const PF_ParamDef& b) { return std::memcmp(&a.u, &b.u, sizeof(a.u)) == 0; };
+    auto mess = [] {  // look settings a preset must clear
+        gDefs[RB_THICKNESS - 1].u.fs_d.value = 33;
+        gDefs[RB_GLOSS - 1].u.fs_d.value = 900;
+        gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_RANDOM;
+        gDefs[RB_WIND_STRENGTH - 1].u.fs_d.value = 50;
+        gDefs[RB_REP_COPIES - 1].u.sd.value = 3;
+        gDefs[RB_GLASS - 1].u.bd.value = 1;
+        gDefs[RB_FRONT_COLOR - 1].u.cd.value = {255, 0, 255, 0};
+        gDefs[RB_TWIST_ANGLE - 1].u.ad.value = 45 << 16;
+    };
+    PF_OutData out;
+    PressButton(RB_PRESET_APPLY, out);  // "None": a message, nothing changes
+    bool none = (out.out_flags & PF_OutFlag_DISPLAY_ERROR_MESSAGE) != 0;
+    for (size_t i = 0; i < gDefs.size(); i++) none = none && same(gDefs[i], user[i]);
+    PressButton(RB_PRESET, out);  // picking "None" in the popup: quietly nothing
+    none = none && !(out.out_flags & PF_OutFlag_DISPLAY_ERROR_MESSAGE);
+    for (size_t i = 0; i < gDefs.size(); i++) none = none && same(gDefs[i], user[i]);
+    if (!none) { std::printf("FAIL: preset None\n"); fails++; }
+
+    int bad = 0;
+    for (int p = 0; p < n; p++) {
+        gDefs = user;
+        mess();
+        gDefs[RB_PRESET - 1].u.pd.value = p + 2;
+        PressButton(RB_PRESET, out);
+        const std::vector<PF_ParamDef> picked = gDefs;
+        const bool flags = (out.out_flags & PF_OutFlag_FORCE_RERENDER) && (out.out_flags & PF_OutFlag_REFRESH_UI);
+        gDefs = user;
+        gDefs[RB_PRESET - 1].u.pd.value = p + 2;
+        PressButton(RB_PRESET_APPLY, out);
+        int differ = 0, kept = 0, changed = 0;
+        for (int i = 1; i < RB_NUM_PARAMS; i++) {
+            const size_t k = size_t(i - 1);
+            differ += !same(picked[k], gDefs[k]);
+            if (i != RB_PRESET && !RibbonIsLookParam(i)) kept += !same(gDefs[k], user[k]);
+            if (RibbonIsLookParam(i)) changed += !same(gDefs[k], gInitialDefs[k]);
+        }
+        std::vector<float> c = RunCPU(32), g = RunGPU();
+        size_t cover = 0, off = 0;
+        for (size_t i = 0; i + 3 < c.size(); i += 4) {
+            cover += std::fabs(c[i + 2] - 0.2f) > 2e-3f || std::fabs(c[i + 1] - 0.2f) > 2e-3f;
+            double d = 0;
+            for (int q = 0; q < 4 && i + q < g.size(); q++) d = std::max(d, double(std::fabs(c[i + q] - g[i + q])));
+            off += g.size() != c.size() || d > 2e-3;
+        }
+        std::string nm = menu;
+        size_t a = 0;
+        for (int q = 0; q <= p; q++) a = nm.find('|', a) + 1;
+        nm = nm.substr(a, nm.find('|', a) - a);
+        const bool ok = flags && differ == 0 && kept == 0 && changed >= 3 && cover > 3000 && off <= 60;
+        std::printf("preset %2d %-18s %2d look params set, %6zu px drawn, CPU vs GPU %3zu px differ%s\n", p + 1, nm.c_str(), changed,
+                    cover, off, ok ? "" : "  <-- FAIL");
+        if (!ok) {
+            std::printf("   flags %d, popup vs button %d params differ, %d kept params changed\n", int(flags), differ, kept);
+            bad++;
+        }
+        if (dir) {  // preview: the preset alone, over a dark backdrop
+            gBackdrop = true;
+            gDefs[RB_START - 1].u.fs_d.value = 0;
+            gDefs[RB_END - 1].u.fs_d.value = 100;
+            gDefs[RB_XF_OFF_Y - 1].u.fs_d.value = 0;
+            gDefs[RB_LIGHT_INTENSITY - 1].u.fs_d.value = 100;
+            std::vector<float> img = RunCPU(32);
+            gBackdrop = false;
+            char path[512];
+            std::snprintf(path, sizeof(path), "%s/preset_%02d.ppm", dir, p + 1);
+            if (FILE* f = std::fopen(path, "wb")) {
+                std::fprintf(f, "P6 %d %d 255\n", W, H);
+                for (int i = 0; i < W * H; i++)
+                    for (int ch = 2; ch >= 0; ch--) {
+                        float v = std::min(1.0f, std::max(0.0f, img[size_t(i) * 4 + ch]));
+                        std::fputc(int(v * 255 + 0.5f), f);
+                    }
+                std::fclose(f);
+            }
+        }
+    }
+    if (bad) { std::printf("FAIL: %d presets\n", bad); fails++; }
+    gDefs = gInitialDefs;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -1336,6 +1446,7 @@ int main(int argc, char** argv) {
     if (EffectMain(PF_Cmd_GLOBAL_SETUP, &in, &out, nullptr, nullptr, nullptr)) return 1;
     if (EffectMain(PF_Cmd_PARAMS_SETUP, &in, &out, nullptr, nullptr, nullptr)) return 1;
     std::printf("params: %zu added, num_params %d (expected %d incl. input)\n", gDefs.size(), out.num_params, RB_NUM_PARAMS);
+    gInitialDefs = gDefs;
     int fails = 0;
     if (int(gDefs.size()) + 1 != out.num_params) { std::printf("FAIL: param count mismatch\n"); fails++; }
     if (gDefs[RB_COMPOSITE - 1].u.pd.value != 3) { std::printf("FAIL: Composite does not default to Ribbon Only\n"); fails++; }
@@ -1409,6 +1520,7 @@ int main(int argc, char** argv) {
     fails += TestGradient();
     fails += TestSections();
     fails += TestRepeater();
+    fails += TestPresets(std::getenv("RB_PRESET_DIR"));
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

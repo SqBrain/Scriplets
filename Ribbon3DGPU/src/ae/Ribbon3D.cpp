@@ -14,6 +14,7 @@
 
 #include "Ribbon3D_GPU.h"
 #include "Ribbon3D_Nulls.h"
+#include "Ribbon3D_Presets.h"
 #include "Ribbon3D_Suite.h"
 #include "core/RibbonCPU.h"
 #include "core/RibbonGeometry.h"
@@ -127,10 +128,19 @@ struct AddOrder {
 #define RB_ID(param) (order.check(param), RB_DISK_ID(param))
 #define RB_CLR() AEFX_CLR_STRUCT(def)
 
-PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
+PF_Err ParamsSetup(PF_InData* host_in_data, PF_OutData* out_data) {
     PF_Err err = PF_Err_NONE;
     PF_ParamDef def;
     AddOrder order;
+    // The parameters reach the host through a copy of in_data that also keeps their defaults.
+    PF_InData recorder = RibbonPresetRecorder(host_in_data);
+    PF_InData* in_data = &recorder;
+
+    // ---- presets
+    RB_CLR();
+    def.flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY;  // picking one applies it
+    PF_ADD_POPUP("Preset", 1 + RibbonPresetCount(), 1, RibbonPresetMenu(), RB_ID(RB_PRESET));
+    PF_ADD_BUTTON("Apply Preset", "Apply", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_PRESET_APPLY));
 
     // ---- the path and the ribbon along it
     RB_CLR();
@@ -1331,6 +1341,8 @@ extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutDat
                 const PF_UserChangedParamExtra* ex = static_cast<const PF_UserChangedParamExtra*>(extra);
                 if (ex && ex->param_index == RB_MAKE_NULLS) err = RibbonMakeNullsFromMask(in_data, out_data, params);
                 if (ex && ex->param_index == RB_FIT_CONFIGURE) err = ConfigureFromLayer(in_data, out_data, params);
+                if (ex && ex->param_index == RB_PRESET) err = RibbonApplyPreset(in_data, out_data, params, true);
+                if (ex && ex->param_index == RB_PRESET_APPLY) err = RibbonApplyPreset(in_data, out_data, params, false);
                 break;
             }
             default: break;

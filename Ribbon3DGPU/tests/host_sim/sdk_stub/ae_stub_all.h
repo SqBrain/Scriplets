@@ -24,7 +24,7 @@ enum { PF_Cmd_ABOUT, PF_Cmd_GLOBAL_SETUP, PF_Cmd_PARAMS_SETUP, PF_Cmd_SMART_PRE_
        PF_Cmd_GPU_DEVICE_SETUP, PF_Cmd_GPU_DEVICE_SETDOWN, PF_Cmd_SMART_RENDER_GPU, PF_Cmd_USER_CHANGED_PARAM };
 typedef A_long PF_ParamIndex;
 typedef struct { PF_ParamIndex param_index; } PF_UserChangedParamExtra;
-enum { PF_ParamFlag_SUPERVISE = 1 << 6 };
+enum { PF_ParamFlag_CANNOT_TIME_VARY = 1 << 1, PF_ParamFlag_SUPERVISE = 1 << 6 };
 enum { PF_ChangeFlag_CHANGED_VALUE = 1 };
 enum { PF_OutFlag_REFRESH_UI = 1 << 3, PF_OutFlag_DISPLAY_ERROR_MESSAGE = 1 << 13, PF_OutFlag_FORCE_RERENDER = 1 << 22 };
 typedef unsigned short A_UTF16Char;
@@ -39,7 +39,9 @@ typedef struct { void* data; A_long rowbytes; A_long width, height; } PF_LayerDe
 typedef struct { A_long num; A_u_long den; } PF_RationalScale;
 typedef struct { A_long left, top, right, bottom; } PF_LRect;
 #define PF_PathID_NONE 0
-enum { PF_Param_LAYER, PF_Param_BUTTON = 23, PF_Param_PATH = 12 };
+enum { PF_Param_LAYER = 0, PF_Param_SLIDER, PF_Param_FIX_SLIDER, PF_Param_ANGLE, PF_Param_CHECKBOX, PF_Param_COLOR, PF_Param_POINT,
+       PF_Param_POPUP, PF_Param_CUSTOM, PF_Param_NO_DATA, PF_Param_FLOAT_SLIDER, PF_Param_ARBITRARY_DATA, PF_Param_PATH,
+       PF_Param_GROUP_START, PF_Param_GROUP_END, PF_Param_BUTTON };
 typedef struct {
   union { struct { PF_FpLong value; } fs_d; struct { A_long value; } sd; struct { A_long value; } bd; struct { PF_Fixed value; } ad;
           struct { A_long value; } pd; struct { PF_Pixel value, dephault; } cd; struct { PF_PathID path_id; A_long reserved0; A_long dephault; } path_d; } u;
@@ -66,17 +68,17 @@ enum { PF_ValueDisplayFlag_NONE = 0, PF_ValueDisplayFlag_PERCENT = 1 };
 enum { PF_LayerDefault_NONE = 0, PF_LayerDefault_MYSELF = -1 };
 #define PF_DEF_NAME name_do_not_use_directly
 #define PF_STUB_ADD(NAME, ID) do { std::strncpy(def.PF_DEF_NAME, NAME, 31); def.uu.id = (ID); ERR(PF_ADD_PARAM(in_data, -1, &def)); } while (0)
-#define PF_ADD_SLIDER(N, a, b, c, d, DF, ID) do { def.u.sd.value = DF; PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_FLOAT_SLIDERX(N, a, b, c, d, DF, P, DISP, FL, ID) do { def.u.fs_d.value = DF; (void)(P); (void)(DISP); def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_ANGLE(N, DF, ID) do { def.u.ad.value = (DF) * 65536; PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_CHECKBOX(N, NB, DF, FL, ID) do { def.u.bd.value = DF; def.flags = FL; (void)(NB); PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_CHECKBOXX(N, DF, FL, ID) do { def.u.bd.value = DF; def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_COLOR(N, R, G, B, ID) do { def.u.cd.value.red = R; def.u.cd.value.green = G; def.u.cd.value.blue = B; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_SLIDER(N, a, b, c, d, DF, ID) do { def.param_type = PF_Param_SLIDER; def.u.sd.value = DF; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_FLOAT_SLIDERX(N, a, b, c, d, DF, P, DISP, FL, ID) do { def.param_type = PF_Param_FLOAT_SLIDER; def.u.fs_d.value = DF; (void)(P); (void)(DISP); def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_ANGLE(N, DF, ID) do { def.param_type = PF_Param_ANGLE; def.u.ad.value = (DF) * 65536; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_CHECKBOX(N, NB, DF, FL, ID) do { def.param_type = PF_Param_CHECKBOX; def.u.bd.value = DF; def.flags = FL; (void)(NB); PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_CHECKBOXX(N, DF, FL, ID) do { def.param_type = PF_Param_CHECKBOX; def.u.bd.value = DF; def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_COLOR(N, R, G, B, ID) do { def.param_type = PF_Param_COLOR; def.u.cd.value.red = R; def.u.cd.value.green = G; def.u.cd.value.blue = B; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_LAYER(N, DF, ID) do { def.param_type = PF_Param_LAYER; (void)(DF); PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_POPUP(N, C, DF, STR, ID) do { def.u.pd.value = DF; (void)(C); (void)(STR); PF_STUB_ADD(N, ID); } while (0)
-#define PF_ADD_TOPIC(N, ID) PF_STUB_ADD(N, ID)
+#define PF_ADD_POPUP(N, C, DF, STR, ID) do { def.param_type = PF_Param_POPUP; def.u.pd.value = DF; (void)(C); (void)(STR); PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_TOPIC(N, ID) do { def.param_type = PF_Param_GROUP_START; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_BUTTON(N, BN, PUI, FL, ID) do { AEFX_CLR_STRUCT(def); def.param_type = PF_Param_BUTTON; def.flags = (FL); def.ui_flags = (PUI); (void)(BN); PF_STUB_ADD(N, ID); } while (0)
-#define PF_END_TOPIC(ID) PF_STUB_ADD("", ID)
+#define PF_END_TOPIC(ID) do { def.param_type = PF_Param_GROUP_END; PF_STUB_ADD("", ID); } while (0)
 enum { PF_Stage_DEVELOP, PF_Stage_ALPHA, PF_Stage_BETA, PF_Stage_RELEASE };
 #define PF_VERSION(V, S, B, ST, BLD) (((V) << 19) | ((S) << 15) | ((B) << 11) | ((ST) << 9) | (BLD))
 enum { PF_OutFlag_NON_PARAM_VARY = 1 << 2, PF_OutFlag_DEEP_COLOR_AWARE = 1 << 25 };

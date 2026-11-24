@@ -47,6 +47,8 @@
 // between versions; saved projects identify parameters by their disk IDs (below), which never do.
 enum {
     RB_INPUT = 0,
+    RB_PRESET,            // popup: "None" and the built-in presets (Ribbon3D_Presets.cpp)
+    RB_PRESET_APPLY,      // button: apply the chosen preset again
     RB_PATH,              // hidden in the multi-mask effect
     RB_TRIM_MASKS,        // multi-mask effect: 1: Simultaneously, 2: Individually (hidden in the other)
     RB_SEGMENTS,
@@ -379,6 +381,9 @@ enum {
     D_RB_REP_FAN,
     D_RB_REP_CONE,
     D_RB_REP_LENGTH,
+    // 0.1.15
+    D_RB_PRESET,
+    D_RB_PRESET_APPLY,
     D_RB_DISK_END
 };
 

@@ -44,7 +44,7 @@ build_variant() {
 
     echo "== $name: compile"
     local srcs=(src/core/RibbonGeometry.cpp src/core/RibbonPacket.cpp src/core/RibbonCPU.cpp
-          src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp)
+          src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp src/ae/Ribbon3D_Presets.cpp)
     local objs=()
     for s in "${srcs[@]}"; do
         local o="$vobj/$(basename "${s%.cpp}").o"
