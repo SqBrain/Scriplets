@@ -21,7 +21,8 @@ bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool clo
 
 // PreRender: mixes the control nulls' transforms into AE's cache key, so moving, rotating or
 // scaling a null re-renders the effect (AE does not track other layers' transforms for us).
-PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra);
+// Must be called on every pre-render (AE checks it); with useNulls false only a marker is mixed.
+PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra, bool useNulls);
 
 // Handle-length ratio and tangent direction of a mask vertex (exposed for tests).
 struct RibbonMaskVertex {

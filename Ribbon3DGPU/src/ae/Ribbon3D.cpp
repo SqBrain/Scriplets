@@ -80,8 +80,8 @@ double Ratio(const PF_RationalScale& s) { return s.den ? double(s.num) / double(
 
 PF_Err About(PF_InData* in_data, PF_OutData* out_data) {
     (void)in_data;
-    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "%s v%d.%d\r%s", RB_NAME, RB_MAJOR_VERSION,
-                  RB_MINOR_VERSION, RB_DESCRIPTION);
+    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "%s v%d.%d.%d\r%s", RB_NAME, RB_MAJOR_VERSION,
+                  RB_MINOR_VERSION, RB_BUG_VERSION, RB_DESCRIPTION);
     return PF_Err_NONE;
 }
 
@@ -289,8 +289,14 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         if (!err) prd->hasTexture = true;
     }
 
-    // Control nulls are other layers: tell AE's cache about their current transforms.
-    if (!err && Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS) err = RibbonMixInControlNulls(in_data, extra);
+    // Control nulls are other layers: tell AE's cache about their current transforms. With
+    // PF_OutFlag2_I_MIX_GUID_DEPENDENCIES AE requires GuidMixInPtr on EVERY pre-render (else
+    // "internal verification failure"), so it is called in every mode and even after an error.
+    {
+        const bool useNulls = Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS;
+        PF_Err mixErr = RibbonMixInControlNulls(in_data, extra, useNulls);
+        if (!err) err = mixErr;
+    }
 
     if (err) {
         delete prd;

@@ -245,10 +245,25 @@ static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderReq
     return PF_Err_NONE;  // texture: no layer selected
 }
 static std::vector<unsigned char> gGuid;  // what the effect mixed into the cache key in the last PreRender
+static int gGuidCalls = 0;                  // GuidMixInPtr calls in the current PreRender
+static int gVerifyFailures = 0;             // pre-renders AE would reject ("internal verification failure")
+static bool gMixFlag = false;               // effect declared PF_OutFlag2_I_MIX_GUID_DEPENDENCIES
 static PF_Err GuidMixIn(PF_ProgPtr, A_u_long n, const void* buf) {
     const unsigned char* b = static_cast<const unsigned char*>(buf);
     gGuid.insert(gGuid.end(), b, b + n);
+    gGuidCalls++;
     return PF_Err_NONE;
+}
+// SMART_PRE_RENDER the way AE checks it: with I_MIX_GUID_DEPENDENCIES the effect must call
+// GuidMixInPtr every time, whatever its parameters are.
+static PF_Err PreRenderChecked(PF_InData* in, PF_OutData* out, PF_PreRenderExtra* pre) {
+    gGuidCalls = 0;
+    PF_Err e = EffectMain(PF_Cmd_SMART_PRE_RENDER, in, out, nullptr, nullptr, pre);
+    if (gMixFlag && gGuidCalls == 0) {
+        std::printf("FAIL: I_MIX_GUID_DEPENDENCIES effect missing call to GuidMixInPtr during SMART_PRE_RENDER\n");
+        gVerifyFailures++;
+    }
+    return e;
 }
 static PF_EffectWorld gSrc, gDst;
 static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) { *w = id == RB_CHECKOUT_INPUT ? &gSrc : nullptr; return PF_Err_NONE; }
@@ -271,7 +286,7 @@ static std::vector<float> RunCPU(int bpc) {
     PF_PreRenderOutput pout; std::memset(&pout, 0, sizeof(pout));
     PF_PreRenderCallbacks pcb = {CheckoutLayer, GuidMixIn};
     PF_PreRenderExtra pre = {&pin, &pout, &pcb};
-    if (EffectMain(PF_Cmd_SMART_PRE_RENDER, &in, &out, nullptr, nullptr, &pre)) { std::printf("prerender failed\n"); return {}; }
+    if (PreRenderChecked(&in, &out, &pre)) { std::printf("prerender failed\n"); return {}; }
     size_t px = bpc == 32 ? 16 : 4;
     std::vector<char> sbuf(W * H * px), dbuf(W * H * px);
     gSrc = {sbuf.data(), A_long(W * px), W, H}; gDst = {dbuf.data(), A_long(W * px), W, H};
@@ -305,7 +320,7 @@ static std::vector<float> RunGPU() {
     PF_PreRenderOutput pout; std::memset(&pout, 0, sizeof(pout));
     PF_PreRenderCallbacks pcb = {CheckoutLayer, GuidMixIn};
     PF_PreRenderExtra pre = {&pin, &pout, &pcb};
-    EffectMain(PF_Cmd_SMART_PRE_RENDER, &in, &out, nullptr, nullptr, &pre);
+    PreRenderChecked(&in, &out, &pre);
     if (!(pout.flags & PF_RenderOutputFlag_GPU_RENDER_POSSIBLE)) { std::printf("GPU render not offered\n"); return {}; }
     std::vector<float> host(W * H * 4);
     for (int i = 0; i < W * H; i++) { host[i * 4] = host[i * 4 + 1] = host[i * 4 + 2] = 0.2f; host[i * 4 + 3] = 1; }
@@ -435,7 +450,8 @@ int main(int argc, char** argv) {
     std::printf("params: %zu added, num_params %d (expected %d incl. input)\n", gDefs.size(), out.num_params, RB_NUM_PARAMS);
     int fails = 0;
     if (int(gDefs.size()) + 1 != out.num_params) { std::printf("FAIL: param count mismatch\n"); fails++; }
-    if (!(out.out_flags2 & PF_OutFlag2_I_MIX_GUID_DEPENDENCIES)) { std::printf("FAIL: I_MIX_GUID_DEPENDENCIES not set\n"); fails++; }
+    gMixFlag = (out.out_flags2 & PF_OutFlag2_I_MIX_GUID_DEPENDENCIES) != 0;
+    if (!gMixFlag) { std::printf("FAIL: I_MIX_GUID_DEPENDENCIES not set\n"); fails++; }
 
     cl_platform_id plat; clGetPlatformIDs(1, &plat, nullptr);
     clGetDeviceIDs(plat, CL_DEVICE_TYPE_ALL, 1, &gDev, nullptr);
@@ -478,6 +494,8 @@ int main(int argc, char** argv) {
         for (int i = 0; i < W * H; i++) for (int c = 2; c >= 0; c--) std::fputc(int(std::min(1.0f, std::max(0.0f, g[i * 4 + c])) * 255 + 0.5f), f);
         std::fclose(f);
     }
+    if (gVerifyFailures) std::printf("FAIL: %d pre-renders AE would reject\n", gVerifyFailures);
+    fails += gVerifyFailures;
     std::printf(fails ? "host simulation FAILED\n" : "host simulation OK\n");
     return fails;
 }

@@ -326,16 +326,20 @@ bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool clo
     return true;
 }
 
-PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra) {
-    A_Time compTime = {0, 1};
-    {
-        Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
-        if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
-    }
+PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra, bool useNulls) {
     std::vector<rb::ControlPoint> cps;
-    RibbonReadControlPoints(in_data, compTime, cps);
+    if (useNulls) {
+        A_Time compTime = {0, 1};
+        {
+            Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+            if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
+        }
+        RibbonReadControlPoints(in_data, compTime, cps);
+    }
     // Everything the render uses from the nulls: position, tangent and up axes, handle scale.
+    // Never empty: the mode marker comes first (mask mode mixes just that).
     std::vector<double> key;
+    key.push_back(useNulls ? 1.0 : 0.0);
     key.push_back(double(cps.size()));
     for (const rb::ControlPoint& c : cps) {
         const rb::V3* v[3] = {&c.pos, &c.axisX, &c.axisZ};
@@ -346,5 +350,6 @@ PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra) {
         }
         key.push_back(c.handleScale);
     }
+    if (!extra->cb->GuidMixInPtr) return PF_Err_NONE;
     return extra->cb->GuidMixInPtr(in_data->effect_ref, A_u_long(key.size() * sizeof(double)), key.data());
 }
