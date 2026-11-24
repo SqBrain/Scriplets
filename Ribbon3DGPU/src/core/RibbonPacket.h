@@ -38,6 +38,7 @@ struct LightDesc {
 
 struct Material {
     V3 front{0.80, 0.07, 0.16}, back{0.96, 0.80, 0.52};   // gamma-encoded
+    V3 edge{0.80, 0.07, 0.16};                            // edges of a solid ribbon, gamma-encoded
     double ambient = 0.15, diffuse = 0.9, specular = 0.6, gloss = 40;
     double satin = 0.5, sheen = 0.25, translucency = 0.15, metal = 0;
     double texRepeat = 1, texOffset = 0;

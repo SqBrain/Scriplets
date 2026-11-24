@@ -71,8 +71,6 @@ int main(int argc, char** argv) {
     par.type = RK_LIGHT_PARALLEL; par.dir = V3(-1, 1, 1); par.intensity = 0.4;
     lights.push_back(spot);
     lights.push_back(par);
-    Packet pk;
-    buildPacket(buildRibbon(p2, rs), defaultCamera(W, H), lights, mat, W, H, pk);
     std::vector<float> tex(size_t(TW) * TH * 4);
     for (int y = 0; y < TH; y++)
         for (int x = 0; x < TW; x++) {
@@ -81,53 +79,66 @@ int main(int argc, char** argv) {
             float a = (x % 16 == 0) ? 0.0f : 1.0f;  // transparent stripes
             t[0] = (c ? 0.9f : 0.1f) * a; t[1] = 0.5f * a; t[2] = (c ? 0.2f : 0.8f) * a; t[3] = a;
         }
-    setTexture(pk, TW, TH, TW);
     test::Image src(W, H, 0.1f, 0.2f, 0.3f, 1.0f);
-    test::Image cpu = test::render(pk, src, tex.data());
 
-    auto buf = [&](const void* data, size_t bytes, cl_mem_flags fl) {
-        cl_int e;
-        cl_mem m = clCreateBuffer(ctx, fl | (data ? CL_MEM_COPY_HOST_PTR : 0), bytes, const_cast<void*>(data), &e);
-        return m;
+    // Renders the packet with the CPU path and the OpenCL kernel and compares them.
+    auto runCase = [&](const char* name, Packet& pk) -> int {
+        setTexture(pk, TW, TH, TW);
+        test::Image cpu = test::render(pk, src, tex.data());
+        auto buf = [&](const void* data, size_t bytes, cl_mem_flags fl) {
+            cl_int e;
+            return clCreateBuffer(ctx, fl | (data ? CL_MEM_COPY_HOST_PTR : 0), bytes, const_cast<void*>(data), &e);
+        };
+        cl_mem args[] = {buf(&pk.params, sizeof(RK_Params), CL_MEM_READ_ONLY),
+                         buf(pk.tris.data(), pk.tris.size() * sizeof(RK_Tri), CL_MEM_READ_ONLY),
+                         buf(pk.verts.data(), pk.verts.size() * sizeof(RK_Vertex), CL_MEM_READ_ONLY),
+                         buf(pk.tileStart.data(), pk.tileStart.size() * sizeof(int), CL_MEM_READ_ONLY),
+                         buf(pk.tileTris.data(), pk.tileTris.size() * sizeof(int), CL_MEM_READ_ONLY),
+                         buf(pk.lights.data(), pk.lights.size() * sizeof(RK_Light), CL_MEM_READ_ONLY),
+                         buf(tex.data(), tex.size() * sizeof(float), CL_MEM_READ_ONLY),
+                         buf(src.bgra.data(), src.bgra.size() * sizeof(float), CL_MEM_READ_ONLY),
+                         buf(nullptr, src.bgra.size() * sizeof(float), CL_MEM_WRITE_ONLY)};
+        for (cl_uint i = 0; i < 9; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
+        size_t local[2] = {16, 16}, global[2] = {size_t((W + 15) / 16 * 16), size_t((H + 15) / 16 * 16)};
+        auto t0 = std::chrono::steady_clock::now();
+        CL_CHECK(clEnqueueNDRangeKernel(q, k, 2, nullptr, global, local, 0, nullptr, nullptr));
+        CL_CHECK(clFinish(q));
+        double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+        test::Image gpu(W, H);
+        CL_CHECK(clEnqueueReadBuffer(q, args[8], CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
+        for (cl_mem m : args) clReleaseMemObject(m);
+
+        double maxDiff = 0, sumDiff = 0;
+        int bad = 0;
+        for (size_t i = 0; i < cpu.bgra.size(); i++) {
+            double d = std::fabs(double(cpu.bgra[i]) - gpu.bgra[i]);
+            maxDiff = std::max(maxDiff, d);
+            sumDiff += d;
+            if (d > 1e-3) bad++;
+        }
+        std::printf("[%s] %zu tris, OpenCL kernel %.1f ms; CPU vs OpenCL: max |diff| %.2e, mean %.2e, values > 1e-3: %d of %zu\n",
+                    name, pk.tris.size(), ms, maxDiff, sumDiff / cpu.bgra.size(), bad, cpu.bgra.size());
+        if (argc > 1) {
+            const float bg[3] = {0, 0, 0};
+            test::writePNG(std::string(argv[1]) + "/opencl_" + name + ".png", gpu, bg);
+        }
+        // Rare edge-sample flips (float rounding exactly on a shared edge) are allowed, nothing else.
+        return bad < int(cpu.bgra.size() / 20000) + 8 ? 0 : 1;
     };
-    cl_mem bP = buf(&pk.params, sizeof(RK_Params), CL_MEM_READ_ONLY);
-    cl_mem bT = buf(pk.tris.data(), pk.tris.size() * sizeof(RK_Tri), CL_MEM_READ_ONLY);
-    cl_mem bV = buf(pk.verts.data(), pk.verts.size() * sizeof(RK_Vertex), CL_MEM_READ_ONLY);
-    cl_mem bS = buf(pk.tileStart.data(), pk.tileStart.size() * sizeof(int), CL_MEM_READ_ONLY);
-    cl_mem bI = buf(pk.tileTris.data(), pk.tileTris.size() * sizeof(int), CL_MEM_READ_ONLY);
-    cl_mem bL = buf(pk.lights.data(), pk.lights.size() * sizeof(RK_Light), CL_MEM_READ_ONLY);
-    cl_mem bX = buf(tex.data(), tex.size() * sizeof(float), CL_MEM_READ_ONLY);
-    cl_mem bSrc = buf(src.bgra.data(), src.bgra.size() * sizeof(float), CL_MEM_READ_ONLY);
-    cl_mem bDst = buf(nullptr, src.bgra.size() * sizeof(float), CL_MEM_WRITE_ONLY);
-    cl_mem args[] = {bP, bT, bV, bS, bI, bL, bX, bSrc, bDst};
-    for (cl_uint i = 0; i < 9; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
-    size_t local[2] = {16, 16}, global[2] = {size_t((W + 15) / 16 * 16), size_t((H + 15) / 16 * 16)};
-    auto t0 = std::chrono::steady_clock::now();
-    CL_CHECK(clEnqueueNDRangeKernel(q, k, 2, nullptr, global, local, 0, nullptr, nullptr));
-    CL_CHECK(clFinish(q));
-    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-    test::Image gpu(W, H);
-    CL_CHECK(clEnqueueReadBuffer(q, bDst, CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
 
-    double maxDiff = 0, sumDiff = 0;
-    int bad = 0;
-    for (size_t i = 0; i < cpu.bgra.size(); i++) {
-        double d = std::fabs(double(cpu.bgra[i]) - gpu.bgra[i]);
-        maxDiff = std::max(maxDiff, d);
-        sumDiff += d;
-        if (d > 1e-3) bad++;
-    }
-    std::printf("OpenCL kernel %.1f ms; CPU vs OpenCL: max |diff| %.2e, mean %.2e, values > 1e-3: %d of %zu\n", ms, maxDiff,
-                sumDiff / cpu.bgra.size(), bad, cpu.bgra.size());
-    if (argc > 1) {
-        const float bg[3] = {0, 0, 0};
-        test::writePNG(std::string(argv[1]) + "/opencl.png", gpu, bg);
-        test::writePNG(std::string(argv[1]) + "/opencl_cpu.png", cpu, bg);
-    }
-    // Rare edge-sample flips (float rounding exactly on a shared edge) are allowed, nothing else.
-    bool ok = bad < int(cpu.bgra.size() / 20000) + 8;
+    Packet sheet;
+    buildPacket(buildRibbon(p2, rs), defaultCamera(W, H), lights, mat, W, H, sheet);
+    RibbonSettings thick = rs;
+    thick.thickness = 14; thick.bevel = 4; thick.bevelSegments = 4;
+    Packet solid;
+    mat.edge = V3(0.9, 0.85, 0.7);
+    buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, mat, W, H, solid);
+    thick.chamfer = true;
+    Packet chamfer;
+    buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, mat, W, H, chamfer);
+    int fails = runCase("sheet", sheet) + runCase("solid", solid) + runCase("chamfer", chamfer);
+    bool ok = fails == 0;
     std::printf(ok ? "parity OK\n" : "parity FAILED\n");
-    for (cl_mem m : args) clReleaseMemObject(m);
     clReleaseKernel(k);
     clReleaseProgram(prog);
     clReleaseCommandQueue(q);

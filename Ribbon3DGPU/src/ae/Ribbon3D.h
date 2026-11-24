@@ -83,6 +83,17 @@ enum {
     RB_LINEAR,
     RB_RENDER_TOPIC_END,
 
+    // v1.1 - appended at the end so projects saved with v1.0 keep their parameter indices.
+    RB_SOLID_TOPIC,
+    RB_THICKNESS,
+    RB_BEVEL_SIZE,
+    RB_BEVEL_STYLE,
+    RB_BEVEL_SEGMENTS,
+    RB_EDGE_COLOR_MODE,
+    RB_EDGE_COLOR,
+    RB_END_CAPS,
+    RB_SOLID_TOPIC_END,
+
     RB_NUM_PARAMS
 };
 

@@ -34,7 +34,7 @@ typedef struct {
     float nrm[3];           /* unit normal of the FRONT side */
     float tan[3];           /* unit tangent along the ribbon (for the satin highlight) */
     float uv[2];            /* u along the ribbon 0..1, v across 0..1 */
-    float pad;
+    float side;             /* solid ribbons: +1 front face, -1 back face, 0 edge (normal . front) */
 } RK_Vertex;
 
 typedef struct {
@@ -56,7 +56,7 @@ typedef struct {
     int   composite;        /* RK_COMPOSITE_* */
     int   srcX, srcY;       /* position of the source buffer inside the output buffer */
     int   srcW, srcH;       /* source buffer size (0 x 0: no source, transparent) */
-    int   pad0;
+    int   solid;            /* 1: closed mesh with thickness (outward normals, edge color) */
     float camPos[3];
     float frontColor[3], backColor[3];    /* linear */
     float ambient, diffuse, specular, gloss;
@@ -64,6 +64,8 @@ typedef struct {
     float texRepeat, texOffset;
     float opacity;
     float gamma;            /* 1: linear working space, 2.2: gamma-encoded colors */
+    float edgeColor[3];     /* linear, solid ribbons */
+    float pad1;
 } RK_Params;
 
 #endif

@@ -238,6 +238,21 @@ int main(int argc, char** argv) {
     if (cover < 5000) { std::printf("FAIL: ribbon not rendered\n"); fails++; }
     if (maxG > 1e-3) { std::printf("FAIL: GPU differs from CPU\n"); fails++; }
     if (max8 > 2.5 / 255) { std::printf("FAIL: 8-bit path differs\n"); fails++; }
+    // Thickness & Bevel through the effect parameters: CPU and GPU must agree, the solid covers more.
+    gDefs[RB_THICKNESS - 1].u.fs_d.value = 18;
+    gDefs[RB_BEVEL_SIZE - 1].u.fs_d.value = 5;
+    std::vector<float> t32 = RunCPU(32), tg = RunGPU();
+    if (t32.empty() || tg.empty()) return 1;
+    double coverT = 0, maxT = 0;
+    for (size_t i = 0; i < t32.size(); i++) {
+        maxT = std::max(maxT, double(std::fabs(t32[i] - tg[i])));
+        if (i % 4 == 2 && std::fabs(t32[i] - 0.2f) > 1e-3) coverT++;
+    }
+    std::printf("thick ribbon: pixels changed %.0f (thin %.0f); CPU32 vs GPU(OpenCL) max diff %.2e\n", coverT, cover, maxT);
+    if (coverT <= cover) { std::printf("FAIL: thickness had no effect\n"); fails++; }
+    if (maxT > 1e-3) { std::printf("FAIL: GPU differs from CPU (thick)\n"); fails++; }
+    g = tg;
+
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");
         std::fprintf(f, "P6 %d %d 255\n", W, H);

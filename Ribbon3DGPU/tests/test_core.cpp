@@ -257,6 +257,84 @@ static void testTexture() {
     CHECK((g0 < 0.05f && g1 > 0.95f) || (g0 > 0.95f && g1 < 0.05f), "v runs across the ribbon (%.2f %.2f)", g0, g1);
 }
 
+static void testSolidGeometry() {
+    std::printf("thickness and bevel geometry\n");
+    // Round bevel: bounds, radius, unit outward normals.
+    std::vector<ProfilePoint> pr = ribbonProfile(60, 10, 3, 5, false, 2);
+    double mx = 0, my = 0;
+    for (const ProfilePoint& q : pr) {
+        mx = std::max(mx, std::fabs(q.x));
+        my = std::max(my, std::fabs(q.y));
+        CHECK(std::fabs(std::hypot(q.nx, q.ny) - 1) < 1e-12, "unit normal");
+        CHECK(q.x * q.nx + q.y * q.ny > 0, "outward normal at (%.2f %.2f)", q.x, q.y);
+        if (std::fabs(q.x) > 27 + 1e-9 && std::fabs(q.y) > 2 + 1e-9) {  // on a corner arc
+            double d = std::hypot(std::fabs(q.x) - 27, std::fabs(q.y) - 2);
+            CHECK(std::fabs(d - 3) < 1e-9, "bevel radius %.4f", d);
+        }
+    }
+    CHECK(std::fabs(mx - 30) < 1e-9 && std::fabs(my - 5) < 1e-9, "profile bounds %.3f x %.3f", mx, my);
+    CHECK(pr.size() == ribbonProfile(1, 1, 0, 5, false, 2).size(), "point count independent of size");
+    // Chamfer: the corner facet is a 45 degree cut.
+    for (const ProfilePoint& q : ribbonProfile(60, 10, 3, 5, true, 1))
+        if (std::fabs(q.nx) > 1e-9 && std::fabs(q.ny) > 1e-9)
+            CHECK(std::fabs(std::fabs(q.nx) - std::sqrt(0.5)) < 1e-9, "chamfer normal %.3f %.3f", q.nx, q.ny);
+    // A bevel larger than half the thickness is clamped: fully rounded edge, edge points only at y = 0.
+    for (const ProfilePoint& q : ribbonProfile(60, 10, 100, 8, false, 1))
+        if (std::fabs(std::fabs(q.x) - 30) < 1e-9) CHECK(std::fabs(q.y) < 1e-9, "fully round edge");
+
+    // Swept mesh: outward normals around the center line, caps along the tangent.
+    Polyline path = bezierToPolyline(test::sCurve(), false, V3(0, 0, 1), 48);
+    RibbonSettings rs;
+    rs.segments = 120; rs.width = 80; rs.thickness = 16; rs.bevel = 4; rs.twistTurns = 1.5; rs.widthEnd = 0.3;
+    RibbonMesh m = buildRibbon(path, rs);
+    CHECK(m.solid, "solid mesh");
+    const int R = int(ribbonProfile(1, 1, 0, rs.bevelSegments, false, 1).size());
+    int inward = 0;
+    for (int k = 0; k <= rs.segments; k++)
+        for (int i = 0; i < R; i++) {
+            const RK_Vertex& v = m.verts[size_t(k * R + i)];
+            V3 d = V3(v.pos[0], v.pos[1], v.pos[2]) - m.center[size_t(k)];
+            if (dot(d, V3(v.nrm[0], v.nrm[1], v.nrm[2])) < -1e-3) inward++;
+            double half = std::max(m.widths[size_t(k)], 16.0) / 2;
+            CHECK(length(d) <= std::hypot(half, 8.0) + 1e-3, "vertex inside the section bounds");
+        }
+    CHECK(inward == 0, "%d inward normals", inward);
+    CHECK(m.verts.size() == size_t((rs.segments + 1) * R + 2 * (R + 1)), "caps present (%zu verts)", m.verts.size());
+    const RK_Vertex& cap = m.verts[size_t((rs.segments + 1) * R)];
+    CHECK(dot(V3(cap.nrm[0], cap.nrm[1], cap.nrm[2]), m.tangent[0]) < -0.999, "start cap faces backwards");
+}
+
+static void testSolidRaster() {
+    std::printf("thickness and bevel rendering\n");
+    const int W = 1920, H = 1080;
+    Polyline path;
+    path.pts = {V3(400, 540, 0), V3(1520, 540, 0)};
+    Material mat = test::flatMaterial(V3(1, 0, 0), V3(0, 1, 0));
+    mat.edge = V3(0, 0, 1);
+    auto render = [&](double thickness, double twistDeg) {
+        RibbonSettings rs;
+        rs.twistTurns = 0; rs.twistAngleDeg = twistDeg; rs.width = 100; rs.segments = 8;
+        rs.thickness = thickness; rs.bevel = 2;
+        Packet pk;
+        buildPacket(buildRibbon(path, rs), defaultCamera(W, H), {}, mat, W, H, pk);
+        return test::render(pk, Image(W, H));
+    };
+    auto area = [](const Image& im) { double a = 0; for (size_t i = 3; i < im.bgra.size(); i += 4) a += im.bgra[i]; return a; };
+    // Edge-on: a sheet almost vanishes, a 20 px thick ribbon shows a 20 px band in the edge color.
+    double sheet = area(render(0, 90)), thick = area(render(20, 90));
+    Image edgeOn = render(20, 90);
+    CHECK(sheet < 2000, "edge-on sheet area %.0f", sheet);
+    CHECK(thick > 1120 * 20 * 0.95 && thick < 1120 * 20 * 1.15, "edge-on thick area %.0f", thick);
+    const float* e = edgeOn.px(960, 540);
+    CHECK(e[0] > 0.99f && e[2] < 0.01f, "edge color (b=%.3f r=%.3f)", e[0], e[2]);
+    // Face-on: front and back faces keep their colors.
+    Image faceOn = render(20, 0), backOn = render(20, 180);
+    const float* f = faceOn.px(960, 540);
+    CHECK(f[2] > 0.99f && f[0] < 0.01f, "front face color");
+    const float* bk = backOn.px(960, 540);
+    CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
+}
+
 static void previews(const std::string& dir) {
     std::printf("previews -> %s\n", dir.c_str());
     const int W = 1920, H = 1080;
@@ -281,6 +359,21 @@ static void previews(const std::string& dir) {
         std::printf("  satin: %zu tris, geometry %.1f ms, CPU raster %.1f ms (1920x1080, 16 spp)\n", pk.tris.size(), tGeo, tRaster);
     }
     {
+        Polyline path = bezierToPolyline(test::sCurve(), false, V3(0, 0, 1), 64);
+        RibbonSettings rs;
+        rs.segments = 500; rs.twistTurns = 1.25; rs.twistAlongPath = false; rs.width = 150;
+        rs.waveAmp = 90; rs.waveLength = 700; rs.thickness = 26; rs.bevel = 9; rs.bevelSegments = 6;
+        Material mat;
+        mat.samples = 4; mat.satin = 0.4; mat.gloss = 45; mat.sheen = 0.2;
+        mat.edge = V3(0.95, 0.85, 0.6);
+        Packet pk;
+        buildPacket(buildRibbon(path, rs), defaultCamera(W, H), test::studioLights(), mat, W, H, pk);
+        Image out;
+        double ms = timeIt([&] { out = test::render(pk, Image(W, H)); });
+        test::writePNG(dir + "/gpu_thick.png", out, bg);
+        std::printf("  thick: %zu tris, CPU raster %.1f ms\n", pk.tris.size(), ms);
+    }
+    {
         Polyline h = test::helix(260, 1300, 2.2, V3(960, 540, 200));
         RibbonSettings rs;
         rs.segments = 800; rs.twistTurns = 3; rs.width = 90;
@@ -302,6 +395,8 @@ int main(int argc, char** argv) {
     testClipping();
     testComposite();
     testTexture();
+    testSolidGeometry();
+    testSolidRaster();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

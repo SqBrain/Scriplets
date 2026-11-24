@@ -8,6 +8,7 @@
 
 ![Сатин](docs/satin.png)
 ![3D-спираль](docs/helix.png)
+![Толщина и фаска](docs/thick.png)
 ![Текстура с прозрачностью](docs/texture.png)
 
 *(кадры отрисованы тестами из `tests/` — CPU-путём и OpenCL-кернелом; не скриншоты AE)*
@@ -117,6 +118,7 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 | **Material** | Цвета лица/изнанки; Texture Layer (u — вдоль ленты, v — поперёк, альфа текстуры = прозрачность ленты), Repeat/Offset; Ambient, Diffuse, Specular, Glossiness; Satin (0 — глянец, 1 — анизотропный блик вдоль волокон); Sheen (блеск по Френелю на скользящих углах); Translucency (свет сзади просвечивает тонкую ленту); Metal (блик окрашивается цветом ленты) |
 | **Lighting** | Use Comp Lights; встроенный свет (Azimuth, Elevation, Intensity, Color), если в композиции нет источников |
 | **Render** | Antialiasing 1/4/9/16 сэмплов (в Draft-превью всегда 1); Composite: поверх слоя / за слоем / только лента; Opacity; Linear Working Space — для проектов с линейным рабочим пространством |
+| **Thickness & Bevel** (v1.1) | Thickness — толщина ленты, px (0 — тонкий двусторонний лист, как в v1.0); Bevel Size — радиус скругления или размер среза рёбер; Bevel Style — Round / Chamfer (срез 45°); Bevel Smoothness — сегментов на скругление (в Draft-превью не больше 2); Edge Color — цвет рёбер: как лицо / как изнанка / свой (Custom Edge Color); End Caps — закрыть торцы |
 
 ## Как это устроено
 

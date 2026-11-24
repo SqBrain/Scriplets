@@ -132,7 +132,8 @@ RK_FN rk4 rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) verts, 
     rk3 V = rk_norm(rk_sub(rk_v(P->camPos[0], P->camPos[1], P->camPos[2]), pos), rk_v(0.0f, 0.0f, -1.0f));
     int front = t->front > 0.5f;
     n = rk_norm(n, rk_v(0.0f, 0.0f, -1.0f));
-    if (!front) n = rk_scale(n, -1.0f);
+    // Thin sheet: two-sided, the normal follows the visible side. Solid: normals are outward.
+    if (!P->solid && !front) n = rk_scale(n, -1.0f);
     // An interpolated normal may turn slightly away at grazing angles: bend it back to the viewer.
     float nv = rk_dot(n, V);
     if (nv < 0.02f) n = rk_norm(rk_add(n, rk_scale(V, 0.02f - nv)), V);
@@ -140,7 +141,18 @@ RK_FN rk4 rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) verts, 
 
     rk3 base;
     float alpha = 1.0f;
-    if (P->hasTexture) {
+    if (P->solid) {
+        // Faces get the front / back color (or the texture over it), edges the edge color; the
+        // bevel blends between them by how much its normal faces front or back.
+        float side = a->side * q0 + b->side * q1 + c->side * q2;
+        rk3 face = side >= 0.0f ? rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2])
+                                : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
+        if (P->hasTexture) {
+            rk4 tc = rk_texture(P, tex, u, v);
+            face = rk_mix3(face, rk_v(tc.r, tc.g, tc.b), tc.a);
+        }
+        base = rk_mix3(rk_v(P->edgeColor[0], P->edgeColor[1], P->edgeColor[2]), face, rk_smooth(0.15f, 0.85f, RK_FABS(side)));
+    } else if (P->hasTexture) {
         rk4 tc = rk_texture(P, tex, u, v);
         base = rk_v(tc.r, tc.g, tc.b);
         alpha = tc.a;

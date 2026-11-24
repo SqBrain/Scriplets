@@ -117,6 +117,52 @@ void FramedCurve::at(double s, V3& pos, V3& tangent, V3& up) const {
 
 // ------------------------------------------------------------------ ribbon
 
+std::vector<ProfilePoint> ribbonProfile(double width, double thickness, double bevel, int bevelSegments, bool chamfer,
+                                        int faceSegments) {
+    const double hx = std::max(0.0, width) / 2, hy = std::max(0.0, thickness) / 2;
+    const double r = std::clamp(bevel, 0.0, std::min(hx, hy));
+    const int fs = std::max(1, faceSegments), as = chamfer ? 1 : std::max(1, bevelSegments);
+    std::vector<ProfilePoint> out;
+    auto add = [&](double x, double y, double nx, double ny) { out.push_back({x, y, nx, ny}); };
+    // Corner around (cx, cy) from angle a0 to a1 (degrees). Round: smooth normals. Chamfer: one flat
+    // facet with its own normal (duplicated points give hard edges against the faces).
+    auto corner = [&](double cx, double cy, double a0, double a1) {
+        double r0 = a0 * kPi / 180, r1 = a1 * kPi / 180;
+        if (chamfer) {
+            double m = (r0 + r1) / 2;
+            add(cx + r * std::cos(r0), cy + r * std::sin(r0), std::cos(m), std::sin(m));
+            add(cx + r * std::cos(r1), cy + r * std::sin(r1), std::cos(m), std::sin(m));
+            return;
+        }
+        for (int j = 0; j <= as; j++) {
+            double t = r0 + (r1 - r0) * j / as;
+            add(cx + r * std::cos(t), cy + r * std::sin(t), std::cos(t), std::sin(t));
+        }
+    };
+    const double ix = hx - r, iy = hy - r;
+    for (int i = 0; i <= fs; i++) add(-ix + 2 * ix * i / fs, hy, 0, 1);   // front face, left to right
+    corner(ix, iy, 90, 0);
+    add(hx, iy, 1, 0);                                                    // right edge
+    add(hx, -iy, 1, 0);
+    corner(ix, -iy, 0, -90);
+    for (int i = 0; i <= fs; i++) add(ix - 2 * ix * i / fs, -hy, 0, -1);  // back face, right to left
+    corner(-ix, -iy, -90, -180);
+    add(-hx, -iy, -1, 0);                                                 // left edge
+    add(-hx, iy, -1, 0);
+    corner(-ix, iy, 180, 90);
+    return out;
+}
+
+static RK_Vertex makeVertex(const V3& p, const V3& n, const V3& t, double u, double v, double side) {
+    RK_Vertex vx;
+    vx.pos[0] = float(p.x); vx.pos[1] = float(p.y); vx.pos[2] = float(p.z);
+    vx.nrm[0] = float(n.x); vx.nrm[1] = float(n.y); vx.nrm[2] = float(n.z);
+    vx.tan[0] = float(t.x); vx.tan[1] = float(t.y); vx.tan[2] = float(t.z);
+    vx.uv[0] = float(u); vx.uv[1] = float(v);
+    vx.side = float(side);
+    return vx;
+}
+
 RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
     RibbonMesh mesh;
     FramedCurve C(path);
@@ -136,7 +182,9 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         return r;
     };
 
-    mesh.verts.reserve(size_t(N + 1) * (M + 1));
+    // Cross sections: center, tangent, width direction W, front normal F = W x T, width.
+    std::vector<V3> fronts;
+    std::vector<double> us;
     for (int k = 0; k <= N; k++) {
         double u = double(k) / N, s = a + (b - a) * u;
         Sample F = disp(s), Fa = disp(s - e * dir), Fb = disp(s + e * dir);
@@ -146,29 +194,72 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
         V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
         double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
-        V3 front = normalize(cross(W, T), U * -1.0);
         mesh.center.push_back(F.p);
         mesh.tangent.push_back(T);
         mesh.widthDir.push_back(W);
         mesh.widths.push_back(w);
-        for (int j = 0; j <= M; j++) {
-            double v = double(j) / M;
-            V3 p = F.p + W * ((v - 0.5) * w);
-            RK_Vertex vx;
-            vx.pos[0] = float(p.x); vx.pos[1] = float(p.y); vx.pos[2] = float(p.z);
-            vx.nrm[0] = float(front.x); vx.nrm[1] = float(front.y); vx.nrm[2] = float(front.z);
-            vx.tan[0] = float(T.x); vx.tan[1] = float(T.y); vx.tan[2] = float(T.z);
-            vx.uv[0] = float(u); vx.uv[1] = float(v);
-            vx.pad = 0;
-            mesh.verts.push_back(vx);
+        fronts.push_back(normalize(cross(W, T), U * -1.0));
+        us.push_back(u);
+    }
+
+    if (rs.thickness <= 0) {
+        // Thin two-sided sheet.
+        mesh.verts.reserve(size_t(N + 1) * (M + 1));
+        for (int k = 0; k <= N; k++)
+            for (int j = 0; j <= M; j++) {
+                double v = double(j) / M;
+                mesh.verts.push_back(makeVertex(mesh.center[k] + mesh.widthDir[k] * ((v - 0.5) * mesh.widths[k]), fronts[k],
+                                                mesh.tangent[k], us[k], v, 0));
+            }
+        mesh.tris.reserve(size_t(N) * M * 6);
+        for (int k = 0; k < N; k++)
+            for (int j = 0; j < M; j++) {
+                int i00 = k * (M + 1) + j, i10 = (k + 1) * (M + 1) + j, i11 = i10 + 1, i01 = i00 + 1;
+                int t[6] = {i00, i10, i11, i00, i11, i01};
+                mesh.tris.insert(mesh.tris.end(), t, t + 6);
+            }
+        return mesh;
+    }
+
+    // Solid: the beveled profile swept along the path. Each section uses its own (tapered) width.
+    mesh.solid = true;
+    const int R = int(ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, M).size());
+    mesh.verts.reserve(size_t(N + 1) * R + 2 * (R + 1));
+    for (int k = 0; k <= N; k++) {
+        const double w = mesh.widths[k];
+        std::vector<ProfilePoint> prof = ribbonProfile(w, rs.thickness, rs.bevel, rs.bevelSegments, rs.chamfer, M);
+        for (const ProfilePoint& q : prof) {
+            V3 p = mesh.center[k] + mesh.widthDir[k] * q.x + fronts[k] * q.y;
+            V3 n = normalize(mesh.widthDir[k] * q.nx + fronts[k] * q.ny, fronts[k]);
+            double v = w > 1e-9 ? std::clamp(q.x / w + 0.5, 0.0, 1.0) : 0.5;
+            mesh.verts.push_back(makeVertex(p, n, mesh.tangent[k], us[k], v, q.ny));
         }
     }
-    mesh.tris.reserve(size_t(N) * M * 6);
-    for (int k = 0; k < N; k++) {
-        for (int j = 0; j < M; j++) {
-            int i00 = k * (M + 1) + j, i10 = (k + 1) * (M + 1) + j, i11 = i10 + 1, i01 = i00 + 1;
+    mesh.tris.reserve(size_t(N) * R * 6 + 6 * R);
+    for (int k = 0; k < N; k++)
+        for (int i = 0; i < R; i++) {
+            int i2 = (i + 1) % R;
+            int i00 = k * R + i, i01 = k * R + i2, i10 = (k + 1) * R + i, i11 = (k + 1) * R + i2;
             int t[6] = {i00, i10, i11, i00, i11, i01};
             mesh.tris.insert(mesh.tris.end(), t, t + 6);
+        }
+    if (rs.caps) {
+        // Flat end caps: fan around the section center, normal along -T (start) / +T (end), edge color.
+        for (int end = 0; end < 2; end++) {
+            const int k = end ? N : 0;
+            const V3 n = mesh.tangent[k] * (end ? 1.0 : -1.0);
+            const int c = int(mesh.verts.size());
+            mesh.verts.push_back(makeVertex(mesh.center[k], n, mesh.widthDir[k], us[k], 0.5, 0));
+            for (int i = 0; i < R; i++) {
+                RK_Vertex vx = mesh.verts[size_t(k * R + i)];
+                vx.nrm[0] = float(n.x); vx.nrm[1] = float(n.y); vx.nrm[2] = float(n.z);
+                vx.side = 0;
+                mesh.verts.push_back(vx);
+            }
+            for (int i = 0; i < R; i++) {
+                int t[3] = {c, c + 1 + i, c + 1 + (i + 1) % R};
+                mesh.tris.insert(mesh.tris.end(), t, t + 3);
+            }
         }
     }
     return mesh;

@@ -74,7 +74,22 @@ struct RibbonSettings {
     int segments = 300;                              // along the ribbon
     int across = 1;                                  // subdivisions across
     double time = 0;                                 // seconds
+    // Thickness > 0 turns the sheet into a closed solid with a beveled cross-section.
+    double thickness = 0;                            // px
+    double bevel = 3;                                // px: corner radius (round) or cut size (chamfer)
+    int bevelSegments = 5;                           // per corner, round bevel
+    bool chamfer = false;                            // straight 45 degree cut instead of a round corner
+    bool caps = true;                                // close both ends
 };
+
+// Cross-section of a solid ribbon: closed loop (front face, right edge, back face, left edge) in the
+// (width, front-normal) plane. The point count depends only on the segment settings.
+struct ProfilePoint {
+    double x, y;     // position: x along the width direction, y along the front normal
+    double nx, ny;   // unit outward normal
+};
+std::vector<ProfilePoint> ribbonProfile(double width, double thickness, double bevel, int bevelSegments, bool chamfer,
+                                        int faceSegments);
 
 struct RibbonMesh {
     std::vector<RK_Vertex> verts;
@@ -82,6 +97,7 @@ struct RibbonMesh {
     // Center line and frames per cross section (handy for tests and tools).
     std::vector<V3> center, tangent, widthDir;
     std::vector<double> widths;
+    bool solid = false;  // closed mesh with thickness
 };
 
 // Arc-length parametrised curve with a rotation minimizing frame.

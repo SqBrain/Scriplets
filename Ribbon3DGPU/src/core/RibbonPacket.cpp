@@ -50,7 +50,7 @@ struct Builder {
         }
         r.uv[0] = a.uv[0] + (b.uv[0] - a.uv[0]) * t;
         r.uv[1] = a.uv[1] + (b.uv[1] - a.uv[1]) * t;
-        r.pad = 0;
+        r.side = a.side + (b.side - a.side) * t;
         return r;
     }
 
@@ -200,6 +200,8 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.texOffset = float(mat.texOffset);
     P.opacity = float(std::clamp(mat.opacity, 0.0, 1.0));
     P.gamma = float(mat.gamma);
+    P.solid = mesh.solid ? 1 : 0;
+    P.edgeColor[0] = lin(mat.edge.x, mat.gamma); P.edgeColor[1] = lin(mat.edge.y, mat.gamma); P.edgeColor[2] = lin(mat.edge.z, mat.gamma);
 }
 
 }  // namespace rb

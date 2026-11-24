@@ -217,6 +217,25 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_RENDER_TOPIC_END));
 
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Thickness & Bevel", RB_ID(RB_SOLID_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Thickness", 0, 5000, 0, 100, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_THICKNESS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Bevel Size", 0, 2500, 0, 50, 3, PF_Precision_TENTHS, 0, 0, RB_ID(RB_BEVEL_SIZE));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Bevel Style", 2, 1, "Round|Chamfer", RB_ID(RB_BEVEL_STYLE));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_SLIDER("Bevel Smoothness", 1, 16, 1, 12, 5, RB_ID(RB_BEVEL_SEGMENTS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Edge Color", 3, 1, "Front Color|Back Color|Custom", RB_ID(RB_EDGE_COLOR_MODE));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_COLOR("Custom Edge Color", 235, 225, 205, RB_ID(RB_EDGE_COLOR));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_CHECKBOXX("End Caps", TRUE, 0, RB_ID(RB_END_CAPS));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_SOLID_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -423,6 +442,12 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rs.waveLength = Param(in_data, RB_WAVE_LENGTH).f();
     rs.waveSpeed = Param(in_data, RB_WAVE_SPEED).f();
     rs.time = t;
+    rs.thickness = Param(in_data, RB_THICKNESS).f();
+    rs.bevel = Param(in_data, RB_BEVEL_SIZE).f();
+    rs.chamfer = Param(in_data, RB_BEVEL_STYLE).popup() == 2;
+    rs.bevelSegments = std::clamp(Param(in_data, RB_BEVEL_SEGMENTS).i(), 1, 16);
+    if (in_data->quality == PF_Quality_LO) rs.bevelSegments = std::min(rs.bevelSegments, 2);  // draft preview
+    rs.caps = Param(in_data, RB_END_CAPS).b();
 
     xf.rotX = Param(in_data, RB_XF_ROT_X).angle();
     xf.rotY = Param(in_data, RB_XF_ROT_Y).angle();
@@ -432,6 +457,10 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
 
     mat.front = Param(in_data, RB_FRONT_COLOR).color();
     mat.back = Param(in_data, RB_BACK_COLOR).color();
+    {
+        int edgeMode = Param(in_data, RB_EDGE_COLOR_MODE).popup();
+        mat.edge = edgeMode == 2 ? mat.back : (edgeMode == 3 ? Param(in_data, RB_EDGE_COLOR).color() : mat.front);
+    }
     mat.texRepeat = Param(in_data, RB_TEX_REPEAT).f();
     mat.texOffset = Param(in_data, RB_TEX_OFFSET).f();
     mat.ambient = Param(in_data, RB_AMBIENT).f();
