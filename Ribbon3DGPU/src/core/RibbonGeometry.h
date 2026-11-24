@@ -100,6 +100,8 @@ struct WindSettings {
     double stiffness = 0.3;       // 0..1: higher = the part near the pin moves less
     int seed = 0;
 };
+// Deterministic pseudo-random number in [0, 1) for (index, seed).
+double hashUnit(long long index, int seed);
 // Strength multiplier at time t: 1 +- gusts (smooth noise, same seed = same gusts).
 double windGust(const WindSettings& w, double time);
 // The world-space path bent by the wind at time t. Segment lengths are kept (the path is
@@ -178,5 +180,7 @@ private:
 };
 
 RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs);
+// Adds src's triangles to dst (several ribbons in one mesh, e.g. one per mask).
+void appendMesh(RibbonMesh& dst, const RibbonMesh& src);
 
 }  // namespace rb

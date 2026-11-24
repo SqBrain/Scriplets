@@ -44,7 +44,9 @@ typedef struct {
   union { struct { PF_FpLong value; } fs_d; struct { A_long value; } sd; struct { A_long value; } bd; struct { PF_Fixed value; } ad;
           struct { A_long value; } pd; struct { PF_Pixel value, dephault; } cd; struct { PF_PathID path_id; A_long reserved0; A_long dephault; } path_d; } u;
   A_long param_type; A_char name_do_not_use_directly[32]; union { A_long id; A_long change_flags; } uu; A_long flags;
+  A_long ui_flags;
 } PF_ParamDef;
+enum { PF_PUI_INVISIBLE = 1L << 9 };
 typedef struct SPBasicSuite { int32 (*AcquireSuite)(const char*, int32, const void**); int32 (*ReleaseSuite)(const char*, int32); } SPBasicSuite;
 enum { kSPNoError = 0 };
 typedef struct { PF_Err (*checkout_param)(PF_ProgPtr, A_long, A_long, A_long, A_u_long, PF_ParamDef*);
@@ -73,7 +75,7 @@ enum { PF_LayerDefault_NONE = 0, PF_LayerDefault_MYSELF = -1 };
 #define PF_ADD_LAYER(N, DF, ID) do { def.param_type = PF_Param_LAYER; (void)(DF); PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_POPUP(N, C, DF, STR, ID) do { def.u.pd.value = DF; (void)(C); (void)(STR); PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_TOPIC(N, ID) PF_STUB_ADD(N, ID)
-#define PF_ADD_BUTTON(N, BN, PUI, FL, ID) do { AEFX_CLR_STRUCT(def); def.param_type = PF_Param_BUTTON; def.flags = (FL); (void)(BN); (void)(PUI); PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_BUTTON(N, BN, PUI, FL, ID) do { AEFX_CLR_STRUCT(def); def.param_type = PF_Param_BUTTON; def.flags = (FL); def.ui_flags = (PUI); (void)(BN); PF_STUB_ADD(N, ID); } while (0)
 #define PF_END_TOPIC(ID) PF_STUB_ADD("", ID)
 enum { PF_Stage_DEVELOP, PF_Stage_ALPHA, PF_Stage_BETA, PF_Stage_RELEASE };
 #define PF_VERSION(V, S, B, ST, BLD) (((V) << 19) | ((S) << 15) | ((B) << 11) | ((ST) << 9) | (BLD))
@@ -110,7 +112,8 @@ typedef struct { PF_Err (*GetDeviceCount)(PF_ProgPtr, A_u_long*); PF_Err (*GetDe
 typedef struct { PF_Handle (*host_new_handle)(A_u_long); void* (*host_lock_handle)(PF_Handle); void (*host_unlock_handle)(PF_Handle); void (*host_dispose_handle)(PF_Handle); } PF_HandleSuite1;
 #define kPFPathQuerySuite "PF Path Query Suite"
 #define kPFPathQuerySuiteVersion1 1
-typedef struct { PF_Err (*PF_CheckoutPath)(PF_ProgPtr, PF_PathID, A_long, A_long, A_u_long, PF_PathOutlinePtr*);
+typedef struct { PF_Err (*PF_NumPaths)(PF_ProgPtr, A_long*); PF_Err (*PF_PathInfo)(PF_ProgPtr, A_long, PF_PathID*);
+                 PF_Err (*PF_CheckoutPath)(PF_ProgPtr, PF_PathID, A_long, A_long, A_u_long, PF_PathOutlinePtr*);
                  PF_Err (*PF_CheckinPath)(PF_ProgPtr, PF_PathID, PF_Boolean, PF_PathOutlinePtr); } PF_PathQuerySuite1;
 #define kPFPathDataSuite "PF Path Data Suite"
 #define kPFPathDataSuiteVersion1 1

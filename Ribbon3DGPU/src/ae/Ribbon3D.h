@@ -18,16 +18,28 @@
 #define PF_DEF_NAME name
 #endif
 
+// Two effects from one source: "Ribbon 3D GPU" (one mask or control nulls) and, built with
+// RB_MULTI_MASK, "Ribbon 3D GPU Multi-Mask" (a ribbon along every mask of the layer, trimmed
+// simultaneously). Both have the same parameter list; the multi-mask effect hides what it does not use.
+#ifdef RB_MULTI_MASK
+#define RB_NAME        "Ribbon 3D GPU Multi-Mask"
+#define RB_MATCH_NAME  "SQB Ribbon3D GPU MultiMask"
+#define RB_DESCRIPTION "Realistic 3D ribbons along every mask of the layer, rendered on the GPU.\rCopyright 2026 Scriplets."
+#else
 #define RB_NAME        "Ribbon 3D GPU"
 #define RB_MATCH_NAME  "SQB Ribbon3D GPU"
-#define RB_CATEGORY    "Generate"
 #define RB_DESCRIPTION "Realistic 3D ribbon along a mask path, rendered on the GPU.\rCopyright 2026 Scriplets."
+#endif
+#define RB_CATEGORY    "Generate"
 
 #define RB_MAX_NULLS 32
 #define RB_SOURCE_MASK 1
 #define RB_SOURCE_NULLS 2
 #define RB_ORIENT_TWIST 1
 #define RB_ORIENT_FRONT 2
+#define RB_GRAD_OFF 1
+#define RB_GRAD_ALONG 2
+#define RB_GRAD_RANDOM 3     // multi-mask effect only
 
 // Parameter indices. Never reorder: AE stores projects by these and by the disk IDs below.
 enum {
@@ -170,6 +182,19 @@ enum {
     RB_END_ROUNDING,
     RB_END_ROUND_WHICH,   // 1: Both, 2: Start, 3: End
     RB_ENDS_TOPIC_END,
+
+    // 0.1.10 (appended for the same reason).
+    RB_GRAD_TOPIC,
+    RB_GRAD_MODE,         // RB_GRAD_*
+    RB_GRAD_COUNT,        // 1..3: 2..4 colors
+    RB_GRAD_COLOR_1,
+    RB_GRAD_COLOR_2,
+    RB_GRAD_COLOR_3,
+    RB_GRAD_COLOR_4,
+    RB_GRAD_REPEAT,
+    RB_GRAD_OFFSET,
+    RB_GRAD_SEED,
+    RB_GRAD_TOPIC_END,
 
     RB_NUM_PARAMS
 };

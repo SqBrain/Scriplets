@@ -214,8 +214,8 @@ RK_FN rk3 rk_env(RK_IN(RK_Params) P, RK_IN(float) env, rk3 d, float lod) {
 // Bilinear fetch from a surface map (normal / roughness) with the shared surface-map mapping:
 // u repeats along the ribbon, v repeats across (tiles) or clamps. Raw data (no gamma), straight
 // (unpremultiplied) color in r, g, b; alpha in a.
-RK_FN rk4 rk_surface_map(RK_IN(RK_Params) P, RK_IN(float) m, int W, int H, int pitch, float u, float v) {
-    float fu = u * P->nrmRepeatU + P->nrmOffsetU, fv = v * P->nrmRepeatV;
+RK_FN rk4 rk_surface_map(RK_IN(RK_Params) P, RK_IN(float) m, int W, int H, int pitch, float u, float ul, float v) {
+    float fu = P->nrmTileLen > 0.0f ? ul / P->nrmTileLen : u * P->nrmRepeatU + P->nrmOffsetU, fv = v * P->nrmRepeatV;
     fu = fu - RK_FLOOR(fu);
     fv = P->nrmWrapV ? fv - RK_FLOOR(fv) : rk_clampf(fv, 0.0f, 1.0f);
     float fx = fu * (float)W - 0.5f, fy = fv * (float)H - 0.5f;
@@ -243,8 +243,8 @@ RK_FN rk4 rk_surface_map(RK_IN(RK_Params) P, RK_IN(float) m, int W, int H, int p
 // The front side's normal Nf tilted by the normal map at (u, v). Tangent frame: x along the
 // ribbon (+u, the vertex tangent T), y up the image (-v, or +v for DirectX maps), z = Nf.
 // Normal maps are data, not colors: no gamma decoding.
-RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, float u, float v) {
-    rk4 c = rk_surface_map(P, nm, P->nrmWidth, P->nrmHeight, P->nrmPitch, u, v);
+RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, float u, float ul, float v) {
+    rk4 c = rk_surface_map(P, nm, P->nrmWidth, P->nrmHeight, P->nrmPitch, u, ul, v);
     if (c.a < 1e-6f) return Nf;  // transparent part of the map: no relief
     float x = (c.r * 2.0f - 1.0f) * P->nrmStrength;
     float y = (c.g * 2.0f - 1.0f) * P->nrmStrength * (P->nrmDirectX ? 1.0f : -1.0f);
@@ -252,6 +252,29 @@ RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, floa
     rk3 Tn = rk_norm(rk_sub(T, rk_scale(Nf, rk_dot(T, Nf))), rk_v(1.0f, 0.0f, 0.0f));
     rk3 Bv = rk_cross(Tn, Nf);  // = the width direction, +v
     return rk_norm(rk_add(rk_add(rk_scale(Tn, x), rk_scale(Bv, y)), rk_scale(Nf, z)), Nf);
+}
+
+// ---------------------------------------------------------------- gradient
+
+// Gradient color at t: evenly spaced stops, interpolated in the working space (as AE's own
+// gradients look), then linearized. Along the ribbon t repeats and is mirrored past the ends, so
+// animating the offset makes the colors flow without a jump.
+RK_FN rk3 rk_gradient(RK_IN(RK_Params) P, float t) {
+    if (P->gradMode == 1) {
+        t = t * P->gradRepeat + P->gradOffset;
+        t = t - 2.0f * RK_FLOOR(t * 0.5f);
+        if (t > 1.0f) t = 2.0f - t;
+    }
+    t = rk_clampf(t, 0.0f, 1.0f);
+    int n = P->gradCount < 2 ? 2 : (P->gradCount > 4 ? 4 : P->gradCount);
+    float x = t * (float)(n - 1);
+    int i = (int)RK_FLOOR(x);
+    if (i > n - 2) i = n - 2;
+    float f = x - (float)i;
+    float r = rk_mixf(P->gradColors[i * 3], P->gradColors[i * 3 + 3], f);
+    float g = rk_mixf(P->gradColors[i * 3 + 1], P->gradColors[i * 3 + 4], f);
+    float b = rk_mixf(P->gradColors[i * 3 + 2], P->gradColors[i * 3 + 5], f);
+    return rk_v(rk_lin(r, P->gamma), rk_lin(g, P->gamma), rk_lin(b, P->gamma));
 }
 
 // ---------------------------------------------------------------- shading
@@ -283,6 +306,8 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     rk3 tg = rk_add(rk_add(rk_scale(rk_vtx3(a->tan), q0), rk_scale(rk_vtx3(b->tan), q1)), rk_scale(rk_vtx3(c->tan), q2));
     float u = a->uv[0] * q0 + b->uv[0] * q1 + c->uv[0] * q2;
     float v = a->uv[1] * q0 + b->uv[1] * q1 + c->uv[1] * q2;
+    float ul = a->ulen * q0 + b->ulen * q1 + c->ulen * q2;
+    float gt = a->grad * q0 + b->grad * q1 + c->grad * q2;
 
     rk3 V = rk_norm(rk_sub(rk_v(P->camPos[0], P->camPos[1], P->camPos[2]), pos), rk_v(0.0f, 0.0f, -1.0f));
     int front = t->front > 0.5f;
@@ -293,10 +318,10 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
         // Thin sheet: the relief is applied to the front side; the back side (flipped below) sees
         // it inverted, like embossed fabric. Solid: on the faces, fading out on the edges.
         if (!P->solid) {
-            n = rk_normal_map(P, nm, n, tg, u, v);
+            n = rk_normal_map(P, nm, n, tg, u, ul, v);
         } else {
             float sgn = side >= 0.0f ? 1.0f : -1.0f;
-            rk3 bumped = rk_scale(rk_normal_map(P, nm, rk_scale(n, sgn), tg, u, v), sgn);
+            rk3 bumped = rk_scale(rk_normal_map(P, nm, rk_scale(n, sgn), tg, u, ul, v), sgn);
             n = rk_norm(rk_mix3(n, bumped, rk_smooth(0.15f, 0.85f, RK_FABS(side))), n);
         }
     }
@@ -310,32 +335,40 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     if (nv < 0.02f) n = rk_norm(rk_add(n, rk_scale(V, 0.02f - nv)), V);
     nv = rk_clampf(rk_dot(n, V), 0.0f, 1.0f);
 
+    // Face colors: front / back, or the gradient on both sides.
+    rk3 frontC = rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2]);
+    rk3 backC = rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
+    rk3 edgeC = rk_v(P->edgeColor[0], P->edgeColor[1], P->edgeColor[2]);
+    if (P->gradMode != 0) {
+        frontC = rk_gradient(P, gt);
+        backC = frontC;
+        if (P->gradEdge) edgeC = frontC;
+    }
+
     rk3 base;
     float alpha = 1.0f;
     if (P->solid) {
         // Faces get the front / back color (or the texture over it), edges the edge color; the
         // bevel blends between them by how much its normal faces front or back.
-        rk3 face = side >= 0.0f ? rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2])
-                                : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
+        rk3 face = side >= 0.0f ? frontC : backC;
         if (P->hasTexture) {
             rk4 tc = rk_texture(P, tex, u, v);
             face = rk_mix3(face, rk_v(tc.r, tc.g, tc.b), tc.a);
         }
-        base = rk_mix3(rk_v(P->edgeColor[0], P->edgeColor[1], P->edgeColor[2]), face, rk_smooth(0.15f, 0.85f, RK_FABS(side)));
+        base = rk_mix3(edgeC, face, rk_smooth(0.15f, 0.85f, RK_FABS(side)));
     } else if (P->hasTexture) {
         rk4 tc = rk_texture(P, tex, u, v);
         base = rk_v(tc.r, tc.g, tc.b);
         alpha = tc.a;
     } else {
-        base = front ? rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2])
-                     : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
+        base = front ? frontC : backC;
     }
 
     // Roughness map: per-pixel glossiness. Roughness r = sqrt(2 / (gloss + 2)) is blended toward
     // the map; highlights keep their energy (normalized Blinn): sharper where smooth, dimmer where rough.
     float gloss = P->gloss, specK = 1.0f, frostK = 1.0f;
     if (P->hasRough) {
-        rk4 rc = rk_surface_map(P, rm, P->roughWidth, P->roughHeight, P->roughPitch, u, v);
+        rk4 rc = rk_surface_map(P, rm, P->roughWidth, P->roughHeight, P->roughPitch, u, ul, v);
         if (rc.a > 1e-6f) {
             float lum = rk_clampf(rc.r * 0.2126f + rc.g * 0.7152f + rc.b * 0.0722f, 0.0f, 1.0f);
             if (P->roughInvert) lum = 1.0f - lum;

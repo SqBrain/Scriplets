@@ -336,6 +336,29 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Gradient: stops at the ends, mirrored repeats (no jump), offset, per-path values used as is.
+static void testGradient() {
+    std::printf("gradient\n");
+    RK_Params P{};
+    P.gamma = 1; P.gradMode = 1; P.gradCount = 3; P.gradRepeat = 1; P.gradOffset = 0;
+    const float stops[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    for (int i = 0; i < 9; i++) P.gradColors[i] = stops[i];
+    auto near3 = [](rk3 a, float r, float g, float b) { return std::fabs(a.x - r) < 1e-5f && std::fabs(a.y - g) < 1e-5f && std::fabs(a.z - b) < 1e-5f; };
+    CHECK(near3(rk_gradient(&P, 0), 1, 0, 0) && near3(rk_gradient(&P, 0.5f), 0, 1, 0) && near3(rk_gradient(&P, 1), 0, 0, 1), "stops");
+    CHECK(near3(rk_gradient(&P, 0.25f), 0.5f, 0.5f, 0), "linear between stops");
+    P.gradRepeat = 2;  // 0..0.5 forward, 0.5..1 back: continuous
+    CHECK(near3(rk_gradient(&P, 0.5f), 0, 0, 1) && near3(rk_gradient(&P, 1), 1, 0, 0) && near3(rk_gradient(&P, 0.75f), 0, 1, 0),
+          "repeat 2 is mirrored");
+    P.gradRepeat = 1; P.gradOffset = 0.5f;
+    CHECK(near3(rk_gradient(&P, 0), 0, 1, 0) && near3(rk_gradient(&P, 0.5f), 0, 0, 1) && near3(rk_gradient(&P, 1), 0, 1, 0) && near3(rk_gradient(&P, 0.75f), 0, 0.5f, 0.5f),
+          "offset shifts and bounces");
+    P.gradMode = 2;  // per path: the vertex value directly
+    CHECK(near3(rk_gradient(&P, 0.25f), 0.5f, 0.5f, 0), "per-path value unchanged by repeat / offset");
+    P.gamma = 2.2f; P.gradMode = 1; P.gradOffset = 0;
+    rk3 mid = rk_gradient(&P, 0.25f);
+    CHECK(std::fabs(mid.x - std::pow(0.5f, 2.2f)) < 1e-4f, "interpolated in the working space, then linearized");
+}
+
 // Rounded ends: the outline near each end follows a circle, the texture is cut, not squeezed.
 static void testRoundedEnds() {
     std::printf("rounded ends\n");
@@ -398,7 +421,7 @@ static void testRoughnessMap() {
         Material mm = mat;
         mm.roughInvert = invert;
         Packet pk;
-        buildPacket(buildRibbon(line, rs), defaultCamera(W, H), {key}, mm, W, H, pk, 400, rs.width);
+        buildPacket(buildRibbon(line, rs), defaultCamera(W, H), {key}, mm, W, H, pk, rs.width);
         if (map) setRoughnessMap(pk, MW, MH, MW);
         return test::render(pk, test::Image(W, H), nullptr, nullptr, map ? map->data() : nullptr);
     };
@@ -444,15 +467,15 @@ static void testNormalMap() {
     P.nrmWidth = NW; P.nrmHeight = NH; P.nrmPitch = NW; P.nrmStrength = 1; P.nrmRepeatU = 1; P.nrmRepeatV = 1;
     std::vector<float> tiltX = makeMap(1.0f, 0.5f, 0.5f), tiltUp = makeMap(0.5f, 1.0f, 0.5f);
     rk3 N = rk_v(0, 0, -1), T = rk_v(1, 0, 0);
-    rk3 a = rk_normal_map(&P, tiltX.data(), N, T, 0.3f, 0.5f);
+    rk3 a = rk_normal_map(&P, tiltX.data(), N, T, 0.3f, 0.0f, 0.5f);
     // (1, 0.5, 0.5) is a normal lying along +x (z = 0, kept just above the surface).
     CHECK(a.x > 0.99f && a.z < 0 && std::fabs(a.y) < 1e-6f, "red tilts the normal along the ribbon (%.2f %.2f %.2f)", a.x, a.y, a.z);
     std::vector<float> half = makeMap(0.75f, 0.5f, 0.5f + 0.5f * 0.8660254f);  // 30 degrees toward +x
-    rk3 h = rk_normal_map(&P, half.data(), N, T, 0.3f, 0.5f);
+    rk3 h = rk_normal_map(&P, half.data(), N, T, 0.3f, 0.0f, 0.5f);
     CHECK(std::fabs(h.x - 0.5f) < 0.01f && std::fabs(h.z + 0.866f) < 0.01f, "30 degree tilt (%.3f %.3f)", h.x, h.z);
-    rk3 gl = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.5f);
+    rk3 gl = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.0f, 0.5f);
     P.nrmDirectX = 1;
-    rk3 dx = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.5f);
+    rk3 dx = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.0f, 0.5f);
     CHECK(gl.y < -0.85f && dx.y > 0.85f, "green: OpenGL tilts toward -v (image up), DirectX toward +v (%.2f / %.2f)", gl.y, dx.y);
     P.nrmDirectX = 0;
 
@@ -469,7 +492,7 @@ static void testNormalMap() {
         Material m = mat;
         m.normalStrength = strength;
         Packet pk;
-        buildPacket(buildRibbon(path, rs), defaultCamera(W, H), test::studioLights(), m, W, H, pk, 400, rs.width);
+        buildPacket(buildRibbon(path, rs), defaultCamera(W, H), test::studioLights(), m, W, H, pk, rs.width);
         if (map) setNormalMap(pk, NW, NH, NW);
         return test::render(pk, test::Image(W, H), nullptr, map ? map->data() : nullptr);
     };
@@ -852,6 +875,7 @@ int main(int argc, char** argv) {
     testWind();
     testNormalMap();
     testRoundedEnds();
+    testGradient();
     testRoughnessMap();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());

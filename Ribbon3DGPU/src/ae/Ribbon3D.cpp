@@ -79,6 +79,22 @@ PF_LRect Intersect(const PF_LRect& a, const PF_LRect& b) {
 
 double Ratio(const PF_RationalScale& s) { return s.den ? double(s.num) / double(s.den) : 1.0; }
 
+// ------------------------------------------------------------------ the two effects
+
+#ifdef RB_MULTI_MASK
+const bool kAllMasks = true;
+// Parameters the multi-mask effect does not use stay in the list (same indices and IDs in both
+// effects) but are hidden there.
+#define RB_HIDE_IF_MULTI() (def.ui_flags |= PF_PUI_INVISIBLE)
+#define RB_MULTI_PUI PF_PUI_INVISIBLE
+#define RB_SINGLE_PUI 0
+#else
+const bool kAllMasks = false;
+#define RB_HIDE_IF_MULTI() ((void)0)
+#define RB_MULTI_PUI 0
+#define RB_SINGLE_PUI PF_PUI_INVISIBLE
+#endif
+
 // ------------------------------------------------------------------ commands
 
 PF_Err About(PF_InData* in_data, PF_OutData* out_data) {
@@ -105,6 +121,7 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     std::strncpy(def.PF_DEF_NAME, "Path", sizeof(def.PF_DEF_NAME) - 1);
     def.u.path_d.dephault = 1;  // first mask
     def.uu.id = RB_ID(RB_PATH);
+    RB_HIDE_IF_MULTI();  // the multi-mask effect takes every mask
     ERR(PF_ADD_PARAM(in_data, -1, &def));
 
     AEFX_CLR_STRUCT(def);
@@ -234,23 +251,30 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     PF_END_TOPIC(RB_ID(RB_SOLID_TOPIC_END));
 
     AEFX_CLR_STRUCT(def);
+    RB_HIDE_IF_MULTI();
     PF_ADD_TOPIC("Control Nulls", RB_ID(RB_NULLS_TOPIC));
     AEFX_CLR_STRUCT(def);
+    RB_HIDE_IF_MULTI();
     PF_ADD_POPUP("Path Source", 2, RB_SOURCE_MASK, "Mask|Control Nulls", RB_ID(RB_PATH_SOURCE));
-    PF_ADD_BUTTON("Mask to Nulls", "Create Nulls from Mask", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_MAKE_NULLS));
+    PF_ADD_BUTTON("Mask to Nulls", "Create Nulls from Mask", RB_MULTI_PUI, PF_ParamFlag_SUPERVISE, RB_ID(RB_MAKE_NULLS));
     AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOXX("Closed Loop", FALSE, 0, RB_ID(RB_NULLS_CLOSED));
+    RB_HIDE_IF_MULTI();
+    PF_ADD_CHECKBOX("Closed Loop", "", FALSE, 0, RB_ID(RB_NULLS_CLOSED));
     AEFX_CLR_STRUCT(def);
+    RB_HIDE_IF_MULTI();
     PF_ADD_TOPIC("Points", RB_ID(RB_POINTS_TOPIC));  // groups start collapsed in AE
     for (int i = 0; i < RB_MAX_NULLS; i++) {
         char name[32];
         std::snprintf(name, sizeof(name), "Point %d", i + 1);
         AEFX_CLR_STRUCT(def);
+        RB_HIDE_IF_MULTI();
         PF_ADD_LAYER(name, PF_LayerDefault_NONE, RB_ID(RB_NULL_1 + i));
     }
     AEFX_CLR_STRUCT(def);
+    RB_HIDE_IF_MULTI();
     PF_END_TOPIC(RB_ID(RB_POINTS_TOPIC_END));
     AEFX_CLR_STRUCT(def);
+    RB_HIDE_IF_MULTI();
     PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
 
     // 0.1.04: outside the groups, so they are visible without twirling anything open.
@@ -365,11 +389,70 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_ENDS_TOPIC_END));
 
+    // 0.1.10: gradient instead of the front / back colors.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Gradient", RB_ID(RB_GRAD_TOPIC));
+    AEFX_CLR_STRUCT(def);
+#ifdef RB_MULTI_MASK
+    PF_ADD_POPUP("Gradient", 3, RB_GRAD_OFF, "Off|Along Path|Random per Path", RB_ID(RB_GRAD_MODE));
+#else
+    PF_ADD_POPUP("Gradient", 2, RB_GRAD_OFF, "Off|Along Path", RB_ID(RB_GRAD_MODE));
+#endif
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Gradient Colors", 3, 2, "2|3|4", RB_ID(RB_GRAD_COUNT));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_COLOR("Color 1", 230, 57, 70, RB_ID(RB_GRAD_COLOR_1));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_COLOR("Color 2", 244, 162, 97, RB_ID(RB_GRAD_COLOR_2));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_COLOR("Color 3", 42, 157, 143, RB_ID(RB_GRAD_COLOR_3));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_COLOR("Color 4", 38, 70, 83, RB_ID(RB_GRAD_COLOR_4));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Gradient Repeat", 0.01, 1000, 0.1, 10, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GRAD_REPEAT));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Gradient Offset", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GRAD_OFFSET));
+    AEFX_CLR_STRUCT(def);
+    def.ui_flags = RB_SINGLE_PUI;  // random colors per path: multi-mask effect only
+    PF_ADD_SLIDER("Gradient Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_GRAD_SEED));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_GRAD_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
 
 bool FrameworkSupported(PF_GPU_Framework fw) { return RibbonGPU_Supports(fw); }
+
+std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam);
+
+// Shape of every mask of the layer at the current time, for the cache key.
+void MasksKey(PF_InData* in_data, std::vector<double>& key) {
+    Suite<PF_PathQuerySuite1> pq(in_data, kPFPathQuerySuite, kPFPathQuerySuiteVersion1);
+    Suite<PF_PathDataSuite1> pd(in_data, kPFPathDataSuite, kPFPathDataSuiteVersion1);
+    if (!pq || !pd) return;
+    for (PF_PathID id : MaskIDs(in_data, PF_PathID_NONE)) {
+        PF_PathOutlinePtr path = nullptr;
+        if (pq->PF_CheckoutPath(in_data->effect_ref, id, in_data->current_time, in_data->time_step, in_data->time_scale, &path) || !path)
+            continue;
+        PF_Boolean open = TRUE;
+        A_long nseg = 0;
+        pd->PF_PathIsOpen(in_data->effect_ref, path, &open);
+        pd->PF_PathNumSegments(in_data->effect_ref, path, &nseg);
+        key.push_back(double(id));
+        key.push_back(open ? 1.0 : 0.0);
+        const A_long nv = open ? nseg + 1 : nseg;
+        for (A_long i = 0; i < nv; i++) {
+            PF_PathVertex v;
+            AEFX_CLR_STRUCT(v);
+            pd->PF_PathVertexInfo(in_data->effect_ref, path, i, &v);
+            key.push_back(v.x); key.push_back(v.y);
+            key.push_back(v.tan_in_x); key.push_back(v.tan_in_y);
+            key.push_back(v.tan_out_x); key.push_back(v.tan_out_y);
+        }
+        pq->PF_CheckinPath(in_data->effect_ref, id, FALSE, path);
+    }
+}
 
 PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* extra) {
     (void)out_data;
@@ -456,8 +539,13 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
     // PF_OutFlag2_I_MIX_GUID_DEPENDENCIES AE requires GuidMixInPtr on EVERY pre-render (else
     // "internal verification failure"), so it is called in every mode and even after an error.
     {
-        const bool useNulls = Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS;
-        PF_Err mixErr = RibbonMixInControlNulls(in_data, extra, useNulls);
+        const bool useNulls = !kAllMasks && Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS;
+        std::vector<double> key;
+        RibbonControlNullsKey(in_data, useNulls, key);
+        // Multi-mask effect: every mask's shape too (AE tracks only the mask in the Path parameter).
+        if (kAllMasks) MasksKey(in_data, key);
+        PF_Err mixErr = extra->cb->GuidMixInPtr ? extra->cb->GuidMixInPtr(in_data->effect_ref, A_u_long(key.size() * sizeof(double)), key.data())
+                                                : PF_Err_NONE;
         if (!err) err = mixErr;
     }
 
@@ -622,16 +710,51 @@ rb::V3 PathPivot(const rb::Polyline& path) {
     return rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
 }
 
-// The ribbon's path in world (comp) space at compTime: the mask or the control nulls, laid onto the
-// floor for Orientation = Front, then the Path Transform group around the path's bounding box center.
-bool RibbonWorldPath(PF_InData* in_data, const A_Time& compTime, PathInputs in, rb::Polyline& out) {
-    rb::Polyline path;
-    const bool ok = in.source == RB_SOURCE_NULLS ? RibbonReadControlNulls(in_data, compTime, in.nullsClosed, path)
-                                                 : ReadMaskPolyline(in_data, in.mask, path);
-    if (!ok) return false;
-    if (in.front) path = rb::topViewToFloor(path, PathPivot(path));
-    in.xf.pivot = PathPivot(path);
-    out = rb::transformPolyline(path, in.xf);
+// Masks to draw: the one in "Path", or every mask of the layer in the multi-mask effect.
+std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam) {
+    std::vector<PF_PathID> ids;
+    if (!kAllMasks) {
+        if (pathParam != PF_PathID_NONE) ids.push_back(pathParam);
+        return ids;
+    }
+    Suite<PF_PathQuerySuite1> pq(in_data, kPFPathQuerySuite, kPFPathQuerySuiteVersion1);
+    A_long n = 0;
+    if (!pq || pq->PF_NumPaths(in_data->effect_ref, &n)) return ids;
+    for (A_long i = 0; i < n; i++) {
+        PF_PathID id = PF_PathID_NONE;
+        if (!pq->PF_PathInfo(in_data->effect_ref, i, &id) && id != PF_PathID_NONE) ids.push_back(id);
+    }
+    return ids;
+}
+
+rb::Polyline MergedPoints(const std::vector<rb::Polyline>& paths) {
+    rb::Polyline all;
+    for (const rb::Polyline& p : paths) all.pts.insert(all.pts.end(), p.pts.begin(), p.pts.end());
+    return all;
+}
+
+// The ribbon paths in world (comp) space at compTime: the mask(s) or the control nulls, laid onto
+// the floor for Orientation = Front, then the Path Transform group. Several masks are one drawing:
+// Front and Path Transform turn them around one common center.
+bool RibbonWorldPaths(PF_InData* in_data, const A_Time& compTime, PathInputs in, std::vector<rb::Polyline>& out) {
+    out.clear();
+    std::vector<rb::Polyline> paths;
+    if (in.source == RB_SOURCE_NULLS && !kAllMasks) {
+        rb::Polyline p;
+        if (RibbonReadControlNulls(in_data, compTime, in.nullsClosed, p)) paths.push_back(p);
+    } else {
+        for (PF_PathID id : MaskIDs(in_data, in.mask)) {
+            rb::Polyline p;
+            if (ReadMaskPolyline(in_data, id, p)) paths.push_back(p);
+        }
+    }
+    if (paths.empty()) return false;
+    if (in.front) {
+        const rb::V3 pivot = PathPivot(MergedPoints(paths));
+        for (rb::Polyline& p : paths) p = rb::topViewToFloor(p, pivot);
+    }
+    in.xf.pivot = PathPivot(MergedPoints(paths));
+    for (const rb::Polyline& p : paths) out.push_back(rb::transformPolyline(p, in.xf));
     return true;
 }
 
@@ -740,6 +863,16 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     mat.normalDirectX = Param(in_data, RB_NRM_FORMAT).popup() == 2;
     mat.roughAmount = Param(in_data, RB_ROUGH_AMOUNT).f() / 100;
     mat.roughInvert = Param(in_data, RB_ROUGH_INVERT).b();
+    {
+        const int mode = Param(in_data, RB_GRAD_MODE).popup();
+        mat.gradMode = mode == RB_GRAD_ALONG ? 1 : (mode == RB_GRAD_RANDOM && kAllMasks ? 2 : 0);
+        const int count = std::clamp(Param(in_data, RB_GRAD_COUNT).popup() + 1, 2, 4);
+        for (int i = 0; i < count; i++) mat.gradColors.push_back(Param(in_data, RB_GRAD_COLOR_1 + i).color());
+        mat.gradRepeat = Param(in_data, RB_GRAD_REPEAT).f();
+        mat.gradOffset = Param(in_data, RB_GRAD_OFFSET).f() / 100;
+        mat.gradEdge = Param(in_data, RB_EDGE_COLOR_MODE).popup() != 3;  // custom edge color stays
+    }
+    const int gradSeed = Param(in_data, RB_GRAD_SEED).i();
     mat.frostPx = Param(in_data, RB_GLASS_FROST).f();
     {
         const int q = Param(in_data, RB_FROST_QUALITY).popup();
@@ -772,21 +905,30 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     }
 
     rb::RibbonMesh mesh;
-    rb::Polyline world;
-    double ribbonLength = 0;
-    if (RibbonWorldPath(in_data, compTime, pin, world)) {
-        world = rb::applyWind(world, rs.wind, rs.time);
-        mesh = rb::buildRibbon(world, rs);
-        ribbonLength = rb::FramedCurve(world).length() * std::fabs(rs.end - rs.start);  // for normal map tiles
+    std::vector<rb::Polyline> worlds;
+    if (RibbonWorldPaths(in_data, compTime, pin, worlds)) {
+        // One ribbon per path, all with the same settings: Start / End / Offset act on every path
+        // at once ("simultaneously"). Every path gets its own gusts; with "Random per Path" its
+        // own color from the gradient.
+        for (size_t i = 0; i < worlds.size(); i++) {
+            rb::RibbonSettings ri = rs;
+            ri.wind.seed += int(i) * 7919;
+            rb::RibbonMesh m = rb::buildRibbon(rb::applyWind(worlds[i], ri.wind, ri.time), ri);
+            if (mat.gradMode == 2) {
+                const float g = float(rb::hashUnit((long long)i, gradSeed));
+                for (RK_Vertex& v : m.verts) v.grad = g;
+            }
+            rb::appendMesh(mesh, m);
+        }
     }
-    rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk, ribbonLength, rs.width);
+    rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk, rs.width);
     return PF_Err_NONE;
 }
 
 // ------------------------------------------------------------------ "Configure" button
 
 PF_Err ShowMessage(PF_OutData* out_data, const char* msg) {
-    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "Ribbon 3D GPU: %s", msg);
+    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "%s: %s", RB_NAME, msg);
     out_data->out_flags |= PF_OutFlag_DISPLAY_ERROR_MESSAGE;
     return PF_Err_NONE;
 }
@@ -818,10 +960,14 @@ PF_Err ConfigureFromLayer(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     pin.xf.rotZ = params[RB_XF_ROT_Z]->u.ad.value / 65536.0;
     pin.xf.offset = rb::V3(params[RB_XF_OFF_X]->u.fs_d.value, params[RB_XF_OFF_Y]->u.fs_d.value, params[RB_XF_OFF_Z]->u.fs_d.value);
     pin.xf.scale = params[RB_XF_SCALE]->u.fs_d.value / 100;
-    rb::Polyline world;
-    if (!RibbonWorldPath(in_data, compTime, pin, world))
-        return ShowMessage(out_data, "no path yet: pick a mask in \"Path\" or set up the control nulls.");
-    const rb::FramedCurve curve(world);
+    std::vector<rb::Polyline> worlds;
+    if (!RibbonWorldPaths(in_data, compTime, pin, worlds))
+        return ShowMessage(out_data, kAllMasks ? "no masks on this layer yet." : "no path yet: pick a mask in \"Path\" or set up the control nulls.");
+    // Several masks: fit to the longest ribbon.
+    size_t longest = 0;
+    for (size_t i = 1; i < worlds.size(); i++)
+        if (rb::FramedCurve(worlds[i]).length() > rb::FramedCurve(worlds[longest]).length()) longest = i;
+    const rb::FramedCurve curve(worlds[longest]);
     const double span = std::fabs(params[RB_END]->u.fs_d.value - params[RB_START]->u.fs_d.value) / 100;
     if (!curve.valid()) return ShowMessage(out_data, "the path has no length.");
     if (span < 1e-6) return ShowMessage(out_data, "Start and End are equal, the ribbon has no length.");

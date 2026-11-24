@@ -28,24 +28,35 @@ echo "== PiPL values from the SDK headers"
 read -r ver of of2 smaj smin < <(python3 -c "import struct,sys; print(*struct.unpack('<5I', open(sys.argv[1],'rb').read()[:20]))" "$gen/pipl_values.bin")
 echo "   version=$ver outflags=$of outflags2=$of2 spec=$smaj.$smin"
 
-echo "== PiPL resource"
-python3 "$here/tools/make_pipl.py" --name "Ribbon 3D GPU" --category "Generate" --match-name "SQB Ribbon3D GPU" \
-    --version "$ver" --outflags "$of" --outflags2 "$of2" --spec-major "$smaj" --spec-minor "$smin" \
-    --support-url "https://github.com/SqBrain/Scriplets" \
-    --bin "$gen/Ribbon3D_PiPL.bin" --rc "$gen/Ribbon3D_PiPL.rc"
-"$WINDRES" -O coff -i "$gen/Ribbon3D_PiPL.rc" -o "$obj/pipl_res.o"
+# Two effects from the same sources: "Ribbon 3D GPU" and, with RB_MULTI_MASK, "Ribbon 3D GPU Multi-Mask".
+build_variant() {
+    local file="$1" name="$2" match="$3"
+    shift 3
+    local vdefs=("$@")
+    local vobj="$obj/$file"
+    mkdir -p "$vobj"
+    echo "== $name: PiPL resource"
+    python3 "$here/tools/make_pipl.py" --name "$name" --category "Generate" --match-name "$match" \
+        --version "$ver" --outflags "$of" --outflags2 "$of2" --spec-major "$smaj" --spec-minor "$smin" \
+        --support-url "https://github.com/SqBrain/Scriplets" \
+        --bin "$gen/${file}_PiPL.bin" --rc "$gen/${file}_PiPL.rc"
+    "$WINDRES" -O coff -i "$gen/${file}_PiPL.rc" -o "$vobj/pipl_res.o"
 
-echo "== compile"
-srcs=(src/core/RibbonGeometry.cpp src/core/RibbonPacket.cpp src/core/RibbonCPU.cpp
-      src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp)
-objs=()
-for s in "${srcs[@]}"; do
-    o="$obj/$(basename "${s%.cpp}").o"
-    "$CXX" "${flags[@]}" "${defs[@]}" "${inc[@]}" -c "$here/$s" -o "$o"
-    objs+=("$o")
-done
+    echo "== $name: compile"
+    local srcs=(src/core/RibbonGeometry.cpp src/core/RibbonPacket.cpp src/core/RibbonCPU.cpp
+          src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp)
+    local objs=()
+    for s in "${srcs[@]}"; do
+        local o="$vobj/$(basename "${s%.cpp}").o"
+        "$CXX" "${flags[@]}" "${defs[@]}" "${vdefs[@]}" "${inc[@]}" -c "$here/$s" -o "$o"
+        objs+=("$o")
+    done
 
-echo "== link"
-"$CXX" -shared -static -static-libgcc -static-libstdc++ -s -o "$out/Ribbon3DGPU.aex" "${objs[@]}" "$obj/pipl_res.o" \
-    -Wl,--subsystem,windows -Wl,--dynamicbase -Wl,--nxcompat -Wl,--high-entropy-va
-echo "built $out/Ribbon3DGPU.aex ($(stat -c %s "$out/Ribbon3DGPU.aex") bytes)"
+    echo "== $name: link"
+    "$CXX" -shared -static -static-libgcc -static-libstdc++ -s -o "$out/$file.aex" "${objs[@]}" "$vobj/pipl_res.o" \
+        -Wl,--subsystem,windows -Wl,--dynamicbase -Wl,--nxcompat -Wl,--high-entropy-va
+    echo "built $out/$file.aex ($(stat -c %s "$out/$file.aex") bytes)"
+}
+
+build_variant Ribbon3DGPU "Ribbon 3D GPU" "SQB Ribbon3D GPU"
+build_variant Ribbon3DGPU_MultiMask "Ribbon 3D GPU Multi-Mask" "SQB Ribbon3D GPU MultiMask" -DRB_MULTI_MASK

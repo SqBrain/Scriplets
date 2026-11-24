@@ -53,6 +53,8 @@ struct Builder {
         r.uv[0] = a.uv[0] + (b.uv[0] - a.uv[0]) * t;
         r.uv[1] = a.uv[1] + (b.uv[1] - a.uv[1]) * t;
         r.side = a.side + (b.side - a.side) * t;
+        r.ulen = a.ulen + (b.ulen - a.ulen) * t;
+        r.grad = a.grad + (b.grad - a.grad) * t;
         return r;
     }
 
@@ -116,7 +118,7 @@ struct Builder {
 }  // namespace
 
 void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<LightDesc>& lights,
-                 const Material& mat, int W, int H, Packet& out, double ribbonLength, double ribbonWidth) {
+                 const Material& mat, int W, int H, Packet& out, double ribbonWidth) {
     out.verts = mesh.verts;
     out.tris.clear();
     out.tileTris.clear();
@@ -222,18 +224,31 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.camDown[0] = float(cam.axisY.x); P.camDown[1] = float(cam.axisY.y); P.camDown[2] = float(cam.axisY.z);
     if (out.env.empty()) out.env.assign(4, 0.0f);
 
+    P.gradMode = mat.gradMode;
+    P.gradCount = int(std::clamp<size_t>(mat.gradColors.size(), 2, 4));
+    P.gradEdge = mat.gradEdge ? 1 : 0;
+    P.gradRepeat = float(mat.gradRepeat);
+    P.gradOffset = float(mat.gradOffset);
+    for (int i = 0; i < 4; i++) {
+        const V3 c = mat.gradColors.empty() ? V3(1, 1, 1) : mat.gradColors[std::min<size_t>(size_t(i), mat.gradColors.size() - 1)];
+        P.gradColors[i * 3] = float(c.x); P.gradColors[i * 3 + 1] = float(c.y); P.gradColors[i * 3 + 2] = float(c.z);
+    }
+    if (mat.gradColors.size() < 2) P.gradMode = 0;
     P.nrmStrength = float(std::max(0.0, mat.normalStrength));
     P.roughAmount = float(std::clamp(mat.roughAmount, 0.0, 1.0));
     P.roughInvert = mat.roughInvert ? 1 : 0;
     P.nrmDirectX = mat.normalDirectX ? 1 : 0;
     if (mat.normalTiles) {
-        // Square tiles of normalTilePx: as many along the visible ribbon as its length allows.
+        // Square tiles of normalTilePx: along the ribbon by each vertex's distance from the ribbon
+        // start (every ribbon keeps its tiles square, whatever its length), across by the width.
         const double tile = std::max(1.0, mat.normalTilePx);
-        P.nrmRepeatU = float(std::max(ribbonLength, 1.0) / tile);
+        P.nrmTileLen = float(tile);
+        P.nrmRepeatU = 1;
         P.nrmRepeatV = float(std::max(ribbonWidth, 1.0) / tile);
         P.nrmOffsetU = 0;
         P.nrmWrapV = 1;
     } else {
+        P.nrmTileLen = 0;
         P.nrmRepeatU = float(mat.texRepeat);
         P.nrmRepeatV = 1;
         P.nrmOffsetU = float(mat.texOffset);

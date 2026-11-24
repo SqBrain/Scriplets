@@ -143,11 +143,11 @@ int main(int argc, char** argv) {
     Material bumpy = mat;
     bumpy.normalStrength = 0.8;
     Packet nSheet, nSolid;
-    buildPacket(buildRibbon(p2, rs), defaultCamera(W, H), lights, bumpy, W, H, nSheet, 900, rs.width);
+    buildPacket(buildRibbon(p2, rs), defaultCamera(W, H), lights, bumpy, W, H, nSheet, rs.width);
     setNormalMap(nSheet, TW, TH, TW);
     bumpy.normalTiles = false;
     thick.chamfer = false;
-    buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, bumpy, W, H, nSolid, 900, thick.width);
+    buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, bumpy, W, H, nSolid, thick.width);
     setNormalMap(nSolid, TW, TH, TW);
     setRoughnessMap(nSolid, TW, TH, TW);  // also rough / smooth stripes on the solid
     // Rounded ends on a thick ribbon.

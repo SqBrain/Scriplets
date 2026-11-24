@@ -39,6 +39,17 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf) {
     return out;
 }
 
+void appendMesh(RibbonMesh& dst, const RibbonMesh& src) {
+    const int base = int(dst.verts.size());
+    dst.verts.insert(dst.verts.end(), src.verts.begin(), src.verts.end());
+    for (int i : src.tris) dst.tris.push_back(base + i);
+    dst.center.insert(dst.center.end(), src.center.begin(), src.center.end());
+    dst.tangent.insert(dst.tangent.end(), src.tangent.begin(), src.tangent.end());
+    dst.widthDir.insert(dst.widthDir.end(), src.widthDir.begin(), src.widthDir.end());
+    dst.widths.insert(dst.widths.end(), src.widths.begin(), src.widths.end());
+    dst.solid = dst.solid || src.solid;
+}
+
 Polyline topViewToFloor(const Polyline& in, const V3& pivot) {
     // Rotation by -90 degrees about X: (x, y, z) -> (x, z, -y).
     auto rot = [](const V3& v) { return V3(v.x, v.z, -v.y); };
@@ -71,6 +82,8 @@ double windPhase(const WindSettings& w, double a, double L, double time) {
     return 2 * kPi * (a * L / std::max(1.0, w.wavelength) - w.flutterHz * time);
 }
 }  // namespace
+
+double hashUnit(long long index, int seed) { return hash01(index, seed); }
 
 double windGust(const WindSettings& w, double time) {
     double n = (valueNoise(time * 0.6, w.seed) * 2 - 1) * 0.7 + (valueNoise(time * 1.7, w.seed + 7) * 2 - 1) * 0.3;
@@ -292,13 +305,15 @@ std::vector<ProfilePoint> ribbonProfile(double width, double thickness, double b
     return out;
 }
 
-static RK_Vertex makeVertex(const V3& p, const V3& n, const V3& t, double u, double v, double side) {
+static RK_Vertex makeVertex(const V3& p, const V3& n, const V3& t, double u, double v, double side, double ulen) {
     RK_Vertex vx;
     vx.pos[0] = float(p.x); vx.pos[1] = float(p.y); vx.pos[2] = float(p.z);
     vx.nrm[0] = float(n.x); vx.nrm[1] = float(n.y); vx.nrm[2] = float(n.z);
     vx.tan[0] = float(t.x); vx.tan[1] = float(t.y); vx.tan[2] = float(t.z);
     vx.uv[0] = float(u); vx.uv[1] = float(v);
     vx.side = float(side);
+    vx.ulen = float(ulen);
+    vx.grad = float(u);
     return vx;
 }
 
@@ -422,7 +437,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
                 for (int j = 0; j <= M; j++) {
                     double v = double(j) / M;
                     mesh.verts.push_back(makeVertex(center(k) + widthDir(k) * ((v - 0.5) * width(k)), fronts[size_t(k)], tangent(k),
-                                                    us[size_t(k)], 0.5 + (v - 0.5) * cuts[size_t(k)], 0));
+                                                    us[size_t(k)], 0.5 + (v - 0.5) * cuts[size_t(k)], 0, us[size_t(k)] * Lr));
                 }
             for (int k = 0; k < n; k++)
                 for (int j = 0; j < M; j++) {
@@ -443,7 +458,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
                 V3 nn = normalize(widthDir(k) * q.nx + Fk * q.ny, Fk);
                 const double wf = fullW[size_t(k)];
                 double v = wf > 1e-9 ? std::clamp(q.x / wf + 0.5, 0.0, 1.0) : 0.5;
-                mesh.verts.push_back(makeVertex(p, nn, tangent(k), us[size_t(k)], v, q.ny));
+                mesh.verts.push_back(makeVertex(p, nn, tangent(k), us[size_t(k)], v, q.ny, us[size_t(k)] * Lr));
             }
         }
         for (int k = 0; k < n; k++)
@@ -460,7 +475,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
                 const int k = endCap ? n : 0;
                 const V3 nrm = tangent(k) * (endCap ? 1.0 : -1.0);
                 const int c = int(mesh.verts.size());
-                mesh.verts.push_back(makeVertex(center(k), nrm, widthDir(k), us[size_t(k)], 0.5, 0));
+                mesh.verts.push_back(makeVertex(center(k), nrm, widthDir(k), us[size_t(k)], 0.5, 0, us[size_t(k)] * Lr));
                 for (int i = 0; i < R; i++) {
                     RK_Vertex vx = mesh.verts[size_t(base + k * R + i)];
                     vx.nrm[0] = float(nrm.x); vx.nrm[1] = float(nrm.y); vx.nrm[2] = float(nrm.z);

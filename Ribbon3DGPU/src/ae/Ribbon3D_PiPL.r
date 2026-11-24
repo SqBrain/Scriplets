@@ -14,7 +14,11 @@ resource 'PiPL' (16000) {
             AEEffect
         },
         Name {
+#ifdef RB_MULTI_MASK
+            "Ribbon 3D GPU Multi-Mask"
+#else
             "Ribbon 3D GPU"
+#endif
         },
         Category {
             "Generate"
@@ -50,7 +54,11 @@ resource 'PiPL' (16000) {
             RB_PIPL_OUTFLAGS2
         },
         AE_Effect_Match_Name {
+#ifdef RB_MULTI_MASK
+            "SQB Ribbon3D GPU MultiMask"
+#else
             "SQB Ribbon3D GPU"
+#endif
         },
         AE_Reserved_Info {
             0

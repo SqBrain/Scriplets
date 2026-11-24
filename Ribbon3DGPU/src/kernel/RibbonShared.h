@@ -35,6 +35,8 @@ typedef struct {
     float tan[3];           /* unit tangent along the ribbon (for the satin highlight) */
     float uv[2];            /* u along the ribbon 0..1, v across 0..1 */
     float side;             /* solid ribbons: +1 front face, -1 back face, 0 edge (normal . front) */
+    float ulen;             /* distance along the ribbon from its start, world px (surface-map tiles) */
+    float grad;             /* gradient position: u along the ribbon, or a per-path random value */
 } RK_Vertex;
 
 typedef struct {
@@ -100,6 +102,17 @@ typedef struct {
     float roughAmount;              /* 0..1: blend from the material's Glossiness to the map */
     float glassFrost;               /* frosted glass: blur radius of the background, output pixels */
     int   frostTaps;                /* samples per blurred background lookup */
+    float nrmTileLen;               /* > 0: surface maps tile every nrmTileLen world px along the ribbon
+                                       (per-vertex distance, so ribbons of any length keep square tiles) */
+    float pad5;
+
+    /* Gradient instead of the front / back colors: 0 off, 1 along the ribbon (vertex grad = u,
+       with repeat and offset, mirrored past the ends), 2 per path (vertex grad = the path's value). */
+    int   gradMode, gradCount;      /* 2..4 evenly spaced stops */
+    int   gradEdge;                 /* 1: solid edges follow the gradient too */
+    float gradRepeat, gradOffset;
+    float gradColors[12];           /* working-space encoded, linearized after interpolation */
+    float pad6;
 } RK_Params;
 
 #endif

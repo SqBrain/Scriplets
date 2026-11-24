@@ -40,16 +40,22 @@ static double segLen(const Seg& s) {
     for (int i = 1; i <= 2000; i++) { bez(s, i / 2000.0, x, y); L += std::hypot(x - px, y - py); px = x; py = y; }
     return L;
 }
+// Two masks on the layer: id 7 (the one in "Path") and id 8, the same shape moved down by gMask2Dy.
+static int gNumMasks = 2;
+static double gMask2Dy = 150;
+static PF_Err NumPaths(PF_ProgPtr, A_long* n) { *n = gNumMasks; return PF_Err_NONE; }
+static PF_Err PathInfo(PF_ProgPtr, A_long i, PF_PathID* id) { *id = PF_PathID(7 + i); return PF_Err_NONE; }
 static PF_Err CheckoutPath(PF_ProgPtr, PF_PathID id, A_long, A_long, A_u_long, PF_PathOutlinePtr* p) {
-    *p = id == 7 ? (PF_PathOutlinePtr)0x1 : nullptr;
+    *p = id == 7 ? (PF_PathOutlinePtr)0x1 : (id == 8 ? (PF_PathOutlinePtr)0x2 : nullptr);
     return PF_Err_NONE;
 }
+static double MaskDy(PF_PathOutlinePtr p) { return p == (PF_PathOutlinePtr)0x2 ? gMask2Dy : 0.0; }
 static PF_Err CheckinPath(PF_ProgPtr, PF_PathID, PF_Boolean, PF_PathOutlinePtr) { return PF_Err_NONE; }
 static PF_Err IsOpen(PF_ProgPtr, PF_PathOutlinePtr, PF_Boolean* o) { *o = TRUE; return PF_Err_NONE; }
 static PF_Err NumSegs(PF_ProgPtr, PF_PathOutlinePtr, A_long* n) { *n = 2; return PF_Err_NONE; }
 static PF_Err Prep(PF_ProgPtr, PF_PathOutlinePtr, A_long, A_long, PF_PathSegPrepPtr* pp) { *pp = (PF_PathSegPrepPtr)0x2; return PF_Err_NONE; }
 static PF_Err GetLen(PF_ProgPtr, PF_PathOutlinePtr, A_long s, PF_PathSegPrepPtr*, PF_FpLong* l) { *l = segLen(kSegs[s]); return PF_Err_NONE; }
-static PF_Err Eval(PF_ProgPtr, PF_PathOutlinePtr, PF_PathSegPrepPtr*, A_long s, PF_FpLong len, PF_FpLong* x, PF_FpLong* y) {
+static PF_Err Eval(PF_ProgPtr, PF_PathOutlinePtr path, PF_PathSegPrepPtr*, A_long s, PF_FpLong len, PF_FpLong* x, PF_FpLong* y) {
     // arc length -> t by bisection on a dense table
     const Seg& g = kSegs[s];
     double L = 0, px, py, cx, cy, t = 1;
@@ -61,6 +67,7 @@ static PF_Err Eval(PF_ProgPtr, PF_PathOutlinePtr, PF_PathSegPrepPtr*, A_long s, 
         L += d; px = cx; py = cy;
     }
     bez(g, t, *x, *y);
+    *y += MaskDy(path);
     return PF_Err_NONE;
 }
 static PF_Err Cleanup(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathSegPrepPtr*) { return PF_Err_NONE; }
@@ -193,15 +200,16 @@ static A_Err SourceItem(AEGP_LayerH l, AEGP_ItemH* i) { *i = L(l)->source.w ? (A
 static A_Err CompItem(AEGP_CompH, AEGP_ItemH* i) { *i = (AEGP_ItemH)&gCompItem; return 0; }
 static A_Err ItemDims(AEGP_ItemH i, A_long* w, A_long* h) { *w = ((SimLayer::Item*)i)->w; *h = ((SimLayer::Item*)i)->h; return 0; }
 static A_Err ItemPar(AEGP_ItemH i, A_Ratio* r) { *r = ((SimLayer::Item*)i)->par; return 0; }
-static PF_Err VertexInfo(PF_ProgPtr, PF_PathOutlinePtr, A_long i, PF_PathVertex* v) {
+static PF_Err VertexInfo(PF_ProgPtr, PF_PathOutlinePtr path, A_long i, PF_PathVertex* v) {
     // Vertex i of the two-segment mask; handles relative or absolute depending on gAbsoluteTangents.
     const double* p = i == 0 ? kSegs[0].p[0] : (i == 1 ? kSegs[0].p[3] : kSegs[1].p[3]);
     const double* in = i == 0 ? kSegs[0].p[0] : (i == 1 ? kSegs[0].p[2] : kSegs[1].p[2]);
     const double* out = i == 0 ? kSegs[0].p[1] : (i == 1 ? kSegs[1].p[1] : kSegs[1].p[3]);
-    v->x = p[0]; v->y = p[1];
+    const double dy = MaskDy(path);
+    v->x = p[0]; v->y = p[1] + dy;
     double o = gAbsoluteTangents ? 0 : 1;
-    v->tan_in_x = in[0] - o * p[0]; v->tan_in_y = in[1] - o * p[1];
-    v->tan_out_x = out[0] - o * p[0]; v->tan_out_y = out[1] - o * p[1];
+    v->tan_in_x = in[0] - o * p[0]; v->tan_in_y = (in[1] + dy) - o * (p[1] + dy);
+    v->tan_out_x = out[0] - o * p[0]; v->tan_out_y = (out[1] + dy) - o * (p[1] + dy);
     return PF_Err_NONE;
 }
 
@@ -217,7 +225,7 @@ static std::vector<std::vector<char>> gHandles;
 static PF_Handle NewHandle(A_u_long size) { static std::vector<char*> ptrs; char* p = new char[size](); ptrs.push_back(p); return &ptrs.back(); }
 static void DisposeHandle(PF_Handle) {}
 
-static PF_PathQuerySuite1 sPQ = {CheckoutPath, CheckinPath};
+static PF_PathQuerySuite1 sPQ = {NumPaths, PathInfo, CheckoutPath, CheckinPath};
 static PF_PathDataSuite1 sPD = {IsOpen, NumSegs, VertexInfo, Prep, GetLen, Eval, Cleanup};
 static AEGP_PFInterfaceSuite1 sPFI = {GetEffectLayer, NewEffectForEffect, ToComp, GetCam};
 static AEGP_LayerSuite8 sLS = {NumLayers, LayerByIndex, ParentComp, Flags, ToWorld, ObjType, SetFlag, GetID, FromID, SourceItem};
@@ -882,6 +890,126 @@ static int TestRoughEnds() {
     return fails;
 }
 
+// Mean color of the ribbon pixels (alpha > 0.5) in columns x0..x1 (Ribbon Only renders).
+static void MeanColor(const std::vector<float>& img, int x0, int x1, int y0, int y1, double rgb[3]) {
+    double n = 0;
+    rgb[0] = rgb[1] = rgb[2] = 0;
+    for (int y = y0; y < y1; y++)
+        for (int x = x0; x < x1; x++) {
+            const float* p = &img[(size_t(y) * W + x) * 4];
+            if (p[3] < 0.5f) continue;
+            rgb[0] += p[2] / p[3]; rgb[1] += p[1] / p[3]; rgb[2] += p[0] / p[3];
+            n++;
+        }
+    if (n > 0) { rgb[0] /= n; rgb[1] /= n; rgb[2] /= n; }
+}
+
+// Gradient along the path: red-ish at the start of the mask, blue-ish at its end; CPU = GPU.
+static int TestGradient() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    gDefs[RB_TWIST - 1].u.fs_d.value = 0;
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_ALONG;
+    gDefs[RB_GRAD_COUNT - 1].u.pd.value = 1;  // 2 colors
+    gDefs[RB_GRAD_COLOR_1 - 1].u.cd.value = {255, 255, 0, 0};
+    gDefs[RB_GRAD_COLOR_2 - 1].u.cd.value = {255, 0, 0, 255};
+    std::vector<float> c = RunCPU(32), g = RunGPU();
+    double maxG = 0;
+    for (size_t i = 0; i < c.size() && i < g.size(); i++) maxG = std::max(maxG, double(std::fabs(c[i] - g[i])));
+    double a[3], b[3];
+    MeanColor(c, 80, 160, 0, H, a);   // mask start (x 90)
+    MeanColor(c, 780, 880, 0, H, b);  // mask end (x 870)
+    std::printf("gradient along path: start rgb %.2f %.2f %.2f, end rgb %.2f %.2f %.2f, CPU vs GPU %.2e\n", a[0], a[1], a[2], b[0], b[1], b[2], maxG);
+    if (!(a[0] > a[2] * 2 && b[2] > b[0] * 2) || g.empty() || maxG > 2e-3) { std::printf("FAIL: gradient along path\n"); fails++; }
+    // Single-mask effect: no "Random per Path", its seed is hidden.
+    if (!(gDefs[RB_GRAD_SEED - 1].ui_flags & PF_PUI_INVISIBLE)) { std::printf("FAIL: seed visible in the single-mask effect\n"); fails++; }
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_OFF;
+    gDefs[RB_TWIST - 1].u.fs_d.value = 1;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
+// Multi-mask effect: a ribbon along each of the two masks, trimmed simultaneously, gradient per path.
+static int TestMultiMask() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    gDefs[RB_TWIST - 1].u.fs_d.value = 0;
+    auto area = [](const std::vector<float>& img, int y0, int y1) {
+        double s = 0;
+        for (int y = y0; y < y1; y++)
+            for (int x = 0; x < W; x++) s += img[(size_t(y) * W + x) * 4 + 3];
+        return s;
+    };
+    gNumMasks = 1;
+    std::vector<float> one = RunCPU(32);
+    gNumMasks = 2;
+    std::vector<float> two = RunCPU(32), twoG = RunGPU();
+    double maxG = 0;
+    for (size_t i = 0; i < two.size() && i < twoG.size(); i++) maxG = std::max(maxG, double(std::fabs(two[i] - twoG[i])));
+    const double a1 = area(one, 0, H), a2 = area(two, 0, H);
+    std::printf("multi-mask: one mask %.0f px, two masks %.0f px, CPU vs GPU %.2e\n", a1, a2, maxG);
+    if (a2 < a1 * 1.7 || a2 > a1 * 2.3 || twoG.empty() || maxG > 2e-3) { std::printf("FAIL: two masks\n"); fails++; }
+    // Simultaneously: End 50 % halves both ribbons.
+    gDefs[RB_END - 1].u.fs_d.value = 50;
+    std::vector<float> half = RunCPU(32);
+    gDefs[RB_END - 1].u.fs_d.value = 100;
+    // Lower half of the frame holds mostly mask 2 (moved down 150 px), upper half mask 1.
+    const double r1 = area(half, 0, 270) / area(two, 0, 270), r2 = area(half, 270, H) / area(two, 270, H);
+    std::printf("multi-mask, End 50 %%: upper part %.2f, lower part %.2f of the full ribbons\n", r1, r2);
+    if (r1 > 0.8 || r2 > 0.8 || r1 < 0.2 || r2 < 0.2) { std::printf("FAIL: simultaneous trim\n"); fails++; }
+    // Unused parameters are hidden.
+    const int hidden[] = {RB_PATH, RB_NULLS_TOPIC, RB_PATH_SOURCE, RB_MAKE_NULLS, RB_NULLS_CLOSED, RB_NULL_1, RB_NULL_1 + RB_MAX_NULLS - 1};
+    bool allHidden = true;
+    for (int i : hidden) allHidden = allHidden && (gDefs[size_t(i - 1)].ui_flags & PF_PUI_INVISIBLE);
+    if (!allHidden || (gDefs[RB_GRAD_SEED - 1].ui_flags & PF_PUI_INVISIBLE)) { std::printf("FAIL: hidden parameters\n"); fails++; }
+    // Cache key: moving the second mask changes it.
+    gGuid.clear(); RunCPU(32);
+    std::vector<unsigned char> k0 = gGuid;
+    gMask2Dy = 160;
+    gGuid.clear(); RunCPU(32);
+    bool moved = gGuid != k0;
+    gMask2Dy = 150;
+    std::printf("multi-mask cache key: %zu bytes, changes when the second mask moves: %s\n", k0.size(), moved ? "yes" : "no");
+    if (!moved) { std::printf("FAIL: masks not in the cache key\n"); fails++; }
+    // Random per path: each ribbon one color from the gradient (red .. blue), different seeds differ.
+    // Flat shading (ambient light only), so a pixel's color is the gradient color itself.
+    const double keep[5] = {gDefs[RB_AMBIENT - 1].u.fs_d.value, gDefs[RB_DIFFUSE - 1].u.fs_d.value, gDefs[RB_SPECULAR - 1].u.fs_d.value,
+                            gDefs[RB_SHEEN - 1].u.fs_d.value, gDefs[RB_TRANSLUCENCY - 1].u.fs_d.value};
+    gDefs[RB_AMBIENT - 1].u.fs_d.value = 1;
+    gDefs[RB_DIFFUSE - 1].u.fs_d.value = gDefs[RB_SPECULAR - 1].u.fs_d.value = 0;
+    gDefs[RB_SHEEN - 1].u.fs_d.value = gDefs[RB_TRANSLUCENCY - 1].u.fs_d.value = 0;
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_RANDOM;
+    gDefs[RB_GRAD_COUNT - 1].u.pd.value = 1;
+    gDefs[RB_GRAD_COLOR_1 - 1].u.cd.value = {255, 255, 0, 0};
+    gDefs[RB_GRAD_COLOR_2 - 1].u.cd.value = {255, 0, 0, 255};
+    double best = 0;
+    for (int seed = 0; seed < 4; seed++) {
+        gDefs[RB_GRAD_SEED - 1].u.sd.value = seed;
+        std::vector<float> c = RunCPU(32), g = RunGPU();
+        double m1[3], m2[3], e1[3], e2[3], gg = 0;
+        for (size_t i = 0; i < c.size() && i < g.size(); i++) gg = std::max(gg, double(std::fabs(c[i] - g[i])));
+        MeanColor(c, 80, 160, 300, 400, m1);   // start of mask 1 (y 350)
+        MeanColor(c, 780, 880, 250, 350, e1);  // end of mask 1 (y 320)
+        MeanColor(c, 80, 160, 450, 540, m2);   // start of mask 2 (y 500)
+        MeanColor(c, 780, 880, 420, 520, e2);  // end of mask 2 (y 470)
+        const double along1 = std::fabs(m1[0] - e1[0]), along2 = std::fabs(m2[0] - e2[0]), between = std::fabs(m1[0] - m2[0]);
+        std::printf("  seed %d: path 1 r %.2f, path 2 r %.2f (along each path %.3f / %.3f), CPU vs GPU %.2e\n", seed, m1[0], m2[0], along1, along2, gg);
+        if (along1 > 0.02 || along2 > 0.02 || gg > 2e-3) { std::printf("FAIL: per-path color not constant\n"); fails++; }
+        best = std::max(best, between);
+    }
+    if (best < 0.15) { std::printf("FAIL: per-path colors do not differ\n"); fails++; }
+    gDefs[RB_AMBIENT - 1].u.fs_d.value = keep[0]; gDefs[RB_DIFFUSE - 1].u.fs_d.value = keep[1];
+    gDefs[RB_SPECULAR - 1].u.fs_d.value = keep[2]; gDefs[RB_SHEEN - 1].u.fs_d.value = keep[3];
+    gDefs[RB_TRANSLUCENCY - 1].u.fs_d.value = keep[4];
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_OFF;
+    gDefs[RB_TWIST - 1].u.fs_d.value = 1;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -899,6 +1027,14 @@ int main(int argc, char** argv) {
     clGetDeviceIDs(plat, CL_DEVICE_TYPE_ALL, 1, &gDev, nullptr);
     gCtx = clCreateContext(nullptr, 1, &gDev, nullptr, nullptr, nullptr);
     gQ = clCreateCommandQueue(gCtx, gDev, 0, nullptr);
+
+#ifdef RB_MULTI_MASK
+    // The multi-mask effect (same sources, built with RB_MULTI_MASK).
+    std::printf("effect: %s\n", RB_NAME);
+    fails += TestMultiMask();
+    std::printf(fails ? "host simulation (multi-mask) FAILED\n" : "host simulation (multi-mask) OK\n");
+    return fails;
+#endif
 
     // Default (Ribbon Only): transparent around the ribbon, on CPU and GPU alike.
     {
@@ -950,6 +1086,7 @@ int main(int argc, char** argv) {
     fails += TestWind();
     fails += TestNormalMap();
     fails += TestRoughEnds();
+    fails += TestGradient();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

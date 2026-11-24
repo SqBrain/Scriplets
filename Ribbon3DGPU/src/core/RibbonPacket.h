@@ -61,6 +61,11 @@ struct Material {
     bool normalTiles = true;        // true: square tiles of normalTilePx; false: stretched like the texture
     double normalTilePx = 100;
     bool normalDirectX = false;     // green channel points down (DirectX) instead of up (OpenGL)
+    // Gradient instead of the front / back colors (gamma-encoded stops, 2..4).
+    int gradMode = 0;               // 0 off, 1 along the ribbon, 2 per path (vertex grad set by the caller)
+    std::vector<V3> gradColors;
+    double gradRepeat = 1, gradOffset = 0;
+    bool gradEdge = true;           // solid edges follow the gradient
     // Roughness map (same mapping as the normal map; the image comes with setRoughnessMap).
     double roughAmount = 1;
     bool roughInvert = false;       // the map is a gloss map (white = smooth)
@@ -77,9 +82,9 @@ struct Packet {
 };
 
 // Fills everything except the buffer pitches and texture fields (see setBuffers / setTexture).
-// ribbonLength / ribbonWidth (world px) size the normal map tiles (Material::normalTiles).
+// ribbonWidth (world px) sizes the surface-map tiles across the ribbon (Material::normalTiles).
 void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<LightDesc>& lights,
-                 const Material& mat, int bufWidth, int bufHeight, Packet& out, double ribbonLength = 0, double ribbonWidth = 0);
+                 const Material& mat, int bufWidth, int bufHeight, Packet& out, double ribbonWidth = 0);
 
 inline void setBuffers(Packet& p, int srcPitchPixels, int dstPitchPixels) {
     p.params.srcPitch = srcPitchPixels;

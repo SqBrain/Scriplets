@@ -9,6 +9,8 @@
 #include "Ribbon3D.h"
 #include "core/RibbonGeometry.h"
 
+#include <vector>
+
 // PF_Cmd_USER_CHANGED_PARAM for RB_MAKE_NULLS: creates 3D nulls at the mask vertices (one undo
 // step), fills the "Point" layer slots and switches Path Source to Control Nulls.
 PF_Err RibbonMakeNullsFromMask(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]);
@@ -19,10 +21,11 @@ bool RibbonReadControlPoints(PF_InData* in_data, const A_Time& compTime, std::ve
 // Spline through the layers in the "Point" slots at comp time. False when fewer than 2 are set.
 bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool closed, rb::Polyline& out);
 
-// PreRender: mixes the control nulls' transforms into AE's cache key, so moving, rotating or
-// scaling a null re-renders the effect (AE does not track other layers' transforms for us).
-// Must be called on every pre-render (AE checks it); with useNulls false only a marker is mixed.
-PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra, bool useNulls);
+// PreRender: the control nulls' transforms for AE's cache key (appended to key), so moving,
+// rotating or scaling a null re-renders the effect (AE does not track other layers' transforms
+// for us). The key must be mixed in on every pre-render (AE checks it); with useNulls false it
+// holds only a marker.
+void RibbonControlNullsKey(PF_InData* in_data, bool useNulls, std::vector<double>& key);
 
 // Layer parameters (slots) through their effect streams: the layer's ID, 0 when empty.
 AEGP_LayerIDVal RibbonGetLayerParam(PF_InData* in_data, int paramIndex, const A_Time& compTime);

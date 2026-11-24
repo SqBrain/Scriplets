@@ -58,6 +58,13 @@ if(RIBBON_BUILD_TESTS)
             target_compile_definitions(ribbon_host_sim PRIVATE RB_HAS_OPENCL RB_HAS_CUDA)
             target_link_libraries(ribbon_host_sim PRIVATE ribbon_core OpenCL::OpenCL ${CMAKE_DL_LIBS})
             add_test(NAME ribbon_host_sim COMMAND ribbon_host_sim)
+            # The second effect, "Ribbon 3D GPU Multi-Mask": the same sources with RB_MULTI_MASK.
+            add_executable(ribbon_host_sim_multi tests/host_sim/host_sim.cpp src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp
+                                                 src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp)
+            target_include_directories(ribbon_host_sim_multi PRIVATE tests/host_sim/sdk_stub src src/ae ${GEN_DIR})
+            target_compile_definitions(ribbon_host_sim_multi PRIVATE RB_HAS_OPENCL RB_HAS_CUDA RB_MULTI_MASK)
+            target_link_libraries(ribbon_host_sim_multi PRIVATE ribbon_core OpenCL::OpenCL ${CMAKE_DL_LIBS})
+            add_test(NAME ribbon_host_sim_multi COMMAND ribbon_host_sim_multi)
         endif()
     endif()
 endif()
