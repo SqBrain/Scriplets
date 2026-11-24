@@ -147,6 +147,15 @@ enum {
     RB_WIND_SEED,
     RB_WIND_TOPIC_END,
 
+    // 0.1.08 (appended for the same reason).
+    RB_NRM_TOPIC,
+    RB_NRM_LAYER,
+    RB_NRM_STRENGTH,
+    RB_NRM_MAPPING,       // 1: Tiles, 2: Like Texture
+    RB_NRM_TILE,
+    RB_NRM_FORMAT,        // 1: OpenGL (green up), 2: DirectX (green down)
+    RB_NRM_TOPIC_END,
+
     RB_NUM_PARAMS
 };
 
@@ -155,7 +164,8 @@ enum { RB_DISK_ID_BASE = 1 };
 #define RB_ID(param) (RB_DISK_ID_BASE + (param))
 
 // Checkout IDs for SmartFX layer requests.
-enum { RB_CHECKOUT_INPUT = 1, RB_CHECKOUT_TEX_PROBE = 2, RB_CHECKOUT_TEX = 3, RB_CHECKOUT_ENV_PROBE = 4, RB_CHECKOUT_ENV = 5 };
+enum { RB_CHECKOUT_INPUT = 1, RB_CHECKOUT_TEX_PROBE = 2, RB_CHECKOUT_TEX = 3, RB_CHECKOUT_ENV_PROBE = 4, RB_CHECKOUT_ENV = 5,
+       RB_CHECKOUT_NRM_PROBE = 6, RB_CHECKOUT_NRM = 7 };
 
 extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
                                        PF_LayerDef* output, void* extra);

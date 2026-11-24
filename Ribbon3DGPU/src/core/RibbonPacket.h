@@ -54,6 +54,11 @@ struct Material {
     double transmission = 0.9;      // 0..1 of the non-reflected light that passes through
     double tint = 0.3;              // 0..1: how much the ribbon color tints the passing light
     double refractPx = 30;          // refraction strength, comp pixels per unit of bend
+    // Normal map (the image itself comes with setNormalMap).
+    double normalStrength = 1;
+    bool normalTiles = true;        // true: square tiles of normalTilePx; false: stretched like the texture
+    double normalTilePx = 100;
+    bool normalDirectX = false;     // green channel points down (DirectX) instead of up (OpenGL)
 };
 
 struct Packet {
@@ -67,8 +72,9 @@ struct Packet {
 };
 
 // Fills everything except the buffer pitches and texture fields (see setBuffers / setTexture).
+// ribbonLength / ribbonWidth (world px) size the normal map tiles (Material::normalTiles).
 void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<LightDesc>& lights,
-                 const Material& mat, int bufWidth, int bufHeight, Packet& out);
+                 const Material& mat, int bufWidth, int bufHeight, Packet& out, double ribbonLength = 0, double ribbonWidth = 0);
 
 inline void setBuffers(Packet& p, int srcPitchPixels, int dstPitchPixels) {
     p.params.srcPitch = srcPitchPixels;
@@ -86,6 +92,13 @@ inline void setSource(Packet& p, int x, int y, int w, int h, int pitchPixels) {
 // as AE delivers it): converted to linear RGB, resampled to at most 1024 x 512, a mip chain for
 // blurred reflections and L2 spherical harmonics for the diffuse light. Null / empty: no environment.
 void setEnvironmentImage(Packet& p, const float* bgra, int width, int height, int pitchPixels);
+
+inline void setNormalMap(Packet& p, int width, int height, int pitchPixels) {
+    p.params.hasNormal = (width > 0 && height > 0) ? 1 : 0;
+    p.params.nrmWidth = width;
+    p.params.nrmHeight = height;
+    p.params.nrmPitch = pitchPixels;
+}
 
 inline void setTexture(Packet& p, int width, int height, int pitchPixels) {
     p.params.hasTexture = (width > 0 && height > 0) ? 1 : 0;

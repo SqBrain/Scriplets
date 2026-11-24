@@ -86,6 +86,13 @@ typedef struct {
     float glassTint;                /* 0..1: how much the ribbon color tints the passing light */
     float refractPx;                /* refraction: screen offset in output pixels per unit of bend */
     float camRight[3], camDown[3];  /* camera axes in world space, for the refraction offset */
+
+    /* Normal map (tangent space: x along the ribbon = +u, y = image up, z out of the surface). */
+    int   hasNormal, nrmWidth, nrmHeight, nrmPitch;
+    int   nrmWrapV;                 /* 1: tiles across the ribbon (v wraps), 0: v clamps */
+    int   nrmDirectX;               /* 1: green points down the image (DirectX), 0: up (OpenGL) */
+    float nrmStrength;
+    float nrmRepeatU, nrmRepeatV, nrmOffsetU;
 } RK_Params;
 
 #endif

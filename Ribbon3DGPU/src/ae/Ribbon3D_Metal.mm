@@ -38,7 +38,8 @@ void RibbonMetal_Release(void* pipeline) {
     if (pipeline) [(id<MTLComputePipelineState>)pipeline release];
 }
 
-bool RibbonMetal_Render(void* pipelinePV, void* devicePV, void* queuePV, const rb::Packet& pk, void* src, void* dst, void* tex) {
+bool RibbonMetal_Render(void* pipelinePV, void* devicePV, void* queuePV, const rb::Packet& pk, void* src, void* dst, void* tex,
+                        void* nrm) {
     @autoreleasepool {
         id<MTLComputePipelineState> pipeline = (id<MTLComputePipelineState>)pipelinePV;
         id<MTLDevice> device = (id<MTLDevice>)devicePV;
@@ -57,9 +58,10 @@ bool RibbonMetal_Render(void* pipelinePV, void* devicePV, void* queuePV, const r
         id<MTLComputeCommandEncoder> enc = [cmd computeCommandEncoder];
         [enc setComputePipelineState:pipeline];
         for (int i = 0; i < 7; i++) [enc setBuffer:buffers[i] offset:0 atIndex:NSUInteger(i)];
-        [enc setBuffer:(id<MTLBuffer>)tex offset:0 atIndex:7];
-        [enc setBuffer:(id<MTLBuffer>)src offset:0 atIndex:8];
-        [enc setBuffer:(id<MTLBuffer>)dst offset:0 atIndex:9];
+        [enc setBuffer:(id<MTLBuffer>)nrm offset:0 atIndex:7];
+        [enc setBuffer:(id<MTLBuffer>)tex offset:0 atIndex:8];
+        [enc setBuffer:(id<MTLBuffer>)src offset:0 atIndex:9];
+        [enc setBuffer:(id<MTLBuffer>)dst offset:0 atIndex:10];
         NSUInteger tw = 16, th = std::max<NSUInteger>(1, std::min<NSUInteger>(16, pipeline.maxTotalThreadsPerThreadgroup / tw));
         MTLSize perGroup = MTLSizeMake(tw, th, 1);
         MTLSize groups = MTLSizeMake((NSUInteger(pk.params.width) + tw - 1) / tw, (NSUInteger(pk.params.height) + th - 1) / th, 1);

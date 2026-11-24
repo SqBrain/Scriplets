@@ -69,6 +69,7 @@ RK_FN rk3 rk_sub(rk3 a, rk3 b) { return rk_v(a.x - b.x, a.y - b.y, a.z - b.z); }
 RK_FN rk3 rk_scale(rk3 a, float s) { return rk_v(a.x * s, a.y * s, a.z * s); }
 RK_FN rk3 rk_mulv(rk3 a, rk3 b) { return rk_v(a.x * b.x, a.y * b.y, a.z * b.z); }
 RK_FN float rk_dot(rk3 a, rk3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+RK_FN rk3 rk_cross(rk3 a, rk3 b) { return rk_v(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x); }
 RK_FN float rk_maxf(float a, float b) { return a > b ? a : b; }
 RK_FN float rk_minf(float a, float b) { return a < b ? a : b; }
 RK_FN float rk_clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
@@ -198,6 +199,40 @@ RK_FN rk3 rk_env(RK_IN(RK_Params) P, RK_IN(float) env, rk3 d, float lod) {
     return c;
 }
 
+// ---------------------------------------------------------------- normal map
+
+// The front side's normal Nf tilted by the normal map at (u, v). Tangent frame: x along the
+// ribbon (+u, the vertex tangent T), y up the image (-v, or +v for DirectX maps), z = Nf.
+// Normal maps are data, not colors: no gamma decoding.
+RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, float u, float v) {
+    float fu = u * P->nrmRepeatU + P->nrmOffsetU, fv = v * P->nrmRepeatV;
+    fu = fu - RK_FLOOR(fu);
+    fv = P->nrmWrapV ? fv - RK_FLOOR(fv) : rk_clampf(fv, 0.0f, 1.0f);
+    int W = P->nrmWidth, H = P->nrmHeight;
+    float fx = fu * (float)W - 0.5f, fy = fv * (float)H - 0.5f;
+    float x0f = RK_FLOOR(fx), y0f = RK_FLOOR(fy), tx = fx - x0f, ty = fy - y0f;
+    int x0 = (int)x0f, y0 = (int)y0f;
+    int x1 = x0 + 1, y1 = y0 + 1;
+    x0 = ((x0 % W) + W) % W; x1 = ((x1 % W) + W) % W;
+    if (P->nrmWrapV) { y0 = ((y0 % H) + H) % H; y1 = ((y1 % H) + H) % H; }
+    else { y0 = y0 < 0 ? 0 : (y0 >= H ? H - 1 : y0); y1 = y1 < 0 ? 0 : (y1 >= H ? H - 1 : y1); }
+    int i00 = (y0 * P->nrmPitch + x0) * 4, i10 = (y0 * P->nrmPitch + x1) * 4;
+    int i01 = (y1 * P->nrmPitch + x0) * 4, i11 = (y1 * P->nrmPitch + x1) * 4;
+    float w00 = (1.0f - tx) * (1.0f - ty), w10 = tx * (1.0f - ty), w01 = (1.0f - tx) * ty, w11 = tx * ty;
+    float B = nm[i00] * w00 + nm[i10] * w10 + nm[i01] * w01 + nm[i11] * w11;
+    float G = nm[i00 + 1] * w00 + nm[i10 + 1] * w10 + nm[i01 + 1] * w01 + nm[i11 + 1] * w11;
+    float R = nm[i00 + 2] * w00 + nm[i10 + 2] * w10 + nm[i01 + 2] * w01 + nm[i11 + 2] * w11;
+    float A = nm[i00 + 3] * w00 + nm[i10 + 3] * w10 + nm[i01 + 3] * w01 + nm[i11 + 3] * w11;
+    if (A < 1e-6f) return Nf;  // transparent part of the map: no relief
+    float ia = 1.0f / A;
+    float x = (R * ia * 2.0f - 1.0f) * P->nrmStrength;
+    float y = (G * ia * 2.0f - 1.0f) * P->nrmStrength * (P->nrmDirectX ? 1.0f : -1.0f);
+    float z = rk_maxf(B * ia * 2.0f - 1.0f, 0.05f);
+    rk3 Tn = rk_norm(rk_sub(T, rk_scale(Nf, rk_dot(T, Nf))), rk_v(1.0f, 0.0f, 0.0f));
+    rk3 Bv = rk_cross(Tn, Nf);  // = the width direction, +v
+    return rk_norm(rk_add(rk_add(rk_scale(Tn, x), rk_scale(Bv, y)), rk_scale(Nf, z)), Nf);
+}
+
 // ---------------------------------------------------------------- shading
 
 // Result of shading one hit, before it is combined with what lies behind it.
@@ -214,7 +249,7 @@ typedef struct {
 
 // Shades one hit. w0..w2: screen-space barycentrics, iw: interpolated 1/depth.
 RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) verts, RK_IN(RK_Light) lights,
-                      RK_IN(float) tex, RK_IN(float) env, float w0, float w1, float w2, float iw) {
+                      RK_IN(float) tex, RK_IN(float) env, RK_IN(float) nm, float w0, float w1, float w2, float iw) {
     RK_IN(RK_Vertex) a = verts + t->v[0];
     RK_IN(RK_Vertex) b = verts + t->v[1];
     RK_IN(RK_Vertex) c = verts + t->v[2];
@@ -229,6 +264,19 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     rk3 V = rk_norm(rk_sub(rk_v(P->camPos[0], P->camPos[1], P->camPos[2]), pos), rk_v(0.0f, 0.0f, -1.0f));
     int front = t->front > 0.5f;
     n = rk_norm(n, rk_v(0.0f, 0.0f, -1.0f));
+    tg = rk_norm(tg, rk_v(1.0f, 0.0f, 0.0f));
+    float side = P->solid ? a->side * q0 + b->side * q1 + c->side * q2 : 1.0f;
+    if (P->hasNormal) {
+        // Thin sheet: the relief is applied to the front side; the back side (flipped below) sees
+        // it inverted, like embossed fabric. Solid: on the faces, fading out on the edges.
+        if (!P->solid) {
+            n = rk_normal_map(P, nm, n, tg, u, v);
+        } else {
+            float sgn = side >= 0.0f ? 1.0f : -1.0f;
+            rk3 bumped = rk_scale(rk_normal_map(P, nm, rk_scale(n, sgn), tg, u, v), sgn);
+            n = rk_norm(rk_mix3(n, bumped, rk_smooth(0.15f, 0.85f, RK_FABS(side))), n);
+        }
+    }
     // Thin sheet: two-sided, the normal follows the visible side. Solid: normals are outward; a
     // glass solid also shows its far side through the near one: there the light leaves the glass.
     int exiting = 0;
@@ -238,14 +286,12 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     float nv = rk_dot(n, V);
     if (nv < 0.02f) n = rk_norm(rk_add(n, rk_scale(V, 0.02f - nv)), V);
     nv = rk_clampf(rk_dot(n, V), 0.0f, 1.0f);
-    tg = rk_norm(tg, rk_v(1.0f, 0.0f, 0.0f));
 
     rk3 base;
     float alpha = 1.0f;
     if (P->solid) {
         // Faces get the front / back color (or the texture over it), edges the edge color; the
         // bevel blends between them by how much its normal faces front or back.
-        float side = a->side * q0 + b->side * q1 + c->side * q2;
         rk3 face = side >= 0.0f ? rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2])
                                 : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
         if (P->hasTexture) {
@@ -386,13 +432,13 @@ RK_FN rk4 rk_glass_over(rk_hit h, rk4 bg) {
     else if ((ID) == id1) OUT = h1;                                                            \
     else if ((ID) == id2) OUT = h2;                                                            \
     else {                                                                                     \
-        OUT = rk_shade(P, tris + (ID), verts, lights, tex, env, W0, W1, W2, IW);               \
+        OUT = rk_shade(P, tris + (ID), verts, lights, tex, env, nm, W0, W1, W2, IW);           \
         id2 = id1; h2 = h1; id1 = id0; h1 = h0; id0 = (ID); h0 = OUT;                          \
     }
 
 RK_FN void rk_render_pixel(int x, int y, RK_IN(RK_Params) P, RK_IN(RK_Tri) tris, RK_IN(RK_Vertex) verts,
                            RK_IN(int) tileStart, RK_IN(int) tileTris, RK_IN(RK_Light) lights, RK_IN(float) env,
-                           RK_IN(float) tex, RK_IN(float) src, RK_OUT(float) dst) {
+                           RK_IN(float) nm, RK_IN(float) tex, RK_IN(float) src, RK_OUT(float) dst) {
     if (x >= P->width || y >= P->height) return;
     int tile = (y / RK_TILE) * P->tilesX + (x / RK_TILE);
     int first = tileStart[tile], last = tileStart[tile + 1];

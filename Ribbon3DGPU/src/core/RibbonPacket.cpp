@@ -116,7 +116,7 @@ struct Builder {
 }  // namespace
 
 void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<LightDesc>& lights,
-                 const Material& mat, int W, int H, Packet& out) {
+                 const Material& mat, int W, int H, Packet& out, double ribbonLength, double ribbonWidth) {
     out.verts = mesh.verts;
     out.tris.clear();
     out.tileTris.clear();
@@ -219,6 +219,22 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.camRight[0] = float(cam.axisX.x); P.camRight[1] = float(cam.axisX.y); P.camRight[2] = float(cam.axisX.z);
     P.camDown[0] = float(cam.axisY.x); P.camDown[1] = float(cam.axisY.y); P.camDown[2] = float(cam.axisY.z);
     if (out.env.empty()) out.env.assign(4, 0.0f);
+
+    P.nrmStrength = float(std::max(0.0, mat.normalStrength));
+    P.nrmDirectX = mat.normalDirectX ? 1 : 0;
+    if (mat.normalTiles) {
+        // Square tiles of normalTilePx: as many along the visible ribbon as its length allows.
+        const double tile = std::max(1.0, mat.normalTilePx);
+        P.nrmRepeatU = float(std::max(ribbonLength, 1.0) / tile);
+        P.nrmRepeatV = float(std::max(ribbonWidth, 1.0) / tile);
+        P.nrmOffsetU = 0;
+        P.nrmWrapV = 1;
+    } else {
+        P.nrmRepeatU = float(mat.texRepeat);
+        P.nrmRepeatV = 1;
+        P.nrmOffsetU = float(mat.texOffset);
+        P.nrmWrapV = 0;
+    }
 }
 
 void setEnvironmentImage(Packet& p, const float* bgra, int w, int h, int pitch) {

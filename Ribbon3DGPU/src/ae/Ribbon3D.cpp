@@ -60,6 +60,7 @@ struct PreRenderData {
     PF_LRect inRect{};    // input buffer rect
     bool hasTexture = false;
     bool hasEnv = false;
+    bool hasNormal = false;
 };
 
 void DeletePreRenderData(void* p) { delete static_cast<PreRenderData*>(p); }
@@ -317,6 +318,22 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_WIND_TOPIC_END));
 
+    // 0.1.08: normal map - relief on the ribbon's surface.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Normal Map", RB_ID(RB_NRM_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_LAYER("Normal Map Layer", PF_LayerDefault_NONE, RB_ID(RB_NRM_LAYER));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Normal Strength", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_NRM_STRENGTH));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Normal Mapping", 2, 1, "Tiles|Like Texture", RB_ID(RB_NRM_MAPPING));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Tile Size (px)", 1, 10000, 5, 500, 100, PF_Precision_TENTHS, 0, 0, RB_ID(RB_NRM_TILE));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Green Channel", 2, 1, "OpenGL (Y+)|DirectX (Y-)", RB_ID(RB_NRM_FORMAT));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_NRM_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -370,6 +387,22 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_ENV_LAYER, RB_CHECKOUT_ENV, &ereq, in_data->current_time,
                                       in_data->time_step, in_data->time_scale, &eres));
         if (!err) prd->hasEnv = true;
+    }
+
+    // Normal map layer: the whole frame, like the texture.
+    PF_RenderRequest nreq = req;
+    PF_CheckoutResult nprobe;
+    AEFX_CLR_STRUCT(nprobe);
+    ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_NRM_LAYER, RB_CHECKOUT_NRM_PROBE, &nreq, in_data->current_time,
+                                  in_data->time_step, in_data->time_scale, &nprobe));
+    if (!err && nprobe.max_result_rect.right > nprobe.max_result_rect.left &&
+        nprobe.max_result_rect.bottom > nprobe.max_result_rect.top) {
+        nreq.rect = nprobe.max_result_rect;
+        PF_CheckoutResult nres;
+        AEFX_CLR_STRUCT(nres);
+        ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_NRM_LAYER, RB_CHECKOUT_NRM, &nreq, in_data->current_time,
+                                      in_data->time_step, in_data->time_scale, &nres));
+        if (!err) prd->hasNormal = true;
     }
 
     // Control nulls are other layers: tell AE's cache about their current transforms. With
@@ -648,6 +681,10 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     mat.transmission = Param(in_data, RB_GLASS_TRANSMISSION).f() / 100;
     mat.tint = Param(in_data, RB_GLASS_TINT).f() / 100;
     mat.refractPx = Param(in_data, RB_GLASS_REFRACTION).f();
+    mat.normalStrength = Param(in_data, RB_NRM_STRENGTH).f() / 100;
+    mat.normalTiles = Param(in_data, RB_NRM_MAPPING).popup() != 2;
+    mat.normalTilePx = Param(in_data, RB_NRM_TILE).f();
+    mat.normalDirectX = Param(in_data, RB_NRM_FORMAT).popup() == 2;
 
     // The effect layer is comp-sized: layer pixels == comp pixels.
     const double compW = in_data->width, compH = in_data->height;
@@ -675,8 +712,13 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
 
     rb::RibbonMesh mesh;
     rb::Polyline world;
-    if (RibbonWorldPath(in_data, compTime, pin, world)) mesh = rb::buildRibbon(rb::applyWind(world, rs.wind, rs.time), rs);
-    rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk);
+    double ribbonLength = 0;
+    if (RibbonWorldPath(in_data, compTime, pin, world)) {
+        world = rb::applyWind(world, rs.wind, rs.time);
+        mesh = rb::buildRibbon(world, rs);
+        ribbonLength = rb::FramedCurve(world).length() * std::fabs(rs.end - rs.start);  // for normal map tiles
+    }
+    rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk, ribbonLength, rs.width);
     return PF_Err_NONE;
 }
 
@@ -787,8 +829,8 @@ void FromBGRA(const std::vector<float>& in, int bpc, PF_EffectWorld* w) {
 }
 
 PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex,
-                 PF_EffectWorld* env) {
-    std::vector<float> s, t, d(size_t(dst->width) * dst->height * 4, 0.0f);
+                 PF_EffectWorld* env, PF_EffectWorld* nrm) {
+    std::vector<float> s, t, nm, d(size_t(dst->width) * dst->height * 4, 0.0f);
     if (src) {
         ToBGRA(src, bpc, s);
         rb::setSource(pk, prd.inRect.left - prd.outRect.left, prd.inRect.top - prd.outRect.top, src->width, src->height, src->width);
@@ -806,7 +848,11 @@ PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWor
         ToBGRA(env, bpc, e);
         rb::setEnvironmentImage(pk, e.data(), env->width, env->height, env->width);
     }
-    rb::renderCPU(pk, s.data(), d.data(), t.empty() ? nullptr : t.data());
+    if (nrm) {
+        ToBGRA(nrm, bpc, nm);
+        rb::setNormalMap(pk, nrm->width, nrm->height, nrm->width);
+    }
+    rb::renderCPU(pk, s.data(), d.data(), t.empty() ? nullptr : t.data(), 0, nm.empty() ? nullptr : nm.data());
     FromBGRA(d, bpc, dst);
     return PF_Err_NONE;
 }
@@ -816,24 +862,26 @@ PF_Err SmartRender(PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra
     PF_Err err = PF_Err_NONE, err2 = PF_Err_NONE;
     const PreRenderData* prd = static_cast<const PreRenderData*>(extra->input->pre_render_data);
     if (!prd) return PF_Err_BAD_CALLBACK_PARAM;
-    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr;
+    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr, *nrm = nullptr;
     ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT, &src));
     ERR(extra->cb->checkout_output(in_data->effect_ref, &dst));
     if (!err && prd->hasTexture) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX, &tex));
     if (!err && prd->hasEnv) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV, &env));
+    if (!err && prd->hasNormal) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM, &nrm));
 
     if (!err && dst) {
         rb::Packet pk;
         ERR(BuildPacket(in_data, *prd, dst->width, dst->height, pk));
         if (!err) {
             if (gpu) err = RibbonGPU_Render(in_data, extra, pk, prd->inRect.left - prd->outRect.left,
-                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env);
-            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env);
+                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env, nrm);
+            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env, nrm);
         }
     }
     ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT));
     if (prd->hasTexture) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX));
     if (prd->hasEnv) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV));
+    if (prd->hasNormal) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM));
     return err;
 }
 

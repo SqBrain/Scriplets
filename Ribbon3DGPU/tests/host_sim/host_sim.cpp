@@ -259,11 +259,29 @@ static void MakeEnv() {
             p[0] = b; p[1] = g; p[2] = r; p[3] = 1;  // BGRA, opaque (32 bpc values above 1 allowed)
         }
 }
+// Normal map layer: round bumps (OpenGL convention), 64 x 64.
+static const int NMW = 64, NMH = 64;
+static bool gNrmOn = false;
+static std::vector<float> gNrmPixels;
+static void MakeNormalMap() {
+    gNrmPixels.assign(size_t(NMW) * NMH * 4, 0.0f);
+    for (int y = 0; y < NMH; y++)
+        for (int x = 0; x < NMW; x++) {
+            double dx = (x + 0.5) / NMW - 0.5, dy = (y + 0.5) / NMH - 0.5, r = std::hypot(dx, dy);
+            double nx = r < 0.4 ? dx * 2 : 0, ny = r < 0.4 ? -dy * 2 : 0, nz = std::sqrt(std::max(0.05, 1 - nx * nx - ny * ny));
+            float* p = &gNrmPixels[(size_t(y) * NMW + x) * 4];
+            p[0] = float(nz * 0.5 + 0.5); p[1] = float(ny * 0.5 + 0.5); p[2] = float(nx * 0.5 + 0.5); p[3] = 1;
+        }
+}
 static float InputGrey(int x) { return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f; }
 static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderRequest* req, A_long, A_long, A_u_long, PF_CheckoutResult* r) {
     std::memset(r, 0, sizeof(*r));
     if (index == RB_INPUT) {
         r->max_result_rect = Full();
+        r->result_rect = req->rect;
+    }
+    if (index == RB_NRM_LAYER && gNrmOn) {
+        r->max_result_rect = {0, 0, NMW, NMH};
         r->result_rect = req->rect;
     }
     if (index == RB_ENV_LAYER && gEnvOn) {
@@ -293,9 +311,9 @@ static PF_Err PreRenderChecked(PF_InData* in, PF_OutData* out, PF_PreRenderExtra
     }
     return e;
 }
-static PF_EffectWorld gSrc, gDst, gEnv;
+static PF_EffectWorld gSrc, gDst, gEnv, gNrm;
 static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) {
-    *w = id == RB_CHECKOUT_INPUT ? &gSrc : (id == RB_CHECKOUT_ENV ? &gEnv : nullptr);
+    *w = id == RB_CHECKOUT_INPUT ? &gSrc : (id == RB_CHECKOUT_ENV ? &gEnv : (id == RB_CHECKOUT_NRM ? &gNrm : nullptr));
     return PF_Err_NONE;
 }
 static PF_Err CheckinPixels(PF_ProgPtr, A_long) { return PF_Err_NONE; }
@@ -338,6 +356,17 @@ static std::vector<float> RunCPU(int bpc) {
         }
         gEnv = {ebuf.data(), A_long(EW * epx), EW, EH};
     }
+    std::vector<char> nbuf;
+    if (gNrmOn) {  // normal map at the render bit depth
+        size_t npx = bpc == 32 ? 16 : 4;
+        nbuf.resize(size_t(NMW) * NMH * npx);
+        for (int i = 0; i < NMW * NMH; i++) {
+            const float* e = &gNrmPixels[size_t(i) * 4];
+            if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)nbuf.data() + i; p->blue = e[0]; p->green = e[1]; p->red = e[2]; p->alpha = e[3]; }
+            else { PF_Pixel8* p = (PF_Pixel8*)nbuf.data() + i; p->blue = (unsigned char)(e[0] * 255 + 0.5f); p->green = (unsigned char)(e[1] * 255 + 0.5f); p->red = (unsigned char)(e[2] * 255 + 0.5f); p->alpha = 255; }
+        }
+        gNrm = {nbuf.data(), A_long(NMW * npx), NMW, NMH};
+    }
     PF_SmartRenderInput sin; std::memset(&sin, 0, sizeof(sin)); sin.bitdepth = short(bpc); sin.pre_render_data = pout.pre_render_data;
     PF_SmartRenderCallbacks scb = {CheckoutPixels, CheckinPixels, CheckoutOutput};
     PF_SmartRenderExtra sre = {&sin, &scb};
@@ -374,6 +403,12 @@ static std::vector<float> RunGPU() {
         envMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gEnvPixels.size() * 4, gEnvPixels.data(), &ee);
         gEnv = {envMem, EW * 16, EW, EH};
     }
+    cl_mem nrmMem = nullptr;
+    if (gNrmOn) {
+        cl_int ee;
+        nrmMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gNrmPixels.size() * 4, gNrmPixels.data(), &ee);
+        gNrm = {nrmMem, NMW * 16, NMW, NMH};
+    }
     cl_int e;
     cl_mem s = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, host.size() * 4, host.data(), &e);
     cl_mem d = clCreateBuffer(gCtx, CL_MEM_READ_WRITE, host.size() * 4, nullptr, &e);
@@ -388,6 +423,7 @@ static std::vector<float> RunGPU() {
     clEnqueueReadBuffer(gQ, d, CL_TRUE, 0, res.size() * 4, res.data(), 0, nullptr, nullptr);
     pout.delete_pre_render_data_func(pout.pre_render_data);
     if (envMem) clReleaseMemObject(envMem);
+    if (nrmMem) clReleaseMemObject(nrmMem);
     PF_GPUDeviceSetdownInput din = {gout.gpu_data, PF_GPU_Framework_OPENCL, 0};
     PF_GPUDeviceSetdownExtra dex = {&din};
     EffectMain(PF_Cmd_GPU_DEVICE_SETDOWN, &in, &out, nullptr, nullptr, &dex);
@@ -726,6 +762,31 @@ static int TestWind() {
     return fails;
 }
 
+// Normal map layer: changes the shading, CPU and GPU agree, tiles follow Tile Size.
+static int TestNormalMap() {
+    int fails = 0;
+    ResetComp();
+    MakeNormalMap();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    std::vector<float> plain = RunCPU(32);
+    gNrmOn = true;
+    std::vector<float> c = RunCPU(32), g = RunGPU(), c8 = RunCPU(8);
+    double maxG = 0, max8 = 0;
+    for (size_t i = 0; i < c.size() && i < g.size(); i++) maxG = std::max(maxG, double(std::fabs(c[i] - g[i])));
+    for (size_t i = 0; i < c.size(); i++) max8 = std::max(max8, double(std::fabs(std::min(c[i], 1.0f) - c8[i])));
+    gDefs[RB_NRM_TILE - 1].u.fs_d.value = 40;
+    std::vector<float> small = RunCPU(32);
+    double changed = DiffFraction(plain, c), retiled = DiffFraction(c, small);
+    std::printf("normal map: %.1f %% of pixels change, tile 40 px vs 100 px %.1f %%, CPU vs GPU %.2e, 8 vs 32 bpc %.3f\n", 100 * changed,
+                100 * retiled, maxG, max8);
+    if (changed < 0.02 || retiled < 0.01 || g.empty() || maxG > 2e-3 || max8 > 0.05) { std::printf("FAIL: normal map\n"); fails++; }
+    gDefs[RB_NRM_TILE - 1].u.fs_d.value = 100;
+    gNrmOn = false;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -792,6 +853,7 @@ int main(int argc, char** argv) {
     fails += TestFront();
     fails += TestEnvGlass();
     fails += TestWind();
+    fails += TestNormalMap();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

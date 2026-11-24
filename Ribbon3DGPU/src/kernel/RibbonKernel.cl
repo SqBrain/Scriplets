@@ -2,7 +2,8 @@
 // embedded (cmake/EmbedKernel.cmake), the program is compiled at run time by the plugin.
 __kernel void RibbonRender(__global const RK_Params* P, __global const RK_Tri* tris, __global const RK_Vertex* verts,
                            __global const int* tileStart, __global const int* tileTris, __global const RK_Light* lights,
-                           __global const float* env, __global const float* tex, __global const float* src, __global float* dst)
+                           __global const float* env, __global const float* nm, __global const float* tex,
+                           __global const float* src, __global float* dst)
 {
-    rk_render_pixel((int)get_global_id(0), (int)get_global_id(1), P, tris, verts, tileStart, tileTris, lights, env, tex, src, dst);
+    rk_render_pixel((int)get_global_id(0), (int)get_global_id(1), P, tris, verts, tileStart, tileTris, lights, env, nm, tex, src, dst);
 }

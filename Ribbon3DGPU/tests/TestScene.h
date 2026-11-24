@@ -68,9 +68,9 @@ inline std::vector<rb::LightDesc> studioLights() {
     return L;
 }
 
-inline Image render(const rb::Packet& pk, const Image& src, const float* tex = nullptr) {
+inline Image render(const rb::Packet& pk, const Image& src, const float* tex = nullptr, const float* nrm = nullptr) {
     Image out(src.w, src.h);
-    rb::renderCPU(pk, src.bgra.data(), out.bgra.data(), tex);
+    rb::renderCPU(pk, src.bgra.data(), out.bgra.data(), tex, 0, nrm);
     return out;
 }
 

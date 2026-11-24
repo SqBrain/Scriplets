@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
     // Renders the packet with the CPU path and the OpenCL kernel and compares them.
     auto runCase = [&](const char* name, Packet& pk) -> int {
         setTexture(pk, TW, TH, TW);
-        test::Image cpu = test::render(pk, src, tex.data());
+        test::Image cpu = test::render(pk, src, tex.data(), tex.data());  // the texture image doubles as normal map
         auto buf = [&](const void* data, size_t bytes, cl_mem_flags fl) {
             cl_int e;
             return clCreateBuffer(ctx, fl | (data ? CL_MEM_COPY_HOST_PTR : 0), bytes, const_cast<void*>(data), &e);
@@ -96,17 +96,18 @@ int main(int argc, char** argv) {
                          buf(pk.tileTris.data(), pk.tileTris.size() * sizeof(int), CL_MEM_READ_ONLY),
                          buf(pk.lights.data(), pk.lights.size() * sizeof(RK_Light), CL_MEM_READ_ONLY),
                          buf(pk.env.data(), pk.env.size() * sizeof(float), CL_MEM_READ_ONLY),
+                         buf(tex.data(), tex.size() * sizeof(float), CL_MEM_READ_ONLY),  // normal map: the texture image
                          buf(tex.data(), tex.size() * sizeof(float), CL_MEM_READ_ONLY),
                          buf(src.bgra.data(), src.bgra.size() * sizeof(float), CL_MEM_READ_ONLY),
                          buf(nullptr, src.bgra.size() * sizeof(float), CL_MEM_WRITE_ONLY)};
-        for (cl_uint i = 0; i < 10; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
+        for (cl_uint i = 0; i < 11; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
         size_t local[2] = {16, 16}, global[2] = {size_t((W + 15) / 16 * 16), size_t((H + 15) / 16 * 16)};
         auto t0 = std::chrono::steady_clock::now();
         CL_CHECK(clEnqueueNDRangeKernel(q, k, 2, nullptr, global, local, 0, nullptr, nullptr));
         CL_CHECK(clFinish(q));
         double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         test::Image gpu(W, H);
-        CL_CHECK(clEnqueueReadBuffer(q, args[9], CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
+        CL_CHECK(clEnqueueReadBuffer(q, args[10], CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
         for (cl_mem m : args) clReleaseMemObject(m);
 
         double maxDiff = 0, sumDiff = 0;
@@ -137,7 +138,18 @@ int main(int argc, char** argv) {
     thick.chamfer = true;
     Packet chamfer;
     buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, mat, W, H, chamfer);
-    int fails = runCase("sheet", sheet) + runCase("solid", solid) + runCase("chamfer", chamfer);
+    // Normal mapped (the texture image used as a normal map), sheet and solid, tiles and stretched.
+    Material bumpy = mat;
+    bumpy.normalStrength = 0.8;
+    Packet nSheet, nSolid;
+    buildPacket(buildRibbon(p2, rs), defaultCamera(W, H), lights, bumpy, W, H, nSheet, 900, rs.width);
+    setNormalMap(nSheet, TW, TH, TW);
+    bumpy.normalTiles = false;
+    thick.chamfer = false;
+    buildPacket(buildRibbon(p2, thick), defaultCamera(W, H), lights, bumpy, W, H, nSolid, 900, thick.width);
+    setNormalMap(nSolid, TW, TH, TW);
+    int fails = runCase("sheet", sheet) + runCase("solid", solid) + runCase("chamfer", chamfer) + runCase("normal_sheet", nSheet) +
+                runCase("normal_solid", nSolid);
     bool ok = fails == 0;
     std::printf(ok ? "parity OK\n" : "parity FAILED\n");
     clReleaseKernel(k);

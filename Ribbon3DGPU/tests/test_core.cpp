@@ -336,6 +336,62 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Normal map: a flat map or strength 0 change nothing; the tilt follows the tangent frame.
+static void testNormalMap() {
+    std::printf("normal map\n");
+    const int NW = 64, NH = 32;
+    auto makeMap = [&](float r, float g, float b) {
+        std::vector<float> m(size_t(NW) * NH * 4);
+        for (size_t i = 0; i < m.size(); i += 4) { m[i] = b; m[i + 1] = g; m[i + 2] = r; m[i + 3] = 1; }
+        return m;
+    };
+    // Kernel helper: front normal -Z, tangent +X; width direction = T x N = +Y (down the image = +v).
+    RK_Params P{};
+    P.nrmWidth = NW; P.nrmHeight = NH; P.nrmPitch = NW; P.nrmStrength = 1; P.nrmRepeatU = 1; P.nrmRepeatV = 1;
+    std::vector<float> tiltX = makeMap(1.0f, 0.5f, 0.5f), tiltUp = makeMap(0.5f, 1.0f, 0.5f);
+    rk3 N = rk_v(0, 0, -1), T = rk_v(1, 0, 0);
+    rk3 a = rk_normal_map(&P, tiltX.data(), N, T, 0.3f, 0.5f);
+    // (1, 0.5, 0.5) is a normal lying along +x (z = 0, kept just above the surface).
+    CHECK(a.x > 0.99f && a.z < 0 && std::fabs(a.y) < 1e-6f, "red tilts the normal along the ribbon (%.2f %.2f %.2f)", a.x, a.y, a.z);
+    std::vector<float> half = makeMap(0.75f, 0.5f, 0.5f + 0.5f * 0.8660254f);  // 30 degrees toward +x
+    rk3 h = rk_normal_map(&P, half.data(), N, T, 0.3f, 0.5f);
+    CHECK(std::fabs(h.x - 0.5f) < 0.01f && std::fabs(h.z + 0.866f) < 0.01f, "30 degree tilt (%.3f %.3f)", h.x, h.z);
+    rk3 gl = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.5f);
+    P.nrmDirectX = 1;
+    rk3 dx = rk_normal_map(&P, tiltUp.data(), N, T, 0.3f, 0.5f);
+    CHECK(gl.y < -0.85f && dx.y > 0.85f, "green: OpenGL tilts toward -v (image up), DirectX toward +v (%.2f / %.2f)", gl.y, dx.y);
+    P.nrmDirectX = 0;
+
+    // Rendering: flat map and strength 0 give the image without a map; a tilted map changes it.
+    Polyline path = bezierToPolyline(test::sCurve(), false, V3(0, 0, 1), 48);
+    RibbonSettings rs;
+    rs.segments = 200; rs.width = 120; rs.twistTurns = 0.5;
+    const int W = 480, H = 270;
+    for (auto& q : path.pts) { q.x /= 4; q.y /= 4; }
+    rs.width = 30;
+    Material mat;
+    mat.samples = 2;
+    auto renderWith = [&](const std::vector<float>* map, double strength) {
+        Material m = mat;
+        m.normalStrength = strength;
+        Packet pk;
+        buildPacket(buildRibbon(path, rs), defaultCamera(W, H), test::studioLights(), m, W, H, pk, 400, rs.width);
+        if (map) setNormalMap(pk, NW, NH, NW);
+        return test::render(pk, test::Image(W, H), nullptr, map ? map->data() : nullptr);
+    };
+    test::Image plain = renderWith(nullptr, 1);
+    std::vector<float> flatMap = makeMap(0.5f, 0.5f, 1.0f);
+    test::Image flat = renderWith(&flatMap, 1), zero = renderWith(&tiltX, 0), tilted = renderWith(&tiltX, 1);
+    auto maxDiff = [](const test::Image& x, const test::Image& y) {
+        double d = 0;
+        for (size_t i = 0; i < x.bgra.size(); i++) d = std::max(d, double(std::fabs(x.bgra[i] - y.bgra[i])));
+        return d;
+    };
+    CHECK(maxDiff(plain, flat) < 1e-4 && maxDiff(plain, zero) < 1e-4, "flat map / strength 0: unchanged (%.1e, %.1e)", maxDiff(plain, flat),
+          maxDiff(plain, zero));
+    CHECK(maxDiff(plain, tilted) > 0.05, "tilted map changes the shading (%.3f)", maxDiff(plain, tilted));
+}
+
 // Wind: pinned end fixed, lengths kept, free end downwind, flutter moves with time.
 static void testWind() {
     std::printf("wind\n");
@@ -700,6 +756,7 @@ int main(int argc, char** argv) {
     testFront();
     testEnvironment();
     testWind();
+    testNormalMap();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

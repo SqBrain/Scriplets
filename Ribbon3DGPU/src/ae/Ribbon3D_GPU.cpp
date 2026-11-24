@@ -90,7 +90,7 @@ void ReleaseOpenCL(GPUState& st) {
     st.program = nullptr;
 }
 
-PF_Err RenderOpenCL(const PF_GPUDeviceInfo& info, GPUState& st, const rb::Packet& pk, void* src, void* dst, void* tex) {
+PF_Err RenderOpenCL(const PF_GPUDeviceInfo& info, GPUState& st, const rb::Packet& pk, void* src, void* dst, void* tex, void* nrm) {
     const OpenCL* cl = openCL();
     if (!cl || !st.kernel) return PF_Err_INTERNAL_STRUCT_DAMAGED;
     cl_context ctx = static_cast<cl_context>(info.contextPV);
@@ -101,12 +101,14 @@ PF_Err RenderOpenCL(const PF_GPUDeviceInfo& info, GPUState& st, const rb::Packet
     for (int i = 0; i < kPacketArrays && res == CL_SUCCESS; i++)
         bufs[i] = cl->CreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, arr.bytes[i], const_cast<void*>(arr.data[i]), &res);
     cl_mem texMem = static_cast<cl_mem>(tex), srcMem = static_cast<cl_mem>(src), dstMem = static_cast<cl_mem>(dst);
+    cl_mem nrmMem = static_cast<cl_mem>(nrm);
     if (res == CL_SUCCESS) {
         std::lock_guard<std::mutex> guard(st.lock);
         for (cl_uint i = 0; i < kPacketArrays && res == CL_SUCCESS; i++) res = cl->SetKernelArg(st.kernel, i, sizeof(cl_mem), &bufs[i]);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays, sizeof(cl_mem), &texMem);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 1, sizeof(cl_mem), &srcMem);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 2, sizeof(cl_mem), &dstMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays, sizeof(cl_mem), &nrmMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 1, sizeof(cl_mem), &texMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 2, sizeof(cl_mem), &srcMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 3, sizeof(cl_mem), &dstMem);
         size_t local[2] = {16, 16};
         size_t global[2] = {size_t((pk.params.width + 15) / 16) * 16, size_t((pk.params.height + 15) / 16) * 16};
         if (res == CL_SUCCESS) res = cl->EnqueueNDRangeKernel(queue, st.kernel, 2, nullptr, global, local, 0, nullptr, nullptr);
@@ -155,7 +157,7 @@ void ReleaseCUDA(GPUState& st) {
     st.cuFunction = nullptr;
 }
 
-PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void* tex) {
+PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void* tex, void* nrm) {
     const CudaDriver* cu = cudaDriver();
     if (!cu || !st.cuFunction) return PF_Err_INTERNAL_STRUCT_DAMAGED;
     CudaScope scope(cu, st.cuContext);
@@ -170,7 +172,8 @@ PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void
     CUdeviceptr texP = CUdeviceptr(reinterpret_cast<uintptr_t>(tex));
     CUdeviceptr srcP = CUdeviceptr(reinterpret_cast<uintptr_t>(src));
     CUdeviceptr dstP = CUdeviceptr(reinterpret_cast<uintptr_t>(dst));
-    void* args[kPacketArrays + 3] = {&dev[0], &dev[1], &dev[2], &dev[3], &dev[4], &dev[5], &dev[6], &texP, &srcP, &dstP};
+    CUdeviceptr nrmP = CUdeviceptr(reinterpret_cast<uintptr_t>(nrm));
+    void* args[kPacketArrays + 4] = {&dev[0], &dev[1], &dev[2], &dev[3], &dev[4], &dev[5], &dev[6], &nrmP, &texP, &srcP, &dstP};
     if (r == CUDA_SUCCESS) {
         unsigned gx = unsigned((pk.params.width + 15) / 16), gy = unsigned((pk.params.height + 15) / 16);
         r = cu->LaunchKernel(st.cuFunction, gx, gy, 1, 16, 16, 1, 0, nullptr, args, nullptr);
@@ -274,17 +277,19 @@ PF_Err RibbonGPU_DeviceSetdown(PF_InData* in_data, PF_OutData* out_data, PF_GPUD
 bool RibbonGPU_CanReadBack(PF_GPU_Framework fw) { return fw == PF_GPU_Framework_OPENCL || fw == PF_GPU_Framework_CUDA; }
 
 PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Packet& pk, int srcX, int srcY,
-                        PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex, PF_EffectWorld* env) {
+                        PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex, PF_EffectWorld* env,
+                        PF_EffectWorld* nrm) {
     GPUState* st = StateFromHandle(extra->input->gpu_data);
     Suite<PF_GPUDeviceSuite1> gpu(in_data, kPFGPUDeviceSuite, kPFGPUDeviceSuiteVersion1);
     if (!st || !gpu || !dst) return PF_Err_INTERNAL_STRUCT_DAMAGED;
     PF_GPUDeviceInfo info;
     AEFX_CLR_STRUCT(info);
     PF_Err err = gpu->GetDeviceInfo(in_data->effect_ref, extra->input->device_index, &info);
-    void *srcMem = nullptr, *dstMem = nullptr, *texMem = nullptr;
+    void *srcMem = nullptr, *dstMem = nullptr, *texMem = nullptr, *nrmMem = nullptr;
     if (!err) err = gpu->GetGPUWorldData(in_data->effect_ref, dst, &dstMem);
     if (!err && src) err = gpu->GetGPUWorldData(in_data->effect_ref, src, &srcMem);
     if (!err && tex) err = gpu->GetGPUWorldData(in_data->effect_ref, tex, &texMem);
+    if (!err && nrm) err = gpu->GetGPUWorldData(in_data->effect_ref, nrm, &nrmMem);
     if (err) return err;
 
     // Environment: the CPU builds its mip chain and harmonics, so the GPU world is read back.
@@ -310,20 +315,22 @@ PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Pack
     else rb::setSource(pk, 0, 0, 0, 0, 1);
     pk.params.dstPitch = int(dst->rowbytes / bpp);
     if (texMem) rb::setTexture(pk, tex->width, tex->height, int(tex->rowbytes / bpp));
+    if (nrmMem) rb::setNormalMap(pk, nrm->width, nrm->height, int(nrm->rowbytes / bpp));
     // Unused inputs still need a valid buffer: the kernel never reads them (srcW = 0 / no texture).
     if (!srcMem) srcMem = dstMem;
     if (!texMem) texMem = dstMem;
+    if (!nrmMem) nrmMem = dstMem;
 
     switch (st->framework) {
 #ifdef RB_HAS_OPENCL
-        case PF_GPU_Framework_OPENCL: return RenderOpenCL(info, *st, pk, srcMem, dstMem, texMem);
+        case PF_GPU_Framework_OPENCL: return RenderOpenCL(info, *st, pk, srcMem, dstMem, texMem, nrmMem);
 #endif
 #ifdef RB_HAS_CUDA
-        case PF_GPU_Framework_CUDA: return RenderCUDA(*st, pk, srcMem, dstMem, texMem);
+        case PF_GPU_Framework_CUDA: return RenderCUDA(*st, pk, srcMem, dstMem, texMem, nrmMem);
 #endif
 #ifdef RB_HAS_METAL
         case PF_GPU_Framework_METAL:
-            return RibbonMetal_Render(st->metalPipeline, info.devicePV, info.command_queuePV, pk, srcMem, dstMem, texMem)
+            return RibbonMetal_Render(st->metalPipeline, info.devicePV, info.command_queuePV, pk, srcMem, dstMem, texMem, nrmMem)
                        ? PF_Err_NONE
                        : PF_Err_INTERNAL_STRUCT_DAMAGED;
 #endif
