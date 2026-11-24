@@ -28,7 +28,9 @@
 
 - **Ядро** (геометрия, проекция, отсечение, тайлы) и **кернел** покрыты тестами.
 - **OpenCL-кернел** выполнен на OpenCL-устройстве (pocl на CPU) и совпадает с CPU-путём до 1e-4.
-- **CUDA-кернел** компилируется в PTX (clang); nvcc и реальная видеокарта NVIDIA не проверялись.
+- **CUDA-кернел** встроен в плагин как PTX (собран clang, `tools/build_ptx.sh`) и загружается драйвером
+  NVIDIA через driver API — CUDA Toolkit не нужен ни для сборки, ни для работы. Встроенный PTX
+  собирается настоящим `ptxas` (CUDA 12.9) для sm_52…sm_89 без ошибок; на реальной видеокарте не запускался.
 - **Metal-ветка** проверена только синтаксически — компилятора Metal не было.
 - **Обвязка AE** (параметры, SmartFX, GPU-сетап, маска, камера, свет) собрана и прогнана
   через имитатор хоста AE (`tests/host_sim`): CPU 8/32 бит и GPU-путь через OpenCL.
@@ -39,8 +41,9 @@
 ## Сборка
 
 Нужны: [After Effects SDK](https://developer.adobe.com/after-effects/) (лучше 2022 или новее),
-CMake 3.20+, на Windows — Visual Studio 2022 (+ CUDA Toolkit для NVIDIA, + OpenCL SDK по желанию),
-на macOS — Xcode.
+CMake 3.20+, на Windows — Visual Studio 2022, на macOS — Xcode. CUDA Toolkit и OpenCL SDK **не нужны**:
+OpenCL (`OpenCL.dll`) и CUDA (`nvcuda.dll`) подгружаются при запуске, если они есть в системе,
+поэтому плагин загружается на любой машине, а без подходящей видеокарты просто считает на CPU.
 
 `AE_SDK_DIR` — папка `Examples` из SDK (в ней `Headers`, `Util`, `Resources`).
 
@@ -63,13 +66,24 @@ codesign --force --deep -s - build/Release/Ribbon3DGPU.plugin
 
 Что делает сборка:
 - `cmake/EmbedKernel.cmake` встраивает исходник кернела в заголовок — OpenCL и Metal компилируют его
-  при запуске AE, CUDA-кернел (`RibbonKernel.cu`) компилируется nvcc прямо в плагин;
+  при запуске AE, CUDA-кернел встроен готовым PTX (`src/kernel/RibbonKernelPTX.h`, пересобирается
+  `tools/build_ptx.sh` после правок кернела);
 - `tools/PiPLValuesGen.cpp` вычисляет флаги PiPL из enum'ов самого SDK, так что PiPL и код
   не могут разойтись (частая причина ошибки «plug-in flags mismatch»);
 - PiPL собирается штатно: на Windows через `PiPLtool.exe` из SDK, на macOS через `Rez`.
 
-Бэкенды включаются автоматически: CUDA — если найден CUDA Toolkit (Windows), OpenCL — если найден
-OpenCL, Metal — всегда на macOS. Отключить: `-DRIBBON_WITH_CUDA=OFF`, `-DRIBBON_WITH_OPENCL=OFF`.
+Бэкенды: Windows — CUDA и OpenCL, macOS — Metal и OpenCL.
+
+**Кросс-сборка Windows-плагина из Linux** (MinGW-w64, без Visual Studio и без запуска Windows-программ):
+```bash
+sudo apt install g++-mingw-w64-x86-64-posix binutils-mingw-w64-x86-64 cmake python3
+Ribbon3DGPU/tools/build_win_mingw.sh /path/to/AfterEffectsSDK/Examples build-win
+pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DGPU.aex
+```
+Здесь PiPL собирается без `PiPLtool.exe`: `tools/make_pipl.py` пишет двоичный ресурс по формату PiPL,
+а числа флагов берутся из объектного файла, скомпилированного с заголовками SDK (`tools/pipl_values.cpp`).
+`check_aex.py` проверяет экспорт (`EffectMain`, `PluginDataEntryFunction2`), что плагин зависит только
+от системных DLL, и расшифровывает ресурс PiPL.
 
 ## Как пользоваться
 

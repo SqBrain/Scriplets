@@ -12,7 +12,11 @@ typedef struct _PF_ProgData* PF_ProgPtr; typedef char** PF_Handle; typedef A_lon
 typedef struct _PF_PathOutline* PF_PathOutlinePtr; typedef struct _PF_PathSegPrep* PF_PathSegPrepPtr;
 #define TRUE 1
 #define FALSE 0
+#ifdef _WIN32
+#define DllExport __declspec(dllexport)
+#else
 #define DllExport __attribute__((visibility("default")))
+#endif
 enum { A_Err_NONE = 0 };
 enum { PF_Err_NONE = 0, PF_Err_OUT_OF_MEMORY = 4, PF_Err_INTERNAL_STRUCT_DAMAGED = 512, PF_Err_BAD_CALLBACK_PARAM = 516 };
 typedef A_long PF_Cmd;

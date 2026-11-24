@@ -52,10 +52,11 @@ if(RIBBON_BUILD_TESTS)
         # Plugin glue driven by a fake AE host (SDK stub headers), CPU 8/32 bpc and OpenCL GPU path.
         # Only without AE_SDK_DIR: the stub headers must never mix with the real SDK.
         if(NOT AE_SDK_DIR)
-            add_executable(ribbon_host_sim tests/host_sim/host_sim.cpp src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp)
+            add_executable(ribbon_host_sim tests/host_sim/host_sim.cpp src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp
+                                           src/ae/Ribbon3D_GPULibs.cpp)
             target_include_directories(ribbon_host_sim PRIVATE tests/host_sim/sdk_stub src src/ae ${GEN_DIR})
-            target_compile_definitions(ribbon_host_sim PRIVATE RB_HAS_OPENCL)
-            target_link_libraries(ribbon_host_sim PRIVATE ribbon_core OpenCL::OpenCL)
+            target_compile_definitions(ribbon_host_sim PRIVATE RB_HAS_OPENCL RB_HAS_CUDA)
+            target_link_libraries(ribbon_host_sim PRIVATE ribbon_core OpenCL::OpenCL ${CMAKE_DL_LIBS})
             add_test(NAME ribbon_host_sim COMMAND ribbon_host_sim)
         endif()
     endif()

@@ -24,10 +24,19 @@
     #define RK_FN __device__ static inline
     #define RK_IN(T) const T*
     #define RK_OUT(T) T*
-    #define RK_SQRT sqrtf
-    #define RK_POW powf
-    #define RK_FLOOR floorf
-    #define RK_FABS fabsf
+    #if defined(RK_PTX_NO_LIBDEVICE)
+        /* PTX built by clang without the CUDA toolkit: NVVM builtins instead of libdevice.
+           RK_POW is only ever called with a base >= 0 and an exponent > 0. */
+        #define RK_SQRT __nvvm_sqrt_rn_f
+        #define RK_POW(x, y) __nvvm_ex2_approx_f((y) * __nvvm_lg2_approx_f(x))
+        #define RK_FLOOR __nvvm_floor_f
+        #define RK_FABS __nvvm_fabs_f
+    #else
+        #define RK_SQRT sqrtf
+        #define RK_POW powf
+        #define RK_FLOOR floorf
+        #define RK_FABS fabsf
+    #endif
 #elif defined(__METAL_VERSION__)
     #include <metal_stdlib>
     using namespace metal;
