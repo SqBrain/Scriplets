@@ -86,6 +86,28 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf);
 // (+Y, AE's Y axis points down). A rigid rotation, so lengths and the control nulls' rolls carry over.
 Polyline topViewToFloor(const Polyline& in, const V3& pivot);
 
+// Wind: one end of the path stays pinned, the rest streams downwind and flutters. Procedural
+// (a function of time, no simulation state), so every frame renders on its own.
+struct WindSettings {
+    double strength = 0;          // 0 = off, 1 = 100 %
+    V3 direction{1, 0, 0};        // where the wind blows to, world space, unit
+    bool pinStart = true;         // pinned end: path start (true) or end
+    double flutterPx = 60;        // wave amplitude at the free end, at 100 %
+    double flutterHz = 1.5;       // waves per second running from the pinned end to the free end
+    double wavelength = 300;      // px along the ribbon
+    double twistDeg = 40;         // ribbon twisting about its length, at the free end
+    double gusts = 0.3;           // 0..1: random variation of the strength over time
+    double stiffness = 0.3;       // 0..1: higher = the part near the pin moves less
+    int seed = 0;
+};
+// Strength multiplier at time t: 1 +- gusts (smooth noise, same seed = same gusts).
+double windGust(const WindSettings& w, double time);
+// The world-space path bent by the wind at time t. Segment lengths are kept (the path is
+// re-laid from the pinned end), so the ribbon bends instead of stretching.
+Polyline applyWind(const Polyline& world, const WindSettings& w, double time);
+// Extra twist (radians) from the wind at path fraction s (0..1), path length L.
+double windTwist(const WindSettings& w, double s, double L, double time);
+
 struct RibbonSettings {
     double start = 0, end = 1, offset = 0;          // fractions of the path length
     double width = 60, widthStart = 1, widthEnd = 1; // px, multipliers at the ends
@@ -104,6 +126,7 @@ struct RibbonSettings {
     // Where start + offset .. end + offset leaves 0..1: true wraps the ribbon around (it continues
     // from the other end, also on open paths), false hides the part outside the path.
     bool cycle = true;
+    WindSettings wind;                               // its twist part (applyWind bends the path)
 };
 
 // One continuous part of the ribbon: ribbon parameters u0..u1, path position s = a + (b - a) u - lap.

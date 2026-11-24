@@ -291,6 +291,32 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_GLASS_TOPIC_END));
 
+    // 0.1.07: wind - one end pinned, the rest streams downwind and flutters.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Wind", RB_ID(RB_WIND_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Wind Strength", 0, 1000, 0, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STRENGTH));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_ANGLE("Wind Direction", 90, RB_ID(RB_WIND_DIRECTION));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Pinned End", 2, 1, "Start|End", RB_ID(RB_WIND_PIN));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Flutter (px)", 0, 5000, 0, 300, 60, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_FLUTTER));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Flutter Speed (Hz)", 0, 50, 0, 6, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_WIND_SPEED));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Flutter Wavelength", 10, 20000, 50, 2000, 300, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_WAVELENGTH));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Twist Flutter", 0, 720, 0, 180, 40, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_TWIST));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Gusts", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_GUSTS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Stiffness", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STIFFNESS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_SLIDER("Random Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_WIND_SEED));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_WIND_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -569,6 +595,22 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rs.caps = Param(in_data, RB_END_CAPS).b();
     rs.cycle = Param(in_data, RB_CYCLE).b();
     if (pin.front) rs.twistTurns = rs.twistAngleDeg = rs.twistSpeedDeg = 0;  // Front: flat, no twist
+    {
+        rb::WindSettings& w = rs.wind;
+        w.strength = std::max(0.0, Param(in_data, RB_WIND_STRENGTH).f() / 100);
+        // Angle as on AE's dial: 0 = up, 90 = right (comp space). Front: the comp is a view from
+        // above, so "up" in the comp means away from the camera on the floor.
+        const double a = Param(in_data, RB_WIND_DIRECTION).angle() * 3.14159265358979 / 180;
+        w.direction = pin.front ? rb::V3(std::sin(a), 0, std::cos(a)) : rb::V3(std::sin(a), -std::cos(a), 0);
+        w.pinStart = Param(in_data, RB_WIND_PIN).popup() != 2;
+        w.flutterPx = Param(in_data, RB_WIND_FLUTTER).f();
+        w.flutterHz = Param(in_data, RB_WIND_SPEED).f();
+        w.wavelength = Param(in_data, RB_WIND_WAVELENGTH).f();
+        w.twistDeg = Param(in_data, RB_WIND_TWIST).f();
+        w.gusts = Param(in_data, RB_WIND_GUSTS).f() / 100;
+        w.stiffness = Param(in_data, RB_WIND_STIFFNESS).f() / 100;
+        w.seed = Param(in_data, RB_WIND_SEED).i();
+    }
 
     xf.rotX = Param(in_data, RB_XF_ROT_X).angle();
     xf.rotY = Param(in_data, RB_XF_ROT_Y).angle();
@@ -633,7 +675,7 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
 
     rb::RibbonMesh mesh;
     rb::Polyline world;
-    if (RibbonWorldPath(in_data, compTime, pin, world)) mesh = rb::buildRibbon(world, rs);
+    if (RibbonWorldPath(in_data, compTime, pin, world)) mesh = rb::buildRibbon(rb::applyWind(world, rs.wind, rs.time), rs);
     rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk);
     return PF_Err_NONE;
 }

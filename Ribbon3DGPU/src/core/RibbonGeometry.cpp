@@ -51,6 +51,81 @@ Polyline topViewToFloor(const Polyline& in, const V3& pivot) {
     return out;
 }
 
+// ------------------------------------------------------------------ wind
+
+namespace {
+double hash01(long long i, int seed) {
+    unsigned long long x = (unsigned long long)(i * 0x9E3779B97F4A7C15ULL) ^ (unsigned long long)(seed * 0xD1B54A32D192ED03ULL);
+    x ^= x >> 31; x *= 0x7FB5D329728EA185ULL; x ^= x >> 27; x *= 0x81DADEF4BC2DD44DULL; x ^= x >> 33;
+    return double(x >> 11) / double(1ULL << 53);
+}
+double valueNoise(double x, int seed) {  // smooth 1D noise in 0..1
+    double i = std::floor(x), f = x - i, u = f * f * (3 - 2 * f);
+    return hash01((long long)i, seed) * (1 - u) + hash01((long long)i + 1, seed) * u;
+}
+// Phase and envelope of the flutter at distance a (0 at the pin, 1 at the free end).
+double windEnvelope(const WindSettings& w, double a) {
+    return std::pow(std::clamp(a, 0.0, 1.0), 0.5 + 4 * std::clamp(w.stiffness, 0.0, 1.0));
+}
+double windPhase(const WindSettings& w, double a, double L, double time) {
+    return 2 * kPi * (a * L / std::max(1.0, w.wavelength) - w.flutterHz * time);
+}
+}  // namespace
+
+double windGust(const WindSettings& w, double time) {
+    double n = (valueNoise(time * 0.6, w.seed) * 2 - 1) * 0.7 + (valueNoise(time * 1.7, w.seed + 7) * 2 - 1) * 0.3;
+    return std::max(0.0, 1 + std::clamp(w.gusts, 0.0, 1.0) * n);
+}
+
+double windTwist(const WindSettings& w, double s, double L, double time) {
+    if (w.strength <= 0 || w.twistDeg == 0) return 0;
+    double a = w.pinStart ? s : 1 - s;
+    return w.twistDeg * kPi / 180 * w.strength * windGust(w, time) * windEnvelope(w, a) *
+           std::sin(windPhase(w, a, L, time) + 0.5 * kPi);
+}
+
+Polyline applyWind(const Polyline& in, const WindSettings& w, double time) {
+    if (w.strength <= 0 || in.pts.size() < 2) return in;
+    FramedCurve C(in);
+    if (!C.valid()) return in;
+    const size_t n = in.pts.size();
+    const double L = C.length(), g = windGust(w, time) * w.strength;
+    std::vector<double> S(n, 0.0);
+    for (size_t i = 1; i < n; i++) S[i] = S[i - 1] + length(in.pts[i] - in.pts[i - 1]);
+    std::vector<V3> q(n);
+    for (size_t i = 0; i < n; i++) {
+        double s = S[i] / L, a = w.pinStart ? s : 1 - s;
+        V3 pos, T, U;
+        C.at(s, pos, T, U);
+        V3 side = normalize(cross(U, T), V3(1, 0, 0));
+        double amp = w.flutterPx * g * windEnvelope(w, a), ph = windPhase(w, a, L, time);
+        // Flutter: waves sideways and (weaker, at another rate) out of the ribbon's plane.
+        q[i] = in.pts[i] + side * (amp * std::sin(ph)) + U * (0.5 * amp * std::sin(1.37 * ph + 1.1));
+    }
+    // Re-lay from the pinned end with the original segment lengths (no stretching). Streaming:
+    // every segment turns toward the wind, fully from a quarter of the length on, so the ribbon
+    // bends at the pin and the rest flies downwind (at 100 % about 70 degrees off its rest shape).
+    auto pull = [&](double a) {
+        double r = std::clamp(a / 0.25, 0.0, 1.0);
+        return 3 * g * r * r * (3 - 2 * r);
+    };
+    Polyline out = in;
+    if (w.pinStart) {
+        for (size_t i = 1; i < n; i++) {
+            double len = length(in.pts[i] - in.pts[i - 1]);
+            V3 d = normalize(q[i] - q[i - 1], normalize(in.pts[i] - in.pts[i - 1]));
+            out.pts[i] = out.pts[i - 1] + normalize(d + w.direction * pull(S[i] / L), d) * len;
+        }
+    } else {
+        for (size_t i = n - 1; i-- > 0;) {
+            double len = length(in.pts[i + 1] - in.pts[i]);
+            V3 d = normalize(q[i] - q[i + 1], normalize(in.pts[i] - in.pts[i + 1]));
+            out.pts[i] = out.pts[i + 1] + normalize(d + w.direction * pull(1 - S[i] / L), d) * len;
+        }
+    }
+    return out;
+}
+
 // ------------------------------------------------------------------ FramedCurve
 
 FramedCurve::FramedCurve(const Polyline& p) : X_(p.pts), closed_(p.closed) {
@@ -292,6 +367,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             V3 Wf = cross(U, T);
             double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
             th += C.rollAt(s);  // control nulls' rotation
+            th += windTwist(rs.wind, C.closed() ? s - std::floor(s) : std::clamp(s, 0.0, 1.0), L, rs.time);
             V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
             double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
             mesh.center.push_back(F.p);

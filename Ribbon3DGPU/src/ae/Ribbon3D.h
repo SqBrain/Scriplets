@@ -133,6 +133,20 @@ enum {
     RB_GLASS_REFRACTION,
     RB_GLASS_TOPIC_END,
 
+    // 0.1.07 (appended for the same reason).
+    RB_WIND_TOPIC,
+    RB_WIND_STRENGTH,     // 0 = off
+    RB_WIND_DIRECTION,
+    RB_WIND_PIN,          // 1: Start, 2: End
+    RB_WIND_FLUTTER,
+    RB_WIND_SPEED,
+    RB_WIND_WAVELENGTH,
+    RB_WIND_TWIST,
+    RB_WIND_GUSTS,
+    RB_WIND_STIFFNESS,
+    RB_WIND_SEED,
+    RB_WIND_TOPIC_END,
+
     RB_NUM_PARAMS
 };
 

@@ -336,6 +336,50 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Wind: pinned end fixed, lengths kept, free end downwind, flutter moves with time.
+static void testWind() {
+    std::printf("wind\n");
+    Polyline line;  // hangs straight down from (500, 100), 600 px
+    for (int i = 0; i <= 200; i++) line.pts.push_back(V3(500, 100 + 3.0 * i, 0));
+    WindSettings w;
+    w.strength = 1;
+    w.direction = V3(1, 0, 0);
+    Polyline a = applyWind(line, w, 0.4), b = applyWind(line, w, 0.9);
+    double maxLenErr = 0;
+    for (size_t i = 1; i < a.pts.size(); i++) maxLenErr = std::max(maxLenErr, std::fabs(length(a.pts[i] - a.pts[i - 1]) - 3.0));
+    CHECK(maxLenErr < 1e-9, "segment lengths kept (%.2e)", maxLenErr);
+    CHECK(length(a.pts[0] - line.pts[0]) < 1e-12, "pinned start stays");
+    CHECK(a.pts.back().x > 500 + 150, "free end blown downwind (x %.1f)", a.pts.back().x);
+    CHECK(length(a.pts.back() - b.pts.back()) > 5, "flutter moves over time (%.1f px)", length(a.pts.back() - b.pts.back()));
+    Polyline a2 = applyWind(line, w, 0.4);
+    CHECK(length(a2.pts.back() - a.pts.back()) < 1e-12, "same time, same shape");
+    double nearPin = length(a.pts[10] - line.pts[10]), farEnd = length(a.pts.back() - line.pts.back());
+    CHECK(nearPin < farEnd * 0.05, "the part near the pin barely moves (%.2f vs %.1f px)", nearPin, farEnd);
+    w.pinStart = false;
+    Polyline e = applyWind(line, w, 0.4);
+    CHECK(length(e.pts.back() - line.pts.back()) < 1e-12 && length(e.pts[0] - line.pts[0]) > 100, "pinned end can be the end");
+    w.pinStart = true;
+    w.strength = 0;
+    Polyline z = applyWind(line, w, 0.4);
+    bool same = true;
+    for (size_t i = 0; i < z.pts.size(); i++) same = same && length(z.pts[i] - line.pts[i]) == 0;
+    CHECK(same, "strength 0: no change");
+    w.strength = 1;
+    CHECK(windTwist(w, 0, 600, 0.3) == 0 && std::fabs(windTwist(w, 1, 600, 0.3)) <= 40 * 3.14159265 / 180 * 1.3 + 1e-9, "twist: none at the pin, bounded at the end");
+    double gmin = 1e9, gmax = -1e9;
+    for (int i = 0; i < 400; i++) { double g = windGust(w, i * 0.05); gmin = std::min(gmin, g); gmax = std::max(gmax, g); }
+    CHECK(gmin >= 0.7 - 1e-9 && gmax <= 1.3 + 1e-9 && gmax - gmin > 0.15, "gusts vary within +-30 %% (%.2f..%.2f)", gmin, gmax);
+    // The mesh twists with the wind: width directions differ between two times at the free end.
+    RibbonSettings rs;
+    rs.segments = 100; rs.twistTurns = 0; rs.width = 40; rs.wind = w;
+    rs.time = 0.2;
+    RibbonMesh m1 = buildRibbon(applyWind(line, w, rs.time), rs);
+    rs.time = 0.5;
+    RibbonMesh m2 = buildRibbon(applyWind(line, w, rs.time), rs);
+    CHECK(std::fabs(dot(m1.widthDir.front(), m2.widthDir.front())) > 0.999 && std::fabs(dot(m1.widthDir.back(), m2.widthDir.back())) < 0.99,
+          "pinned end keeps its orientation, the free end turns");
+}
+
 // Environment: atan2 approximation, harmonics for a uniform and a sky environment, orientation of
 // the map, mip levels; glass over a background.
 static void testEnvironment() {
@@ -655,6 +699,7 @@ int main(int argc, char** argv) {
     testCycle();
     testFront();
     testEnvironment();
+    testWind();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

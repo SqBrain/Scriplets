@@ -301,11 +301,12 @@ static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) {
 static PF_Err CheckinPixels(PF_ProgPtr, A_long) { return PF_Err_NONE; }
 static PF_Err CheckoutOutput(PF_ProgPtr, PF_EffectWorld** w) { *w = &gDst; return PF_Err_NONE; }
 
+A_long gTimeOffset = 0;  // frames added to the current time (wind animation)
 static PF_InData MakeInData() {
     PF_InData in;
     std::memset(&in, 0, sizeof(in));
     in.inter.add_param = AddParam; in.inter.checkout_param = CheckoutParam; in.inter.checkin_param = CheckinParam;
-    in.quality = PF_Quality_HI; in.current_time = 12; in.time_step = 1; in.time_scale = 24;
+    in.quality = PF_Quality_HI; in.current_time = 12 + gTimeOffset; in.time_step = 1; in.time_scale = 24;
     in.width = W; in.height = H; in.downsample_x = {1, 1}; in.downsample_y = {1, 1}; in.pica_basicP = &sBasic;
     return in;
 }
@@ -695,6 +696,36 @@ static int TestEnvGlass() {
     return fails;
 }
 
+// Wind: the ribbon moves over time, the pinned start stays where it is; CPU and GPU agree.
+static int TestWind() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    std::vector<float> still = RunCPU(32);
+    gDefs[RB_WIND_STRENGTH - 1].u.fs_d.value = 100;
+    std::vector<float> f1 = RunCPU(32), g1 = RunGPU();
+    gTimeOffset = 7;  // another frame: 7 frames later
+    std::vector<float> f2 = RunCPU(32);
+    gTimeOffset = 0;
+    double maxG = 0;
+    for (size_t i = 0; i < f1.size() && i < g1.size(); i++) maxG = std::max(maxG, double(std::fabs(f1[i] - g1[i])));
+    // Pinned start: the mask begins at (90, 350); the area around it looks the same in every frame.
+    auto region = [](const std::vector<float>& a, const std::vector<float>& b, int x0, int y0, int x1, int y1) {
+        size_t n = 0;
+        for (int y = y0; y < y1; y++)
+            for (int x = x0; x < x1; x++) n += std::fabs(a[(size_t(y) * W + x) * 4 + 3] - b[(size_t(y) * W + x) * 4 + 3]) > 0.1f;
+        return n;
+    };
+    size_t pinDiff = region(f1, f2, 60, 320, 120, 380), moved = region(f1, f2, 0, 0, W, H), windVsStill = region(still, f1, 0, 0, W, H);
+    std::printf("wind: %zu px change between frames, %zu px near the pinned start, %zu px differ from no wind, CPU vs GPU %.2e\n",
+                moved, pinDiff, windVsStill, maxG);
+    if (moved < 2000 || pinDiff > 30 || windVsStill < 2000 || g1.empty() || maxG > 2e-3) { std::printf("FAIL: wind\n"); fails++; }
+    gDefs[RB_WIND_STRENGTH - 1].u.fs_d.value = 0;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -760,6 +791,7 @@ int main(int argc, char** argv) {
     fails += TestCycle();
     fails += TestFront();
     fails += TestEnvGlass();
+    fails += TestWind();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");
