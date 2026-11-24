@@ -264,7 +264,8 @@ PF_Err RibbonMakeNullsFromMask(PF_InData* in_data, PF_OutData* out_data, PF_Para
 
 // ---------------------------------------------------------------- render
 
-bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool closed, rb::Polyline& out) {
+bool RibbonReadControlPoints(PF_InData* in_data, const A_Time& compTime, std::vector<rb::ControlPoint>& cps) {
+    cps.clear();
     Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
     Suite<RB_LAYER_SUITE> ls(in_data, kAEGPLayerSuite, RB_LAYER_SUITE_VERSION);
     Suite<RB_STREAM_SUITE> ss(in_data, kAEGPStreamSuite, RB_STREAM_SUITE_VERSION);
@@ -278,7 +279,6 @@ bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool clo
     if (ls->AEGP_GetLayerParentComp(self, &comp) || !comp) return false;
     if (pfi->AEGP_GetNewEffectForEffect(pid, in_data->effect_ref, &effect) || !effect) return false;
 
-    std::vector<rb::ControlPoint> cps;
     for (int i = 0; i < RB_MAX_NULLS; i++) {
         AEGP_StreamRefH s = nullptr;
         if (ss->AEGP_GetNewEffectStreamByIndex(pid, effect, RB_NULL_1 + i, &s) || !s) continue;
@@ -316,7 +316,35 @@ bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool clo
         cps.push_back(cp);
     }
     es->AEGP_DisposeEffect(effect);
-    if (cps.size() < 2) return false;
+    return true;
+}
+
+bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool closed, rb::Polyline& out) {
+    std::vector<rb::ControlPoint> cps;
+    if (!RibbonReadControlPoints(in_data, compTime, cps) || cps.size() < 2) return false;
     out = rb::controlPointsToPolyline(cps, closed, 48);
     return true;
+}
+
+PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra) {
+    A_Time compTime = {0, 1};
+    {
+        Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+        if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
+    }
+    std::vector<rb::ControlPoint> cps;
+    RibbonReadControlPoints(in_data, compTime, cps);
+    // Everything the render uses from the nulls: position, tangent and up axes, handle scale.
+    std::vector<double> key;
+    key.push_back(double(cps.size()));
+    for (const rb::ControlPoint& c : cps) {
+        const rb::V3* v[3] = {&c.pos, &c.axisX, &c.axisZ};
+        for (const rb::V3* p : v) {
+            key.push_back(p->x);
+            key.push_back(p->y);
+            key.push_back(p->z);
+        }
+        key.push_back(c.handleScale);
+    }
+    return extra->cb->GuidMixInPtr(in_data->effect_ref, A_u_long(key.size() * sizeof(double)), key.data());
 }

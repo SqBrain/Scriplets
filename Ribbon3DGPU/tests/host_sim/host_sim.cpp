@@ -244,6 +244,12 @@ static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderReq
     }
     return PF_Err_NONE;  // texture: no layer selected
 }
+static std::vector<unsigned char> gGuid;  // what the effect mixed into the cache key in the last PreRender
+static PF_Err GuidMixIn(PF_ProgPtr, A_u_long n, const void* buf) {
+    const unsigned char* b = static_cast<const unsigned char*>(buf);
+    gGuid.insert(gGuid.end(), b, b + n);
+    return PF_Err_NONE;
+}
 static PF_EffectWorld gSrc, gDst;
 static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) { *w = id == RB_CHECKOUT_INPUT ? &gSrc : nullptr; return PF_Err_NONE; }
 static PF_Err CheckinPixels(PF_ProgPtr, A_long) { return PF_Err_NONE; }
@@ -263,7 +269,7 @@ static std::vector<float> RunCPU(int bpc) {
     PF_OutData out; std::memset(&out, 0, sizeof(out));
     PF_PreRenderInput pin; std::memset(&pin, 0, sizeof(pin)); pin.output_request.rect = Full(); pin.bitdepth = short(bpc);
     PF_PreRenderOutput pout; std::memset(&pout, 0, sizeof(pout));
-    PF_PreRenderCallbacks pcb = {CheckoutLayer};
+    PF_PreRenderCallbacks pcb = {CheckoutLayer, GuidMixIn};
     PF_PreRenderExtra pre = {&pin, &pout, &pcb};
     if (EffectMain(PF_Cmd_SMART_PRE_RENDER, &in, &out, nullptr, nullptr, &pre)) { std::printf("prerender failed\n"); return {}; }
     size_t px = bpc == 32 ? 16 : 4;
@@ -297,7 +303,7 @@ static std::vector<float> RunGPU() {
         !(out.out_flags2 & PF_OutFlag2_SUPPORTS_GPU_RENDER_F32)) { std::printf("GPU setup failed\n"); return {}; }
     PF_PreRenderInput pin; std::memset(&pin, 0, sizeof(pin)); pin.output_request.rect = Full(); pin.bitdepth = 32; pin.what_gpu = PF_GPU_Framework_OPENCL;
     PF_PreRenderOutput pout; std::memset(&pout, 0, sizeof(pout));
-    PF_PreRenderCallbacks pcb = {CheckoutLayer};
+    PF_PreRenderCallbacks pcb = {CheckoutLayer, GuidMixIn};
     PF_PreRenderExtra pre = {&pin, &pout, &pcb};
     EffectMain(PF_Cmd_SMART_PRE_RENDER, &in, &out, nullptr, nullptr, &pre);
     if (!(pout.flags & PF_RenderOutputFlag_GPU_RENDER_POSSIBLE)) { std::printf("GPU render not offered\n"); return {}; }
@@ -382,7 +388,20 @@ static int TestControlNulls(const std::vector<float>& maskImg) {
     }
 
     // The ribbon now follows the nulls and looks like the mask ribbon.
+    gGuid.clear();
     std::vector<float> nullsImg = RunCPU(32);
+    std::vector<unsigned char> key0 = gGuid;
+    gGuid.clear();
+    RunCPU(32);
+    bool sameKey = gGuid == key0;
+    gLayers[2]->pos[0] += 1;  // nudge the last null by one pixel
+    gGuid.clear();
+    RunCPU(32);
+    bool movedKey = !gGuid.empty() && gGuid != key0;
+    gLayers[2]->pos[0] -= 1;
+    std::printf("  cache key: %zu bytes mixed in, stable when nothing moves: %s, changes when a null moves: %s\n", key0.size(),
+                sameKey ? "yes" : "no", movedKey ? "yes" : "no");
+    if (key0.empty() || !sameKey || !movedKey) { std::printf("FAIL: control nulls not in the cache key\n"); fails++; }
     double d = DiffFraction(maskImg, nullsImg);
     std::printf("  nulls vs mask: %.2f %% of pixels differ\n", 100 * d);
     if (d > 0.01) { std::printf("FAIL: nulls do not reproduce the mask\n"); fails++; }
@@ -416,6 +435,7 @@ int main(int argc, char** argv) {
     std::printf("params: %zu added, num_params %d (expected %d incl. input)\n", gDefs.size(), out.num_params, RB_NUM_PARAMS);
     int fails = 0;
     if (int(gDefs.size()) + 1 != out.num_params) { std::printf("FAIL: param count mismatch\n"); fails++; }
+    if (!(out.out_flags2 & PF_OutFlag2_I_MIX_GUID_DEPENDENCIES)) { std::printf("FAIL: I_MIX_GUID_DEPENDENCIES not set\n"); fails++; }
 
     cl_platform_id plat; clGetPlatformIDs(1, &plat, nullptr);
     clGetDeviceIDs(plat, CL_DEVICE_TYPE_ALL, 1, &gDev, nullptr);

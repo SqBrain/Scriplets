@@ -289,6 +289,9 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         if (!err) prd->hasTexture = true;
     }
 
+    // Control nulls are other layers: tell AE's cache about their current transforms.
+    if (!err && Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS) err = RibbonMixInControlNulls(in_data, extra);
+
     if (err) {
         delete prd;
         return err;

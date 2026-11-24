@@ -4,7 +4,7 @@
 #pragma once
 
 #define RB_MAJOR_VERSION 1
-#define RB_MINOR_VERSION 2
+#define RB_MINOR_VERSION 3
 #define RB_BUG_VERSION   0
 #define RB_BUILD_VERSION 1
 
@@ -13,6 +13,9 @@
 // NON_PARAM_VARY: "Twist Speed" / "Wave Speed" animate with time alone.
 #define RB_OUT_FLAGS (PF_OutFlag_DEEP_COLOR_AWARE | PF_OutFlag_NON_PARAM_VARY)
 
+// I_MIX_GUID_DEPENDENCIES: the control nulls' transforms are mixed into the cache key in PreRender,
+// so moving a null re-renders the ribbon.
 #define RB_OUT_FLAGS2 (PF_OutFlag2_SUPPORTS_SMART_RENDER | PF_OutFlag2_FLOAT_COLOR_AWARE | \
+                       PF_OutFlag2_I_MIX_GUID_DEPENDENCIES |                                  \
                        PF_OutFlag2_I_USE_3D_CAMERA | PF_OutFlag2_I_USE_3D_LIGHTS |           \
                        PF_OutFlag2_SUPPORTS_THREADED_RENDERING | PF_OutFlag2_SUPPORTS_GPU_RENDER_F32)

@@ -13,8 +13,15 @@
 // step), fills the "Point" layer slots and switches Path Source to Control Nulls.
 PF_Err RibbonMakeNullsFromMask(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]);
 
+// Oriented points from the layers in the "Point" slots at comp time (world space).
+bool RibbonReadControlPoints(PF_InData* in_data, const A_Time& compTime, std::vector<rb::ControlPoint>& out);
+
 // Spline through the layers in the "Point" slots at comp time. False when fewer than 2 are set.
 bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool closed, rb::Polyline& out);
+
+// PreRender: mixes the control nulls' transforms into AE's cache key, so moving, rotating or
+// scaling a null re-renders the effect (AE does not track other layers' transforms for us).
+PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra);
 
 // Handle-length ratio and tangent direction of a mask vertex (exposed for tests).
 struct RibbonMaskVertex {

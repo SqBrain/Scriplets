@@ -78,7 +78,8 @@ enum { PF_Stage_DEVELOP, PF_Stage_ALPHA, PF_Stage_BETA, PF_Stage_RELEASE };
 #define PF_VERSION(V, S, B, ST, BLD) (((V) << 19) | ((S) << 15) | ((B) << 11) | ((ST) << 9) | (BLD))
 enum { PF_OutFlag_NON_PARAM_VARY = 1 << 2, PF_OutFlag_DEEP_COLOR_AWARE = 1 << 25 };
 enum { PF_OutFlag2_I_USE_3D_CAMERA = 1 << 1, PF_OutFlag2_I_USE_3D_LIGHTS = 1 << 2, PF_OutFlag2_SUPPORTS_SMART_RENDER = 1 << 10,
-       PF_OutFlag2_FLOAT_COLOR_AWARE = 1 << 12, PF_OutFlag2_SUPPORTS_GPU_RENDER_F32 = 1 << 24, PF_OutFlag2_SUPPORTS_THREADED_RENDERING = 1 << 27 };
+       PF_OutFlag2_FLOAT_COLOR_AWARE = 1 << 12, PF_OutFlag2_I_MIX_GUID_DEPENDENCIES = 1 << 21, PF_OutFlag2_SUPPORTS_GPU_RENDER_F32 = 1 << 25,
+       PF_OutFlag2_SUPPORTS_THREADED_RENDERING = 1 << 27 };
 typedef A_long PF_GPU_Framework;
 enum { PF_GPU_Framework_NONE = 0, PF_GPU_Framework_OPENCL, PF_GPU_Framework_METAL, PF_GPU_Framework_CUDA, PF_GPU_Framework_DIRECTX };
 typedef struct { A_long field; PF_LRect rect; A_long channel_mask; PF_Boolean preserve_rgb_of_zero_alpha; } PF_RenderRequest;
@@ -87,7 +88,8 @@ enum { PF_RenderOutputFlag_RETURNS_EXTRA_PIXELS = 1, PF_RenderOutputFlag_GPU_REN
 typedef void (*PF_DeletePreRenderDataFunc)(void*);
 typedef struct { PF_RenderRequest output_request; short bitdepth; const void* gpu_data; PF_GPU_Framework what_gpu; A_u_long device_index; } PF_PreRenderInput;
 typedef struct { PF_LRect result_rect, max_result_rect; PF_Boolean solid; PF_Boolean reserved; short flags; void* pre_render_data; PF_DeletePreRenderDataFunc delete_pre_render_data_func; } PF_PreRenderOutput;
-typedef struct { PF_Err (*checkout_layer)(PF_ProgPtr, A_long, A_long, const PF_RenderRequest*, A_long, A_long, A_u_long, PF_CheckoutResult*); } PF_PreRenderCallbacks;
+typedef struct { PF_Err (*checkout_layer)(PF_ProgPtr, A_long, A_long, const PF_RenderRequest*, A_long, A_long, A_u_long, PF_CheckoutResult*);
+                 PF_Err (*GuidMixInPtr)(PF_ProgPtr, A_u_long, const void*); } PF_PreRenderCallbacks;
 typedef struct { PF_PreRenderInput* input; PF_PreRenderOutput* output; PF_PreRenderCallbacks* cb; } PF_PreRenderExtra;
 typedef struct { PF_RenderRequest output_request; short bitdepth; void* pre_render_data; const void* gpu_data; PF_GPU_Framework what_gpu; A_u_long device_index; } PF_SmartRenderInput;
 typedef struct { PF_Err (*checkout_layer_pixels)(PF_ProgPtr, A_long, PF_EffectWorld**); PF_Err (*checkin_layer_pixels)(PF_ProgPtr, A_long); PF_Err (*checkout_output)(PF_ProgPtr, PF_EffectWorld**); } PF_SmartRenderCallbacks;
