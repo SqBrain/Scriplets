@@ -61,6 +61,7 @@ struct PreRenderData {
     bool hasTexture = false;
     bool hasEnv = false;
     bool hasNormal = false;
+    bool hasRough = false;
 };
 
 void DeletePreRenderData(void* p) { delete static_cast<PreRenderData*>(p); }
@@ -334,6 +335,36 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_NRM_TOPIC_END));
 
+    // 0.1.09: roughness map, rounded ribbon ends.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Roughness Map", RB_ID(RB_ROUGH_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_LAYER("Roughness Layer", PF_LayerDefault_NONE, RB_ID(RB_ROUGH_LAYER));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Roughness Amount", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ROUGH_AMOUNT));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_CHECKBOX("Invert", "Gloss map (white = smooth)", FALSE, 0, RB_ID(RB_ROUGH_INVERT));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_ROUGH_TOPIC_END));
+
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Frosted Glass", RB_ID(RB_FROST_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Frost (px)", 0, 500, 0, 60, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_FROST));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Frost Samples", 3, 2, "Low (8)|Medium (16)|High (32)", RB_ID(RB_FROST_QUALITY));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_FROST_TOPIC_END));
+
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Ends", RB_ID(RB_ENDS_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("End Rounding", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_END_ROUNDING));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Round Ends", 3, 1, "Both|Start|End", RB_ID(RB_END_ROUND_WHICH));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_ENDS_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -403,6 +434,22 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_NRM_LAYER, RB_CHECKOUT_NRM, &nreq, in_data->current_time,
                                       in_data->time_step, in_data->time_scale, &nres));
         if (!err) prd->hasNormal = true;
+    }
+
+    // Roughness map layer: the whole frame, like the texture.
+    PF_RenderRequest rreq = req;
+    PF_CheckoutResult rprobe;
+    AEFX_CLR_STRUCT(rprobe);
+    ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_ROUGH_LAYER, RB_CHECKOUT_ROUGH_PROBE, &rreq, in_data->current_time,
+                                  in_data->time_step, in_data->time_scale, &rprobe));
+    if (!err && rprobe.max_result_rect.right > rprobe.max_result_rect.left &&
+        rprobe.max_result_rect.bottom > rprobe.max_result_rect.top) {
+        rreq.rect = rprobe.max_result_rect;
+        PF_CheckoutResult rres;
+        AEFX_CLR_STRUCT(rres);
+        ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_ROUGH_LAYER, RB_CHECKOUT_ROUGH, &rreq, in_data->current_time,
+                                      in_data->time_step, in_data->time_scale, &rres));
+        if (!err) prd->hasRough = true;
     }
 
     // Control nulls are other layers: tell AE's cache about their current transforms. With
@@ -627,6 +674,12 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     if (in_data->quality == PF_Quality_LO) rs.bevelSegments = std::min(rs.bevelSegments, 2);  // draft preview
     rs.caps = Param(in_data, RB_END_CAPS).b();
     rs.cycle = Param(in_data, RB_CYCLE).b();
+    rs.endRounding = Param(in_data, RB_END_ROUNDING).f() / 100;
+    {
+        const int which = Param(in_data, RB_END_ROUND_WHICH).popup();
+        rs.roundStart = which != 3;
+        rs.roundEnd = which != 2;
+    }
     if (pin.front) rs.twistTurns = rs.twistAngleDeg = rs.twistSpeedDeg = 0;  // Front: flat, no twist
     {
         rb::WindSettings& w = rs.wind;
@@ -685,6 +738,14 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     mat.normalTiles = Param(in_data, RB_NRM_MAPPING).popup() != 2;
     mat.normalTilePx = Param(in_data, RB_NRM_TILE).f();
     mat.normalDirectX = Param(in_data, RB_NRM_FORMAT).popup() == 2;
+    mat.roughAmount = Param(in_data, RB_ROUGH_AMOUNT).f() / 100;
+    mat.roughInvert = Param(in_data, RB_ROUGH_INVERT).b();
+    mat.frostPx = Param(in_data, RB_GLASS_FROST).f();
+    {
+        const int q = Param(in_data, RB_FROST_QUALITY).popup();
+        mat.frostTaps = q == 1 ? 8 : (q == 3 ? 32 : 16);
+        if (in_data->quality == PF_Quality_LO) mat.frostTaps = 8;  // draft preview
+    }
 
     // The effect layer is comp-sized: layer pixels == comp pixels.
     const double compW = in_data->width, compH = in_data->height;
@@ -829,8 +890,8 @@ void FromBGRA(const std::vector<float>& in, int bpc, PF_EffectWorld* w) {
 }
 
 PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex,
-                 PF_EffectWorld* env, PF_EffectWorld* nrm) {
-    std::vector<float> s, t, nm, d(size_t(dst->width) * dst->height * 4, 0.0f);
+                 PF_EffectWorld* env, PF_EffectWorld* nrm, PF_EffectWorld* rough) {
+    std::vector<float> s, t, nm, rm, d(size_t(dst->width) * dst->height * 4, 0.0f);
     if (src) {
         ToBGRA(src, bpc, s);
         rb::setSource(pk, prd.inRect.left - prd.outRect.left, prd.inRect.top - prd.outRect.top, src->width, src->height, src->width);
@@ -852,7 +913,12 @@ PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWor
         ToBGRA(nrm, bpc, nm);
         rb::setNormalMap(pk, nrm->width, nrm->height, nrm->width);
     }
-    rb::renderCPU(pk, s.data(), d.data(), t.empty() ? nullptr : t.data(), 0, nm.empty() ? nullptr : nm.data());
+    if (rough) {
+        ToBGRA(rough, bpc, rm);
+        rb::setRoughnessMap(pk, rough->width, rough->height, rough->width);
+    }
+    rb::renderCPU(pk, s.data(), d.data(), t.empty() ? nullptr : t.data(), 0, nm.empty() ? nullptr : nm.data(),
+                  rm.empty() ? nullptr : rm.data());
     FromBGRA(d, bpc, dst);
     return PF_Err_NONE;
 }
@@ -862,26 +928,28 @@ PF_Err SmartRender(PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra
     PF_Err err = PF_Err_NONE, err2 = PF_Err_NONE;
     const PreRenderData* prd = static_cast<const PreRenderData*>(extra->input->pre_render_data);
     if (!prd) return PF_Err_BAD_CALLBACK_PARAM;
-    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr, *nrm = nullptr;
+    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr, *nrm = nullptr, *rough = nullptr;
     ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT, &src));
     ERR(extra->cb->checkout_output(in_data->effect_ref, &dst));
     if (!err && prd->hasTexture) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX, &tex));
     if (!err && prd->hasEnv) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV, &env));
     if (!err && prd->hasNormal) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM, &nrm));
+    if (!err && prd->hasRough) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ROUGH, &rough));
 
     if (!err && dst) {
         rb::Packet pk;
         ERR(BuildPacket(in_data, *prd, dst->width, dst->height, pk));
         if (!err) {
             if (gpu) err = RibbonGPU_Render(in_data, extra, pk, prd->inRect.left - prd->outRect.left,
-                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env, nrm);
-            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env, nrm);
+                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env, nrm, rough);
+            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env, nrm, rough);
         }
     }
     ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT));
     if (prd->hasTexture) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX));
     if (prd->hasEnv) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV));
     if (prd->hasNormal) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM));
+    if (prd->hasRough) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ROUGH));
     return err;
 }
 

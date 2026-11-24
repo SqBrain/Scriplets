@@ -20,6 +20,8 @@
     #define RK_POW pow
     #define RK_FLOOR floor
     #define RK_FABS fabs
+    #define RK_SIN sin
+    #define RK_COS cos
 #elif defined(__CUDACC__) || defined(__CUDA__)
     #define RK_FN __device__ static inline
     #define RK_IN(T) const T*
@@ -31,11 +33,15 @@
         #define RK_POW(x, y) __nvvm_ex2_approx_f((y) * __nvvm_lg2_approx_f(x))
         #define RK_FLOOR __nvvm_floor_f
         #define RK_FABS __nvvm_fabs_f
+        #define RK_SIN __nvvm_sin_approx_f
+        #define RK_COS __nvvm_cos_approx_f
     #else
         #define RK_SQRT sqrtf
         #define RK_POW powf
         #define RK_FLOOR floorf
         #define RK_FABS fabsf
+        #define RK_SIN sinf
+        #define RK_COS cosf
     #endif
 #elif defined(__METAL_VERSION__)
     #include <metal_stdlib>
@@ -47,6 +53,8 @@
     #define RK_POW pow
     #define RK_FLOOR floor
     #define RK_FABS fabs
+    #define RK_SIN sin
+    #define RK_COS cos
 #else
     #include <cmath>
     #define RK_FN static inline
@@ -56,6 +64,8 @@
     #define RK_POW std::pow
     #define RK_FLOOR std::floor
     #define RK_FABS std::fabs
+    #define RK_SIN std::sin
+    #define RK_COS std::cos
 #endif
 
 #include "RibbonShared.h"
@@ -201,14 +211,13 @@ RK_FN rk3 rk_env(RK_IN(RK_Params) P, RK_IN(float) env, rk3 d, float lod) {
 
 // ---------------------------------------------------------------- normal map
 
-// The front side's normal Nf tilted by the normal map at (u, v). Tangent frame: x along the
-// ribbon (+u, the vertex tangent T), y up the image (-v, or +v for DirectX maps), z = Nf.
-// Normal maps are data, not colors: no gamma decoding.
-RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, float u, float v) {
+// Bilinear fetch from a surface map (normal / roughness) with the shared surface-map mapping:
+// u repeats along the ribbon, v repeats across (tiles) or clamps. Raw data (no gamma), straight
+// (unpremultiplied) color in r, g, b; alpha in a.
+RK_FN rk4 rk_surface_map(RK_IN(RK_Params) P, RK_IN(float) m, int W, int H, int pitch, float u, float v) {
     float fu = u * P->nrmRepeatU + P->nrmOffsetU, fv = v * P->nrmRepeatV;
     fu = fu - RK_FLOOR(fu);
     fv = P->nrmWrapV ? fv - RK_FLOOR(fv) : rk_clampf(fv, 0.0f, 1.0f);
-    int W = P->nrmWidth, H = P->nrmHeight;
     float fx = fu * (float)W - 0.5f, fy = fv * (float)H - 0.5f;
     float x0f = RK_FLOOR(fx), y0f = RK_FLOOR(fy), tx = fx - x0f, ty = fy - y0f;
     int x0 = (int)x0f, y0 = (int)y0f;
@@ -216,18 +225,30 @@ RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, floa
     x0 = ((x0 % W) + W) % W; x1 = ((x1 % W) + W) % W;
     if (P->nrmWrapV) { y0 = ((y0 % H) + H) % H; y1 = ((y1 % H) + H) % H; }
     else { y0 = y0 < 0 ? 0 : (y0 >= H ? H - 1 : y0); y1 = y1 < 0 ? 0 : (y1 >= H ? H - 1 : y1); }
-    int i00 = (y0 * P->nrmPitch + x0) * 4, i10 = (y0 * P->nrmPitch + x1) * 4;
-    int i01 = (y1 * P->nrmPitch + x0) * 4, i11 = (y1 * P->nrmPitch + x1) * 4;
+    int i00 = (y0 * pitch + x0) * 4, i10 = (y0 * pitch + x1) * 4;
+    int i01 = (y1 * pitch + x0) * 4, i11 = (y1 * pitch + x1) * 4;
     float w00 = (1.0f - tx) * (1.0f - ty), w10 = tx * (1.0f - ty), w01 = (1.0f - tx) * ty, w11 = tx * ty;
-    float B = nm[i00] * w00 + nm[i10] * w10 + nm[i01] * w01 + nm[i11] * w11;
-    float G = nm[i00 + 1] * w00 + nm[i10 + 1] * w10 + nm[i01 + 1] * w01 + nm[i11 + 1] * w11;
-    float R = nm[i00 + 2] * w00 + nm[i10 + 2] * w10 + nm[i01 + 2] * w01 + nm[i11 + 2] * w11;
-    float A = nm[i00 + 3] * w00 + nm[i10 + 3] * w10 + nm[i01 + 3] * w01 + nm[i11 + 3] * w11;
-    if (A < 1e-6f) return Nf;  // transparent part of the map: no relief
-    float ia = 1.0f / A;
-    float x = (R * ia * 2.0f - 1.0f) * P->nrmStrength;
-    float y = (G * ia * 2.0f - 1.0f) * P->nrmStrength * (P->nrmDirectX ? 1.0f : -1.0f);
-    float z = rk_maxf(B * ia * 2.0f - 1.0f, 0.05f);
+    rk4 c;
+    c.b = m[i00] * w00 + m[i10] * w10 + m[i01] * w01 + m[i11] * w11;
+    c.g = m[i00 + 1] * w00 + m[i10 + 1] * w10 + m[i01 + 1] * w01 + m[i11 + 1] * w11;
+    c.r = m[i00 + 2] * w00 + m[i10 + 2] * w10 + m[i01 + 2] * w01 + m[i11 + 2] * w11;
+    c.a = m[i00 + 3] * w00 + m[i10 + 3] * w10 + m[i01 + 3] * w01 + m[i11 + 3] * w11;
+    if (c.a > 1e-6f) {
+        float ia = 1.0f / c.a;
+        c.r *= ia; c.g *= ia; c.b *= ia;
+    }
+    return c;
+}
+
+// The front side's normal Nf tilted by the normal map at (u, v). Tangent frame: x along the
+// ribbon (+u, the vertex tangent T), y up the image (-v, or +v for DirectX maps), z = Nf.
+// Normal maps are data, not colors: no gamma decoding.
+RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, float u, float v) {
+    rk4 c = rk_surface_map(P, nm, P->nrmWidth, P->nrmHeight, P->nrmPitch, u, v);
+    if (c.a < 1e-6f) return Nf;  // transparent part of the map: no relief
+    float x = (c.r * 2.0f - 1.0f) * P->nrmStrength;
+    float y = (c.g * 2.0f - 1.0f) * P->nrmStrength * (P->nrmDirectX ? 1.0f : -1.0f);
+    float z = rk_maxf(c.b * 2.0f - 1.0f, 0.05f);
     rk3 Tn = rk_norm(rk_sub(T, rk_scale(Nf, rk_dot(T, Nf))), rk_v(1.0f, 0.0f, 0.0f));
     rk3 Bv = rk_cross(Tn, Nf);  // = the width direction, +v
     return rk_norm(rk_add(rk_add(rk_scale(Tn, x), rk_scale(Bv, y)), rk_scale(Nf, z)), Nf);
@@ -245,11 +266,13 @@ typedef struct {
     float tr, tg, tb;   // glass: transmitted fraction per channel (T x tint)
     float topaque;      // glass: 1 - T
     float dx, dy;       // glass: screen offset of the refracted background, output pixels
+    float blur;         // glass: frost, blur radius of the background, output pixels
 } rk_hit;
 
 // Shades one hit. w0..w2: screen-space barycentrics, iw: interpolated 1/depth.
 RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) verts, RK_IN(RK_Light) lights,
-                      RK_IN(float) tex, RK_IN(float) env, RK_IN(float) nm, float w0, float w1, float w2, float iw) {
+                      RK_IN(float) tex, RK_IN(float) env, RK_IN(float) nm, RK_IN(float) rm, float w0, float w1, float w2,
+                      float iw) {
     RK_IN(RK_Vertex) a = verts + t->v[0];
     RK_IN(RK_Vertex) b = verts + t->v[1];
     RK_IN(RK_Vertex) c = verts + t->v[2];
@@ -308,6 +331,22 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
                      : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
     }
 
+    // Roughness map: per-pixel glossiness. Roughness r = sqrt(2 / (gloss + 2)) is blended toward
+    // the map; highlights keep their energy (normalized Blinn): sharper where smooth, dimmer where rough.
+    float gloss = P->gloss, specK = 1.0f, frostK = 1.0f;
+    if (P->hasRough) {
+        rk4 rc = rk_surface_map(P, rm, P->roughWidth, P->roughHeight, P->roughPitch, u, v);
+        if (rc.a > 1e-6f) {
+            float lum = rk_clampf(rc.r * 0.2126f + rc.g * 0.7152f + rc.b * 0.0722f, 0.0f, 1.0f);
+            if (P->roughInvert) lum = 1.0f - lum;
+            frostK = rk_mixf(1.0f, lum, P->roughAmount * rc.a);  // frosted where rough, clear where smooth
+            float r = rk_mixf(RK_SQRT(2.0f / (P->gloss + 2.0f)), lum, P->roughAmount * rc.a);
+            r = rk_clampf(r, 0.03f, 1.0f);
+            gloss = rk_maxf(2.0f / (r * r) - 2.0f, 1.0f);
+            specK = rk_clampf((gloss + 8.0f) / (P->gloss + 8.0f), 0.05f, 4.0f);
+        }
+    }
+
     rk3 white = rk_v(1.0f, 1.0f, 1.0f);
     rk3 specCol = rk_mix3(white, base, P->metal);
     rk3 body = rk_scale(base, P->ambient);    // light scattered by the material
@@ -328,10 +367,10 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
         float diff = rk_maxf(ndl, 0.0f) * P->diffuse * (1.0f - P->metal);
         float trans = rk_maxf(-ndl, 0.0f) * P->translucency;
         rk3 H = rk_norm(rk_add(ld, V), n);
-        float blinn = RK_POW(rk_maxf(rk_dot(n, H), 0.0f), P->gloss);
+        float blinn = RK_POW(rk_maxf(rk_dot(n, H), 0.0f), gloss);
         float th = rk_dot(tg, H);
-        float aniso = RK_POW(RK_SQRT(rk_maxf(1.0f - th * th, 0.0f)), P->gloss);
-        float spec = rk_mixf(blinn, aniso, P->satin) * P->specular * rk_clampf(ndl * 4.0f, 0.0f, 1.0f);
+        float aniso = RK_POW(RK_SQRT(rk_maxf(1.0f - th * th, 0.0f)), gloss);
+        float spec = rk_mixf(blinn, aniso, P->satin) * P->specular * specK * rk_clampf(ndl * 4.0f, 0.0f, 1.0f);
         body = rk_add(body, rk_scale(rk_mulv(lc, base), (diff + trans) * att));
         hl = rk_add(hl, rk_scale(rk_mulv(lc, specCol), spec * att));
     }
@@ -345,7 +384,7 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
         rk3 irr = rk_scale(rk_env_irr(P, n), P->diffuse * (1.0f - P->metal));
         rk3 irrBack = rk_scale(rk_env_irr(P, rk_scale(n, -1.0f)), P->translucency);
         body = rk_add(body, rk_scale(rk_mulv(base, rk_add(irr, irrBack)), P->envIntensity));
-        float rough = RK_SQRT(2.0f / (P->gloss + 2.0f));
+        float rough = RK_SQRT(2.0f / (gloss + 2.0f));
         float lod = rough * (float)(P->envLevels - 1) * 1.5f + P->satin;
         envRefl = rk_scale(rk_env(P, env, R, lod), P->envIntensity * P->envReflection);
     }
@@ -353,7 +392,7 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     rk_hit h;
     h.a = alpha;
     h.sr = h.sg = h.sb = 0.0f; h.sa = 0.0f; h.fres = 0.0f;
-    h.tr = h.tg = h.tb = 0.0f; h.topaque = 1.0f; h.dx = 0.0f; h.dy = 0.0f;
+    h.tr = h.tg = h.tb = 0.0f; h.topaque = 1.0f; h.dx = 0.0f; h.dy = 0.0f; h.blur = 0.0f;
     if (!P->glass) {
         // Fresnel-weighted reflection: dielectric (4 % head-on) or metal (tinted by the color).
         float fd = 0.04f + 0.96f * f5;
@@ -383,12 +422,13 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     rk3 bend = rk_sub(Td, I);
     h.dx = P->refractPx * rk_dot(bend, rk_vtx3(P->camRight));
     h.dy = P->refractPx * rk_dot(bend, rk_vtx3(P->camDown));
+    h.blur = P->glassFrost * frostK;
     return h;
 }
 
 // The layer behind the ribbon at output position (x, y), premultiplied linear; bilinear,
 // clamped to the layer. Only "Over Layer" has it: otherwise the ribbon is alone or in the back.
-RK_FN rk4 rk_background(RK_IN(RK_Params) P, RK_IN(float) src, float x, float y) {
+RK_FN rk4 rk_background_tap(RK_IN(RK_Params) P, RK_IN(float) src, float x, float y) {
     rk4 o;
     o.r = o.g = o.b = o.a = 0.0f;
     if (P->composite != RK_COMPOSITE_OVER || P->srcW <= 0 || P->srcH <= 0) return o;
@@ -412,6 +452,30 @@ RK_FN rk4 rk_background(RK_IN(RK_Params) P, RK_IN(float) src, float x, float y) 
     return o;
 }
 
+RK_FN float rk_fract(float x) { return x - RK_FLOOR(x); }
+
+// The background, blurred over a disc of radius `blur` (frosted glass): taps on a golden-angle
+// spiral, turned by a per-position random angle so that supersampling averages the noise away.
+RK_FN rk4 rk_background(RK_IN(RK_Params) P, RK_IN(float) src, float x, float y, float blur) {
+    if (blur < 0.5f || P->composite != RK_COMPOSITE_OVER || P->srcW <= 0) return rk_background_tap(P, src, x, y);
+    int N = P->frostTaps > 0 ? P->frostTaps : 16;
+    float ang = 6.2831853f * rk_fract(52.9829189f * rk_fract(0.06711056f * x + 0.00583715f * y));
+    float cx = RK_COS(ang), cy = RK_SIN(ang);
+    rk4 acc;
+    acc.r = acc.g = acc.b = acc.a = 0.0f;
+    for (int i = 0; i < N; i++) {
+        float rho = blur * RK_SQRT(((float)i + 0.5f) / (float)N);
+        rk4 t = rk_background_tap(P, src, x + cx * rho, y + cy * rho);
+        acc.r += t.r; acc.g += t.g; acc.b += t.b; acc.a += t.a;
+        float nx = cx * -0.7373688f - cy * 0.6754903f;  // turn by the golden angle
+        cy = cx * 0.6754903f + cy * -0.7373688f;
+        cx = nx;
+    }
+    float k = 1.0f / (float)N;
+    acc.r *= k; acc.g *= k; acc.b *= k; acc.a *= k;
+    return acc;
+}
+
 // A glass hit over what lies behind it (both premultiplied linear).
 RK_FN rk4 rk_glass_over(rk_hit h, rk4 bg) {
     float k = 1.0f - h.fres;
@@ -432,13 +496,13 @@ RK_FN rk4 rk_glass_over(rk_hit h, rk4 bg) {
     else if ((ID) == id1) OUT = h1;                                                            \
     else if ((ID) == id2) OUT = h2;                                                            \
     else {                                                                                     \
-        OUT = rk_shade(P, tris + (ID), verts, lights, tex, env, nm, W0, W1, W2, IW);           \
+        OUT = rk_shade(P, tris + (ID), verts, lights, tex, env, nm, rm, W0, W1, W2, IW);       \
         id2 = id1; h2 = h1; id1 = id0; h1 = h0; id0 = (ID); h0 = OUT;                          \
     }
 
 RK_FN void rk_render_pixel(int x, int y, RK_IN(RK_Params) P, RK_IN(RK_Tri) tris, RK_IN(RK_Vertex) verts,
                            RK_IN(int) tileStart, RK_IN(int) tileTris, RK_IN(RK_Light) lights, RK_IN(float) env,
-                           RK_IN(float) nm, RK_IN(float) tex, RK_IN(float) src, RK_OUT(float) dst) {
+                           RK_IN(float) nm, RK_IN(float) rm, RK_IN(float) tex, RK_IN(float) src, RK_OUT(float) dst) {
     if (x >= P->width || y >= P->height) return;
     int tile = (y / RK_TILE) * P->tilesX + (x / RK_TILE);
     int first = tileStart[tile], last = tileStart[tile + 1];
@@ -451,7 +515,7 @@ RK_FN void rk_render_pixel(int x, int y, RK_IN(RK_Params) P, RK_IN(RK_Tri) tris,
         rk_hit h0, h1, h2;
         h0.r = h0.g = h0.b = h0.a = 0.0f;
         h0.sr = h0.sg = h0.sb = h0.sa = h0.fres = 0.0f;
-        h0.tr = h0.tg = h0.tb = 0.0f; h0.topaque = 1.0f; h0.dx = h0.dy = 0.0f;
+        h0.tr = h0.tg = h0.tb = 0.0f; h0.topaque = 1.0f; h0.dx = h0.dy = 0.0f; h0.blur = 0.0f;
         h1 = h0; h2 = h0;
         for (int sy = 0; sy < S; sy++) {
             for (int sx = 0; sx < S; sx++) {
@@ -491,9 +555,9 @@ RK_FN void rk_render_pixel(int x, int y, RK_IN(RK_Params) P, RK_IN(RK_Tri) tris,
                         if (bt2 >= 0) {
                             rk_hit hb;
                             RK_CACHED(bt2, cw0, cw1, cw2, second, hb)
-                            bg = rk_glass_over(hb, rk_background(P, src, ox + hb.dx, oy + hb.dy));
+                            bg = rk_glass_over(hb, rk_background(P, src, ox + hb.dx, oy + hb.dy, hf.blur + hb.blur));
                         } else {
-                            bg = rk_background(P, src, ox, oy);
+                            bg = rk_background(P, src, ox, oy, hf.blur);
                         }
                         rk4 g = rk_glass_over(hf, bg);
                         cr += g.r; cg += g.g; cb += g.b; ca += g.a;

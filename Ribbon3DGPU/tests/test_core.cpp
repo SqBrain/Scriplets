@@ -336,6 +336,100 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Rounded ends: the outline near each end follows a circle, the texture is cut, not squeezed.
+static void testRoundedEnds() {
+    std::printf("rounded ends\n");
+    Polyline line;
+    line.pts = {V3(100, 300, 0), V3(900, 300, 0)};
+    RibbonSettings rs;
+    rs.segments = 80; rs.twistTurns = 0; rs.width = 60;
+    RibbonMesh flat = buildRibbon(line, rs);
+    rs.endRounding = 1;
+    RibbonMesh m = buildRibbon(line, rs);
+    CHECK(m.center.size() == flat.center.size() + 2 * 15, "dense sections over both rounded ends (%zu)", m.center.size());
+    double worst = 0;
+    for (size_t k = 0; k < m.center.size(); k++) {
+        double x = m.center[k].x, d = std::min(x - 100, 900 - x), r = 30;
+        double want = d < r ? 2 * std::sqrt(std::max(0.0, r * r - (r - d) * (r - d))) : 60;
+        worst = std::max(worst, std::fabs(m.widths[k] - std::max(want, 60 * 0.004)));
+    }
+    CHECK(worst < 1e-6, "semicircular outline (max error %.2e px)", worst);
+    // Tip: texture v spans only the remaining width around the middle.
+    const RK_Vertex &t0 = m.verts[0], &t1 = m.verts[1];
+    CHECK(std::fabs(t0.uv[1] - 0.5f) < 0.01f && std::fabs(t1.uv[1] - 0.5f) < 0.01f, "texture cut at the tip (v %.3f..%.3f)", t0.uv[1], t1.uv[1]);
+    // Half rounding: rounded corners, the middle of the tip stays straight.
+    rs.endRounding = 0.5;
+    RibbonMesh h = buildRibbon(line, rs);
+    CHECK(std::fabs(h.widths.front() - 30) < 1e-6 && std::fabs(h.widths.back() - 30) < 1e-6, "50 %%: tip keeps half the width (%.2f)", h.widths.front());
+    rs.endRounding = 1;
+    rs.roundStart = false;
+    RibbonMesh e = buildRibbon(line, rs);
+    CHECK(std::fabs(e.widths.front() - 60) < 1e-9 && e.widths.back() < 1, "only the end rounded");
+    // Solid: rounded too, closed caps still present.
+    rs.roundStart = true;
+    rs.thickness = 8; rs.bevel = 2;
+    RibbonMesh s = buildRibbon(line, rs);
+    double minW = 1e9;
+    for (double w : s.widths) minW = std::min(minW, w);
+    CHECK(s.solid && minW < 1 && !s.tris.empty(), "solid with rounded ends");
+}
+
+// Roughness map: per-pixel glossiness with energy-conserving highlights. A flat ribbon facing the
+// camera, lit from the camera: the highlight sits in the middle; smooth = tight and bright,
+// rough = broad and dim.
+static void testRoughnessMap() {
+    std::printf("roughness map\n");
+    const int MW = 16, MH = 16;
+    auto grey = [&](float g) {
+        std::vector<float> m(size_t(MW) * MH * 4);
+        for (size_t i = 0; i < m.size(); i += 4) { m[i] = m[i + 1] = m[i + 2] = g; m[i + 3] = 1; }
+        return m;
+    };
+    const int W = 480, H = 270;
+    Polyline line;
+    line.pts = {V3(40, 135, 0), V3(440, 135, 0)};
+    RibbonSettings rs;
+    rs.segments = 60; rs.twistTurns = 0; rs.width = 200;
+    LightDesc key;
+    key.type = RK_LIGHT_PARALLEL; key.dir = V3(0, 0, 1); key.intensity = 1;
+    Material mat;
+    mat.samples = 2; mat.satin = 0; mat.gloss = 40; mat.specular = 0.8; mat.diffuse = 0.2; mat.ambient = 0; mat.sheen = 0;
+    auto renderWith = [&](const std::vector<float>* map, bool invert) {
+        Material mm = mat;
+        mm.roughInvert = invert;
+        Packet pk;
+        buildPacket(buildRibbon(line, rs), defaultCamera(W, H), {key}, mm, W, H, pk, 400, rs.width);
+        if (map) setRoughnessMap(pk, MW, MH, MW);
+        return test::render(pk, test::Image(W, H), nullptr, nullptr, map ? map->data() : nullptr);
+    };
+    // Peak brightness and the highlight's size: pixels above half way from the dimmest part to the peak.
+    auto stats = [&](const test::Image& im, double& peak, double& spread) {
+        peak = 0;
+        double low = 1e9;
+        for (size_t i = 0; i < im.bgra.size(); i += 4) {
+            if (im.bgra[i + 3] < 0.99f) continue;
+            double l = (im.bgra[i] + im.bgra[i + 1] + im.bgra[i + 2]) / 3;
+            peak = std::max(peak, l);
+            low = std::min(low, l);
+        }
+        spread = 0;
+        for (size_t i = 0; i < im.bgra.size(); i += 4)
+            if (im.bgra[i + 3] >= 0.99f && (im.bgra[i] + im.bgra[i + 1] + im.bgra[i + 2]) / 3 > (low + peak) / 2) spread++;
+    };
+    const float base = float(std::sqrt(2.0 / (40 + 2)));  // the material's own roughness
+    std::vector<float> same = grey(base), smooth = grey(0.05f), rough = grey(0.6f);
+    test::Image plain = renderWith(nullptr, false), neutral = renderWith(&same, false);
+    double d = 0;
+    for (size_t i = 0; i < plain.bgra.size(); i++) d = std::max(d, double(std::fabs(plain.bgra[i] - neutral.bgra[i])));
+    CHECK(d < 2e-3, "a map equal to the Glossiness changes nothing (%.1e)", d);
+    double pS, sS, pR, sR, pI, sI;
+    stats(renderWith(&smooth, false), pS, sS);
+    stats(renderWith(&rough, false), pR, sR);
+    CHECK(pS > pR * 1.5 && sR > sS * 1.5, "smooth: bright and tight (peak %.2f, %.0f px), rough: dim and broad (%.2f, %.0f px)", pS, sS, pR, sR);
+    stats(renderWith(&smooth, true), pI, sI);  // inverted: 0.05 as gloss = 0.95 rough
+    CHECK(pI < pR && sI > sS, "invert turns a gloss map around (peak %.2f)", pI);
+}
+
 // Normal map: a flat map or strength 0 change nothing; the tilt follows the tangent frame.
 static void testNormalMap() {
     std::printf("normal map\n");
@@ -757,6 +851,8 @@ int main(int argc, char** argv) {
     testEnvironment();
     testWind();
     testNormalMap();
+    testRoundedEnds();
+    testRoughnessMap();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

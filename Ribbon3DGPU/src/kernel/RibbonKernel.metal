@@ -8,10 +8,11 @@ kernel void RibbonRender(device const RK_Params* P [[buffer(0)]],
                          device const RK_Light* lights [[buffer(5)]],
                          device const float* env [[buffer(6)]],
                          device const float* nm [[buffer(7)]],
-                         device const float* tex [[buffer(8)]],
-                         device const float* src [[buffer(9)]],
-                         device float* dst [[buffer(10)]],
+                         device const float* rm [[buffer(8)]],
+                         device const float* tex [[buffer(9)]],
+                         device const float* src [[buffer(10)]],
+                         device float* dst [[buffer(11)]],
                          uint2 gid [[thread_position_in_grid]])
 {
-    rk_render_pixel((int)gid.x, (int)gid.y, P, tris, verts, tileStart, tileTris, lights, env, nm, tex, src, dst);
+    rk_render_pixel((int)gid.x, (int)gid.y, P, tris, verts, tileStart, tileTris, lights, env, nm, rm, tex, src, dst);
 }

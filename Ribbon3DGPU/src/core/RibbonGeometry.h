@@ -126,6 +126,9 @@ struct RibbonSettings {
     // Where start + offset .. end + offset leaves 0..1: true wraps the ribbon around (it continues
     // from the other end, also on open paths), false hides the part outside the path.
     bool cycle = true;
+    // Rounded ends: corner radius as a fraction of the half width (0 = straight cut, 1 = semicircle).
+    double endRounding = 0;
+    bool roundStart = true, roundEnd = true;
     WindSettings wind;                               // its twist part (applyWind bends the path)
 };
 

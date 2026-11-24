@@ -14,7 +14,7 @@ PF_Err RibbonGPU_DeviceSetdown(PF_InData* in_data, PF_OutData* out_data, PF_GPUD
 // CPU); PreRender leaves the frame to the CPU path where it cannot (Metal).
 bool RibbonGPU_CanReadBack(PF_GPU_Framework fw);
 
-// src / tex / env / nrm may be null. srcX / srcY: position of the source buffer inside the output buffer.
+// src / tex / env / nrm / rough may be null. srcX / srcY: position of the source buffer inside the output buffer.
 PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Packet& pk, int srcX, int srcY,
                         PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex, PF_EffectWorld* env,
-                        PF_EffectWorld* nrm);
+                        PF_EffectWorld* nrm, PF_EffectWorld* rough);

@@ -9,9 +9,9 @@
 
 extern "C" __global__ void RibbonRender(const RK_Params* P, const RK_Tri* tris, const RK_Vertex* verts, const int* tileStart,
                                         const int* tileTris, const RK_Light* lights, const float* env, const float* nm,
-                                        const float* tex, const float* src, float* dst)
+                                        const float* rm, const float* tex, const float* src, float* dst)
 {
     int x = int(__nvvm_read_ptx_sreg_ctaid_x() * __nvvm_read_ptx_sreg_ntid_x() + __nvvm_read_ptx_sreg_tid_x());
     int y = int(__nvvm_read_ptx_sreg_ctaid_y() * __nvvm_read_ptx_sreg_ntid_y() + __nvvm_read_ptx_sreg_tid_y());
-    rk_render_pixel(x, y, P, tris, verts, tileStart, tileTris, lights, env, nm, tex, src, dst);
+    rk_render_pixel(x, y, P, tris, verts, tileStart, tileTris, lights, env, nm, rm, tex, src, dst);
 }

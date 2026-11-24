@@ -92,7 +92,14 @@ typedef struct {
     int   nrmWrapV;                 /* 1: tiles across the ribbon (v wraps), 0: v clamps */
     int   nrmDirectX;               /* 1: green points down the image (DirectX), 0: up (OpenGL) */
     float nrmStrength;
-    float nrmRepeatU, nrmRepeatV, nrmOffsetU;
+    float nrmRepeatU, nrmRepeatV, nrmOffsetU;   /* mapping shared by the normal and roughness maps */
+
+    /* Roughness map: luminance 0 = smooth, 1 = rough (inverted for gloss maps). */
+    int   hasRough, roughWidth, roughHeight, roughPitch;
+    int   roughInvert;
+    float roughAmount;              /* 0..1: blend from the material's Glossiness to the map */
+    float glassFrost;               /* frosted glass: blur radius of the background, output pixels */
+    int   frostTaps;                /* samples per blurred background lookup */
 } RK_Params;
 
 #endif

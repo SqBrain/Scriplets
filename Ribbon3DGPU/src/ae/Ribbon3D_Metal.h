@@ -7,4 +7,4 @@
 bool RibbonMetal_Setup(void* device, void** pipeline);
 void RibbonMetal_Release(void* pipeline);
 // queue: id<MTLCommandQueue>; src / dst / tex: id<MTLBuffer> (src and tex must be valid buffers).
-bool RibbonMetal_Render(void* pipeline, void* device, void* queue, const rb::Packet& pk, void* src, void* dst, void* tex, void* nrm);
+bool RibbonMetal_Render(void* pipeline, void* device, void* queue, const rb::Packet& pk, void* src, void* dst, void* tex, void* nrm, void* rough);

@@ -9,11 +9,12 @@
 
 namespace rb {
 
-void renderCPU(const Packet& p, const float* src, float* dst, const float* tex, int threads, const float* nrm) {
+void renderCPU(const Packet& p, const float* src, float* dst, const float* tex, int threads, const float* nrm, const float* rough) {
     const RK_Params* P = &p.params;
     static const float kNoTexture[4] = {0, 0, 0, 0};
     const float* texture = tex ? tex : kNoTexture;
     const float* normals = nrm ? nrm : kNoTexture;
+    const float* roughness = rough ? rough : kNoTexture;
     if (threads <= 0) threads = int(std::max(1u, std::thread::hardware_concurrency()));
     threads = std::min(threads, std::max(1, P->height));
 
@@ -22,7 +23,7 @@ void renderCPU(const Packet& p, const float* src, float* dst, const float* tex, 
         for (int y = nextRow++; y < P->height; y = nextRow++)
             for (int x = 0; x < P->width; x++)
                 rk_render_pixel(x, y, P, p.tris.data(), p.verts.data(), p.tileStart.data(), p.tileTris.data(),
-                                p.lights.data(), p.env.data(), normals, texture, src, dst);
+                                p.lights.data(), p.env.data(), normals, roughness, texture, src, dst);
     };
     std::vector<std::thread> pool;
     for (int i = 1; i < threads; i++) pool.emplace_back(work);

@@ -216,11 +216,15 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.glassTransmission = float(std::clamp(mat.transmission, 0.0, 1.0));
     P.glassTint = float(std::clamp(mat.tint, 0.0, 1.0));
     P.refractPx = float(mat.refractPx * cam.scaleX);  // comp pixels -> output pixels (downsampling)
+    P.glassFrost = float(std::max(0.0, mat.frostPx) * cam.scaleX);
+    P.frostTaps = std::clamp(mat.frostTaps, 4, 64);
     P.camRight[0] = float(cam.axisX.x); P.camRight[1] = float(cam.axisX.y); P.camRight[2] = float(cam.axisX.z);
     P.camDown[0] = float(cam.axisY.x); P.camDown[1] = float(cam.axisY.y); P.camDown[2] = float(cam.axisY.z);
     if (out.env.empty()) out.env.assign(4, 0.0f);
 
     P.nrmStrength = float(std::max(0.0, mat.normalStrength));
+    P.roughAmount = float(std::clamp(mat.roughAmount, 0.0, 1.0));
+    P.roughInvert = mat.roughInvert ? 1 : 0;
     P.nrmDirectX = mat.normalDirectX ? 1 : 0;
     if (mat.normalTiles) {
         // Square tiles of normalTilePx: as many along the visible ribbon as its length allows.

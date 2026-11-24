@@ -54,11 +54,16 @@ struct Material {
     double transmission = 0.9;      // 0..1 of the non-reflected light that passes through
     double tint = 0.3;              // 0..1: how much the ribbon color tints the passing light
     double refractPx = 30;          // refraction strength, comp pixels per unit of bend
+    double frostPx = 0;             // frosted glass: blur radius of the background, comp pixels
+    int frostTaps = 16;             // samples per blurred lookup
     // Normal map (the image itself comes with setNormalMap).
     double normalStrength = 1;
     bool normalTiles = true;        // true: square tiles of normalTilePx; false: stretched like the texture
     double normalTilePx = 100;
     bool normalDirectX = false;     // green channel points down (DirectX) instead of up (OpenGL)
+    // Roughness map (same mapping as the normal map; the image comes with setRoughnessMap).
+    double roughAmount = 1;
+    bool roughInvert = false;       // the map is a gloss map (white = smooth)
 };
 
 struct Packet {
@@ -98,6 +103,13 @@ inline void setNormalMap(Packet& p, int width, int height, int pitchPixels) {
     p.params.nrmWidth = width;
     p.params.nrmHeight = height;
     p.params.nrmPitch = pitchPixels;
+}
+
+inline void setRoughnessMap(Packet& p, int width, int height, int pitchPixels) {
+    p.params.hasRough = (width > 0 && height > 0) ? 1 : 0;
+    p.params.roughWidth = width;
+    p.params.roughHeight = height;
+    p.params.roughPitch = pitchPixels;
 }
 
 inline void setTexture(Packet& p, int width, int height, int pitchPixels) {

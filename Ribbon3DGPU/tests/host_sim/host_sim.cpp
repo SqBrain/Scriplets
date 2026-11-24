@@ -273,11 +273,27 @@ static void MakeNormalMap() {
             p[0] = float(nz * 0.5 + 0.5); p[1] = float(ny * 0.5 + 0.5); p[2] = float(nx * 0.5 + 0.5); p[3] = 1;
         }
 }
+// Roughness layer: vertical bands, smooth (0.05) and rough (0.8).
+static bool gRoughOn = false;
+static std::vector<float> gRoughPixels;
+static void MakeRoughness() {
+    gRoughPixels.assign(size_t(NMW) * NMH * 4, 0.0f);
+    for (int y = 0; y < NMH; y++)
+        for (int x = 0; x < NMW; x++) {
+            float g = (x / 16) % 2 ? 0.8f : 0.05f;
+            float* p = &gRoughPixels[(size_t(y) * NMW + x) * 4];
+            p[0] = p[1] = p[2] = g; p[3] = 1;
+        }
+}
 static float InputGrey(int x) { return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f; }
 static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderRequest* req, A_long, A_long, A_u_long, PF_CheckoutResult* r) {
     std::memset(r, 0, sizeof(*r));
     if (index == RB_INPUT) {
         r->max_result_rect = Full();
+        r->result_rect = req->rect;
+    }
+    if (index == RB_ROUGH_LAYER && gRoughOn) {
+        r->max_result_rect = {0, 0, NMW, NMH};
         r->result_rect = req->rect;
     }
     if (index == RB_NRM_LAYER && gNrmOn) {
@@ -311,9 +327,13 @@ static PF_Err PreRenderChecked(PF_InData* in, PF_OutData* out, PF_PreRenderExtra
     }
     return e;
 }
-static PF_EffectWorld gSrc, gDst, gEnv, gNrm;
+static PF_EffectWorld gSrc, gDst, gEnv, gNrm, gRough;
 static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) {
-    *w = id == RB_CHECKOUT_INPUT ? &gSrc : (id == RB_CHECKOUT_ENV ? &gEnv : (id == RB_CHECKOUT_NRM ? &gNrm : nullptr));
+    *w = id == RB_CHECKOUT_INPUT ? &gSrc
+       : id == RB_CHECKOUT_ENV   ? &gEnv
+       : id == RB_CHECKOUT_NRM   ? &gNrm
+       : id == RB_CHECKOUT_ROUGH ? &gRough
+                                 : nullptr;
     return PF_Err_NONE;
 }
 static PF_Err CheckinPixels(PF_ProgPtr, A_long) { return PF_Err_NONE; }
@@ -367,6 +387,17 @@ static std::vector<float> RunCPU(int bpc) {
         }
         gNrm = {nbuf.data(), A_long(NMW * npx), NMW, NMH};
     }
+    std::vector<char> rbuf;
+    if (gRoughOn) {
+        size_t rpx = bpc == 32 ? 16 : 4;
+        rbuf.resize(size_t(NMW) * NMH * rpx);
+        for (int i = 0; i < NMW * NMH; i++) {
+            const float* e = &gRoughPixels[size_t(i) * 4];
+            if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)rbuf.data() + i; p->blue = e[0]; p->green = e[1]; p->red = e[2]; p->alpha = e[3]; }
+            else { PF_Pixel8* p = (PF_Pixel8*)rbuf.data() + i; p->blue = p->green = p->red = (unsigned char)(e[0] * 255 + 0.5f); p->alpha = 255; }
+        }
+        gRough = {rbuf.data(), A_long(NMW * rpx), NMW, NMH};
+    }
     PF_SmartRenderInput sin; std::memset(&sin, 0, sizeof(sin)); sin.bitdepth = short(bpc); sin.pre_render_data = pout.pre_render_data;
     PF_SmartRenderCallbacks scb = {CheckoutPixels, CheckinPixels, CheckoutOutput};
     PF_SmartRenderExtra sre = {&sin, &scb};
@@ -409,6 +440,12 @@ static std::vector<float> RunGPU() {
         nrmMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gNrmPixels.size() * 4, gNrmPixels.data(), &ee);
         gNrm = {nrmMem, NMW * 16, NMW, NMH};
     }
+    cl_mem roughMem = nullptr;
+    if (gRoughOn) {
+        cl_int ee;
+        roughMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gRoughPixels.size() * 4, gRoughPixels.data(), &ee);
+        gRough = {roughMem, NMW * 16, NMW, NMH};
+    }
     cl_int e;
     cl_mem s = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, host.size() * 4, host.data(), &e);
     cl_mem d = clCreateBuffer(gCtx, CL_MEM_READ_WRITE, host.size() * 4, nullptr, &e);
@@ -424,6 +461,7 @@ static std::vector<float> RunGPU() {
     pout.delete_pre_render_data_func(pout.pre_render_data);
     if (envMem) clReleaseMemObject(envMem);
     if (nrmMem) clReleaseMemObject(nrmMem);
+    if (roughMem) clReleaseMemObject(roughMem);
     PF_GPUDeviceSetdownInput din = {gout.gpu_data, PF_GPU_Framework_OPENCL, 0};
     PF_GPUDeviceSetdownExtra dex = {&din};
     EffectMain(PF_Cmd_GPU_DEVICE_SETDOWN, &in, &out, nullptr, nullptr, &dex);
@@ -709,7 +747,32 @@ static int TestEnvGlass() {
     gDefs[RB_GLASS_REFRACTION - 1].u.fs_d.value = 0;
     std::vector<float> straight = compare("glass, no refraction", 0.0, {});
     gDefs[RB_GLASS_REFRACTION - 1].u.fs_d.value = 60;
-    compare("glass, refraction 60 px", 0.01, straight);
+    std::vector<float> refracted = compare("glass, refraction 60 px", 0.01, straight);
+    // Frosted: the stripes seen through the glass lose their contrast.
+    gDefs[RB_GLASS_FROST - 1].u.fs_d.value = 20;
+    std::vector<float> frosted = compare("glass, frost 20 px", 0.01, refracted);
+    // Ribbon coverage: the same glass alone (Ribbon Only) has alpha > 0 only on the ribbon.
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    std::vector<float> cover = RunCPU(32);
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    // Sharpness of the stripes seen through the glass: mean change between neighbouring pixels,
+    // well inside the ribbon (both neighbours fully covered).
+    auto stripeContrast = [&](const std::vector<float>& img) {
+        double sum = 0;
+        size_t n = 0;
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x + 1 < W; x++) {
+                size_t i = (size_t(y) * W + x) * 4;
+                if (cover[i + 3] < 0.2f || cover[i + 7] < 0.2f) continue;
+                sum += std::fabs(img[i + 6] - img[i + 2]);
+                n++;
+            }
+        return n ? sum / n : 0.0;
+    };
+    double cClear = stripeContrast(refracted), cFrost = stripeContrast(frosted);
+    std::printf("glass, frost: stripe sharpness through the glass %.4f -> %.4f\n", cClear, cFrost);
+    if (!(cFrost < cClear * 0.6)) { std::printf("FAIL: frost does not blur\n"); fails++; }
+    gDefs[RB_GLASS_FROST - 1].u.fs_d.value = 0;
     // Ribbon only: glass is see-through (alpha between 0 and 1 inside the ribbon).
     gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
     std::vector<float> alone = RunCPU(32);
@@ -787,6 +850,38 @@ static int TestNormalMap() {
     return fails;
 }
 
+// Roughness layer through the effect (CPU / GPU), rounded ends take area off the tips.
+static int TestRoughEnds() {
+    int fails = 0;
+    ResetComp();
+    MakeRoughness();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    std::vector<float> plain = RunCPU(32);
+    gRoughOn = true;
+    std::vector<float> c = RunCPU(32), g = RunGPU();
+    gRoughOn = false;
+    double maxG = 0;
+    for (size_t i = 0; i < c.size() && i < g.size(); i++) maxG = std::max(maxG, double(std::fabs(c[i] - g[i])));
+    double changed = DiffFraction(plain, c);
+    std::printf("roughness map: %.1f %% of pixels change, CPU vs GPU %.2e\n", 100 * changed, maxG);
+    if (changed < 0.01 || g.empty() || maxG > 2e-3) { std::printf("FAIL: roughness map\n"); fails++; }
+    gDefs[RB_WIDTH - 1].u.fs_d.value = 80;
+    std::vector<float> square = RunCPU(32);
+    gDefs[RB_END_ROUNDING - 1].u.fs_d.value = 100;
+    std::vector<float> round = RunCPU(32), roundG = RunGPU();
+    double maxR = 0, aSq = 0, aRd = 0;
+    for (size_t i = 0; i < round.size() && i < roundG.size(); i++) maxR = std::max(maxR, double(std::fabs(round[i] - roundG[i])));
+    for (size_t i = 3; i < round.size(); i += 4) { aSq += square[i]; aRd += round[i]; }
+    // A semicircle instead of a w x w/2 rectangle saves (1 - pi/4) * w^2 / 2 per end: ~687 px for w = 80.
+    std::printf("rounded ends: area %.0f -> %.0f px (%.0f less), CPU vs GPU %.2e\n", aSq, aRd, aSq - aRd, maxR);
+    if (aSq - aRd < 1000 || aSq - aRd > 1800 || roundG.empty() || maxR > 2e-3) { std::printf("FAIL: rounded ends\n"); fails++; }
+    gDefs[RB_END_ROUNDING - 1].u.fs_d.value = 0;
+    gDefs[RB_WIDTH - 1].u.fs_d.value = 60;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -854,6 +949,7 @@ int main(int argc, char** argv) {
     fails += TestEnvGlass();
     fails += TestWind();
     fails += TestNormalMap();
+    fails += TestRoughEnds();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

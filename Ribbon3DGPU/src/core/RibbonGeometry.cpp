@@ -352,15 +352,46 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         return r;
     };
 
+    // Rounded ends: near each end the half width follows a circle of radius r (the corner), so the
+    // outline is a rounded rectangle, a semicircle at 100 %. Texture v is cut, not squeezed.
+    const double Lr = L * std::fabs(b - a);  // ribbon length, world px
+    auto widthAt = [&](double u) { return rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u); };
+    const double rounding = std::clamp(rs.endRounding, 0.0, 1.0);
+    const double rS = rs.roundStart ? rounding * widthAt(0) / 2 : 0, rE = rs.roundEnd ? rounding * widthAt(1) / 2 : 0;
+    auto corner = [](double d, double r, double hw) {
+        if (r <= 0 || hw <= 0 || d >= r) return 1.0;
+        const double x = r - std::max(d, 0.0);
+        return std::max(0.004, (hw - r + std::sqrt(std::max(0.0, r * r - x * x))) / hw);
+    };
+    auto cutAt = [&](double u) {
+        const double hw = widthAt(u) / 2;
+        return std::min(corner(u * Lr, rS, hw), corner((1 - u) * Lr, rE, hw));
+    };
+    // Sections along the ribbon: the uniform grid, plus dense ones over the rounded ends (denser
+    // toward the tip, where the circle turns fastest).
+    std::vector<double> grid;
+    for (int k = 0; k <= N; k++) grid.push_back(double(k) / N);
+    const int kCap = 16;
+    for (int i = 1; i < kCap && Lr > 1e-9; i++) {
+        const double d = 1 - std::cos(double(i) / kCap * kPi / 2);
+        if (rS > 0) grid.push_back(std::min(1.0, rS * d / Lr));
+        if (rE > 0) grid.push_back(std::max(0.0, 1 - rE * d / Lr));
+    }
+    std::sort(grid.begin(), grid.end());
+
     for (const RibbonPiece& pc : pieces) {
-        // Segments in proportion to the piece's share of the ribbon (all N for a single piece).
-        const int n = std::max(1, int(std::lround(N * (pc.u1 - pc.u0))));
+        // The grid samples inside the piece plus its two ends.
+        std::vector<double> uList{pc.u0};
+        for (double g : grid)
+            if (g > pc.u0 + 1e-9 && g < pc.u1 - 1e-9 && g > uList.back() + 1e-9) uList.push_back(g);
+        uList.push_back(pc.u1);
+        const int n = int(uList.size()) - 1;
         const size_t first = mesh.center.size();
         std::vector<V3> fronts;
-        std::vector<double> us;
+        std::vector<double> us, cuts, fullW;
         // Cross sections: center, tangent, width direction W, front normal F = W x T, width.
         for (int k = 0; k <= n; k++) {
-            double u = pc.u0 + (pc.u1 - pc.u0) * double(k) / n, s = a + (b - a) * u - pc.lap;
+            double u = uList[size_t(k)], s = a + (b - a) * u - pc.lap;
             Sample F = disp(s), Fa = disp(s - e * dir), Fb = disp(s + e * dir);
             V3 T = normalize(Fb.p - Fa.p, F.t * dir);
             V3 U = normalize(orthoTo(F.u, T), F.u);
@@ -369,13 +400,15 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             th += C.rollAt(s);  // control nulls' rotation
             th += windTwist(rs.wind, C.closed() ? s - std::floor(s) : std::clamp(s, 0.0, 1.0), L, rs.time);
             V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
-            double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
+            const double wFull = widthAt(u), cut = cutAt(u);
             mesh.center.push_back(F.p);
             mesh.tangent.push_back(T);
             mesh.widthDir.push_back(W);
-            mesh.widths.push_back(w);
+            mesh.widths.push_back(wFull * cut);
             fronts.push_back(normalize(cross(W, T), U * -1.0));
             us.push_back(u);
+            cuts.push_back(cut);
+            fullW.push_back(wFull);
         }
         auto center = [&](int k) { return mesh.center[first + size_t(k)]; };
         auto tangent = [&](int k) { return mesh.tangent[first + size_t(k)]; };
@@ -389,7 +422,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
                 for (int j = 0; j <= M; j++) {
                     double v = double(j) / M;
                     mesh.verts.push_back(makeVertex(center(k) + widthDir(k) * ((v - 0.5) * width(k)), fronts[size_t(k)], tangent(k),
-                                                    us[size_t(k)], v, 0));
+                                                    us[size_t(k)], 0.5 + (v - 0.5) * cuts[size_t(k)], 0));
                 }
             for (int k = 0; k < n; k++)
                 for (int j = 0; j < M; j++) {
@@ -408,7 +441,8 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             for (const ProfilePoint& q : prof) {
                 V3 p = center(k) + widthDir(k) * q.x + Fk * q.y;
                 V3 nn = normalize(widthDir(k) * q.nx + Fk * q.ny, Fk);
-                double v = w > 1e-9 ? std::clamp(q.x / w + 0.5, 0.0, 1.0) : 0.5;
+                const double wf = fullW[size_t(k)];
+                double v = wf > 1e-9 ? std::clamp(q.x / wf + 0.5, 0.0, 1.0) : 0.5;
                 mesh.verts.push_back(makeVertex(p, nn, tangent(k), us[size_t(k)], v, q.ny));
             }
         }
