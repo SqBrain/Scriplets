@@ -118,6 +118,21 @@ enum {
     // 0.1.05 (appended for the same reason).
     RB_ORIENTATION,       // 1: Twist (ribbon follows the path frame, Twist applies), 2: Front
 
+    // 0.1.06 (appended for the same reason).
+    RB_ENV_TOPIC,
+    RB_ENV_LAYER,         // HDRI layer (equirectangular)
+    RB_ENV_INTENSITY,
+    RB_ENV_ROTATION,
+    RB_ENV_REFLECTION,
+    RB_ENV_TOPIC_END,
+    RB_GLASS_TOPIC,
+    RB_GLASS,             // checkbox
+    RB_GLASS_IOR,
+    RB_GLASS_TRANSMISSION,
+    RB_GLASS_TINT,
+    RB_GLASS_REFRACTION,
+    RB_GLASS_TOPIC_END,
+
     RB_NUM_PARAMS
 };
 
@@ -126,7 +141,7 @@ enum { RB_DISK_ID_BASE = 1 };
 #define RB_ID(param) (RB_DISK_ID_BASE + (param))
 
 // Checkout IDs for SmartFX layer requests.
-enum { RB_CHECKOUT_INPUT = 1, RB_CHECKOUT_TEX_PROBE = 2, RB_CHECKOUT_TEX = 3 };
+enum { RB_CHECKOUT_INPUT = 1, RB_CHECKOUT_TEX_PROBE = 2, RB_CHECKOUT_TEX = 3, RB_CHECKOUT_ENV_PROBE = 4, RB_CHECKOUT_ENV = 5 };
 
 extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
                                        PF_LayerDef* output, void* extra);

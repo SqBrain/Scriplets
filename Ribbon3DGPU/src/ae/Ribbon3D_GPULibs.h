@@ -44,6 +44,8 @@ struct OpenCL {
     cl_int(RB_GPU_API* SetKernelArg)(cl_kernel, cl_uint, size_t, const void*);
     cl_int(RB_GPU_API* EnqueueNDRangeKernel)(cl_command_queue, cl_kernel, cl_uint, const size_t*, const size_t*, const size_t*,
                                             cl_uint, const cl_event*, cl_event*);
+    cl_int(RB_GPU_API* EnqueueReadBuffer)(cl_command_queue, cl_mem, cl_uint, size_t, size_t, void*, cl_uint, const cl_event*,
+                                         cl_event*);
 };
 
 // ---------------------------------------------------------------- CUDA driver API (subset)
@@ -65,6 +67,7 @@ struct CudaDriver {
     CUresult(RB_GPU_API* MemAlloc)(CUdeviceptr*, size_t);
     CUresult(RB_GPU_API* MemFree)(CUdeviceptr);
     CUresult(RB_GPU_API* MemcpyHtoD)(CUdeviceptr, const void*, size_t);
+    CUresult(RB_GPU_API* MemcpyDtoH)(void*, CUdeviceptr, size_t);
     CUresult(RB_GPU_API* LaunchKernel)(CUfunction, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, CUstream,
                                       void**, void**);
 };

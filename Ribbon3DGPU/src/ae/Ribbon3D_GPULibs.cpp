@@ -56,7 +56,7 @@ OpenCL* LoadOpenCL() {
               Bind(lib, cl.CreateKernel, "clCreateKernel") && Bind(lib, cl.ReleaseKernel, "clReleaseKernel") &&
               Bind(lib, cl.ReleaseProgram, "clReleaseProgram") && Bind(lib, cl.CreateBuffer, "clCreateBuffer") &&
               Bind(lib, cl.ReleaseMemObject, "clReleaseMemObject") && Bind(lib, cl.SetKernelArg, "clSetKernelArg") &&
-              Bind(lib, cl.EnqueueNDRangeKernel, "clEnqueueNDRangeKernel");
+              Bind(lib, cl.EnqueueNDRangeKernel, "clEnqueueNDRangeKernel") && Bind(lib, cl.EnqueueReadBuffer, "clEnqueueReadBuffer");
     return ok ? &cl : nullptr;
 }
 
@@ -77,7 +77,8 @@ CudaDriver* LoadCuda() {
               Bind(lib, cu.CtxSynchronize, "cuCtxSynchronize") && Bind(lib, cu.ModuleLoadData, "cuModuleLoadData") &&
               Bind(lib, cu.ModuleUnload, "cuModuleUnload") && Bind(lib, cu.ModuleGetFunction, "cuModuleGetFunction") &&
               Bind(lib, cu.MemAlloc, "cuMemAlloc_v2") && Bind(lib, cu.MemFree, "cuMemFree_v2") &&
-              Bind(lib, cu.MemcpyHtoD, "cuMemcpyHtoD_v2") && Bind(lib, cu.LaunchKernel, "cuLaunchKernel");
+              Bind(lib, cu.MemcpyHtoD, "cuMemcpyHtoD_v2") && Bind(lib, cu.MemcpyDtoH, "cuMemcpyDtoH_v2") &&
+              Bind(lib, cu.LaunchKernel, "cuLaunchKernel");
     return ok ? &cu : nullptr;
 }
 

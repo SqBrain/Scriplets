@@ -46,6 +46,14 @@ struct Material {
     double gamma = 2.2;             // 1 for a linear working space
     int composite = RK_COMPOSITE_OVER;
     int samples = 3;                // supersampling per axis (1..4)
+    // Environment (the image itself comes with setEnvironmentImage).
+    double envIntensity = 1, envReflection = 1, envRotationDeg = 0;
+    // Glass.
+    bool glass = false;
+    double ior = 1.5;
+    double transmission = 0.9;      // 0..1 of the non-reflected light that passes through
+    double tint = 0.3;              // 0..1: how much the ribbon color tints the passing light
+    double refractPx = 30;          // refraction strength, comp pixels per unit of bend
 };
 
 struct Packet {
@@ -55,6 +63,7 @@ struct Packet {
     std::vector<int> tileStart;     // tilesX * tilesY + 1 offsets into tileTris
     std::vector<int> tileTris;
     std::vector<RK_Light> lights;
+    std::vector<float> env{0, 0, 0, 0};  // environment mip chain (RGB floats); never empty
 };
 
 // Fills everything except the buffer pitches and texture fields (see setBuffers / setTexture).
@@ -73,6 +82,11 @@ inline void setSource(Packet& p, int x, int y, int w, int h, int pitchPixels) {
     p.params.srcH = h;
     p.params.srcPitch = pitchPixels;
 }
+// Environment from an equirectangular image (BGRA floats, premultiplied, working-space encoded
+// as AE delivers it): converted to linear RGB, resampled to at most 1024 x 512, a mip chain for
+// blurred reflections and L2 spherical harmonics for the diffuse light. Null / empty: no environment.
+void setEnvironmentImage(Packet& p, const float* bgra, int width, int height, int pitchPixels);
+
 inline void setTexture(Packet& p, int width, int height, int pitchPixels) {
     p.params.hasTexture = (width > 0 && height > 0) ? 1 : 0;
     p.params.texWidth = width;

@@ -95,17 +95,18 @@ int main(int argc, char** argv) {
                          buf(pk.tileStart.data(), pk.tileStart.size() * sizeof(int), CL_MEM_READ_ONLY),
                          buf(pk.tileTris.data(), pk.tileTris.size() * sizeof(int), CL_MEM_READ_ONLY),
                          buf(pk.lights.data(), pk.lights.size() * sizeof(RK_Light), CL_MEM_READ_ONLY),
+                         buf(pk.env.data(), pk.env.size() * sizeof(float), CL_MEM_READ_ONLY),
                          buf(tex.data(), tex.size() * sizeof(float), CL_MEM_READ_ONLY),
                          buf(src.bgra.data(), src.bgra.size() * sizeof(float), CL_MEM_READ_ONLY),
                          buf(nullptr, src.bgra.size() * sizeof(float), CL_MEM_WRITE_ONLY)};
-        for (cl_uint i = 0; i < 9; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
+        for (cl_uint i = 0; i < 10; i++) CL_CHECK(clSetKernelArg(k, i, sizeof(cl_mem), &args[i]));
         size_t local[2] = {16, 16}, global[2] = {size_t((W + 15) / 16 * 16), size_t((H + 15) / 16 * 16)};
         auto t0 = std::chrono::steady_clock::now();
         CL_CHECK(clEnqueueNDRangeKernel(q, k, 2, nullptr, global, local, 0, nullptr, nullptr));
         CL_CHECK(clFinish(q));
         double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         test::Image gpu(W, H);
-        CL_CHECK(clEnqueueReadBuffer(q, args[8], CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
+        CL_CHECK(clEnqueueReadBuffer(q, args[9], CL_TRUE, 0, gpu.bgra.size() * sizeof(float), gpu.bgra.data(), 0, nullptr, nullptr));
         for (cl_mem m : args) clReleaseMemObject(m);
 
         double maxDiff = 0, sumDiff = 0;

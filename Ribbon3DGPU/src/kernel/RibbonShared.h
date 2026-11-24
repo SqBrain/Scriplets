@@ -66,6 +66,26 @@ typedef struct {
     float gamma;            /* 1: linear working space, 2.2: gamma-encoded colors */
     float edgeColor[3];     /* linear, solid ribbons */
     float pad1;
+
+    /* Environment: an equirectangular HDRI as a linear RGB mip chain in the env buffer (level 0
+       envWidth x envHeight, every next level halves), plus its diffuse irradiance / pi as L2
+       spherical harmonics. Directions: AE world (x right, y down, z into the scene); the image
+       center looks along +z, its top is up (-y). */
+    int   hasEnv, envWidth, envHeight, envLevels;
+    float envRotCos, envRotSin;     /* rotation around the vertical axis */
+    float envIntensity;             /* light from the environment (diffuse and reflections) */
+    float envReflection;            /* extra factor for reflections */
+    float envSH[27];                /* 9 coefficients x RGB */
+    float pad2;
+
+    /* Glass: Fresnel reflection, the rest is transmitted (tinted) or scatters in the body. */
+    int   glass;
+    float glassF0;                  /* reflectance at normal incidence, ((ior - 1) / (ior + 1))^2 */
+    float glassIor;
+    float glassTransmission;        /* 0..1 of the non-reflected light that passes */
+    float glassTint;                /* 0..1: how much the ribbon color tints the passing light */
+    float refractPx;                /* refraction: screen offset in output pixels per unit of bend */
+    float camRight[3], camDown[3];  /* camera axes in world space, for the refraction offset */
 } RK_Params;
 
 #endif

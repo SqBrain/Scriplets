@@ -45,26 +45,28 @@ bool RibbonMetal_Render(void* pipelinePV, void* devicePV, void* queuePV, const r
         id<MTLCommandQueue> queue = (id<MTLCommandQueue>)queuePV;
         if (!pipeline || !device || !queue || !dst) return false;
 
-        const void* data[6] = {&pk.params, pk.tris.data(), pk.verts.data(), pk.tileStart.data(), pk.tileTris.data(), pk.lights.data()};
-        const size_t bytes[6] = {sizeof(RK_Params), pk.tris.size() * sizeof(RK_Tri), pk.verts.size() * sizeof(RK_Vertex),
-                                 pk.tileStart.size() * sizeof(int), pk.tileTris.size() * sizeof(int), pk.lights.size() * sizeof(RK_Light)};
-        id<MTLBuffer> buffers[6];
-        for (int i = 0; i < 6; i++) buffers[i] = [device newBufferWithBytes:data[i] length:bytes[i] options:MTLResourceStorageModeShared];
+        const void* data[7] = {&pk.params, pk.tris.data(), pk.verts.data(), pk.tileStart.data(), pk.tileTris.data(), pk.lights.data(),
+                               pk.env.data()};
+        const size_t bytes[7] = {sizeof(RK_Params), pk.tris.size() * sizeof(RK_Tri), pk.verts.size() * sizeof(RK_Vertex),
+                                 pk.tileStart.size() * sizeof(int), pk.tileTris.size() * sizeof(int), pk.lights.size() * sizeof(RK_Light),
+                                 pk.env.size() * sizeof(float)};
+        id<MTLBuffer> buffers[7];
+        for (int i = 0; i < 7; i++) buffers[i] = [device newBufferWithBytes:data[i] length:bytes[i] options:MTLResourceStorageModeShared];
 
         id<MTLCommandBuffer> cmd = [queue commandBuffer];
         id<MTLComputeCommandEncoder> enc = [cmd computeCommandEncoder];
         [enc setComputePipelineState:pipeline];
-        for (int i = 0; i < 6; i++) [enc setBuffer:buffers[i] offset:0 atIndex:NSUInteger(i)];
-        [enc setBuffer:(id<MTLBuffer>)tex offset:0 atIndex:6];
-        [enc setBuffer:(id<MTLBuffer>)src offset:0 atIndex:7];
-        [enc setBuffer:(id<MTLBuffer>)dst offset:0 atIndex:8];
+        for (int i = 0; i < 7; i++) [enc setBuffer:buffers[i] offset:0 atIndex:NSUInteger(i)];
+        [enc setBuffer:(id<MTLBuffer>)tex offset:0 atIndex:7];
+        [enc setBuffer:(id<MTLBuffer>)src offset:0 atIndex:8];
+        [enc setBuffer:(id<MTLBuffer>)dst offset:0 atIndex:9];
         NSUInteger tw = 16, th = std::max<NSUInteger>(1, std::min<NSUInteger>(16, pipeline.maxTotalThreadsPerThreadgroup / tw));
         MTLSize perGroup = MTLSizeMake(tw, th, 1);
         MTLSize groups = MTLSizeMake((NSUInteger(pk.params.width) + tw - 1) / tw, (NSUInteger(pk.params.height) + th - 1) / th, 1);
         [enc dispatchThreadgroups:groups threadsPerThreadgroup:perGroup];
         [enc endEncoding];
         [cmd commit];  // the command buffer retains the buffers until it completes
-        for (int i = 0; i < 6; i++) [buffers[i] release];
+        for (int i = 0; i < 7; i++) [buffers[i] release];
         return true;
     }
 }

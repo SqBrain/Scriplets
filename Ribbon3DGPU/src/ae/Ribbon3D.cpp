@@ -59,6 +59,7 @@ struct PreRenderData {
     PF_LRect outRect{};   // output buffer rect, downsampled layer pixels
     PF_LRect inRect{};    // input buffer rect
     bool hasTexture = false;
+    bool hasEnv = false;
 };
 
 void DeletePreRenderData(void* p) { delete static_cast<PreRenderData*>(p); }
@@ -261,6 +262,35 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_ADD_POPUP("Orientation", 2, RB_ORIENT_TWIST, "Twist|Front", RB_ID(RB_ORIENTATION));
 
+    // 0.1.06: image-based light from an HDRI layer, and glass.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Environment", RB_ID(RB_ENV_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_LAYER("HDRI Layer", PF_LayerDefault_NONE, RB_ID(RB_ENV_LAYER));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Env Intensity", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_INTENSITY));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_ANGLE("Env Rotation", 0, RB_ID(RB_ENV_ROTATION));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Reflections", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_REFLECTION));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_ENV_TOPIC_END));
+
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Glass", RB_ID(RB_GLASS_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_CHECKBOX("Glass", "Enable", FALSE, 0, RB_ID(RB_GLASS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("IOR", 1, 3, 1, 2.5, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GLASS_IOR));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Transmission", 0, 100, 0, 100, 90, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TRANSMISSION));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Tint", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TINT));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_FLOAT_SLIDERX("Refraction (px)", 0, 2000, 0, 200, 30, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_REFRACTION));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_GLASS_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -300,6 +330,22 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         if (!err) prd->hasTexture = true;
     }
 
+    // Environment (HDRI) layer: the whole frame, like the texture.
+    PF_RenderRequest ereq = req;
+    PF_CheckoutResult eprobe;
+    AEFX_CLR_STRUCT(eprobe);
+    ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_ENV_LAYER, RB_CHECKOUT_ENV_PROBE, &ereq, in_data->current_time,
+                                  in_data->time_step, in_data->time_scale, &eprobe));
+    if (!err && eprobe.max_result_rect.right > eprobe.max_result_rect.left &&
+        eprobe.max_result_rect.bottom > eprobe.max_result_rect.top) {
+        ereq.rect = eprobe.max_result_rect;
+        PF_CheckoutResult eres;
+        AEFX_CLR_STRUCT(eres);
+        ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_ENV_LAYER, RB_CHECKOUT_ENV, &ereq, in_data->current_time,
+                                      in_data->time_step, in_data->time_scale, &eres));
+        if (!err) prd->hasEnv = true;
+    }
+
     // Control nulls are other layers: tell AE's cache about their current transforms. With
     // PF_OutFlag2_I_MIX_GUID_DEPENDENCIES AE requires GuidMixInPtr on EVERY pre-render (else
     // "internal verification failure"), so it is called in every mode and even after an error.
@@ -318,7 +364,10 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
     extra->output->solid = FALSE;
     extra->output->pre_render_data = prd;
     extra->output->delete_pre_render_data_func = DeletePreRenderData;
-    if (extra->input->what_gpu != PF_GPU_Framework_NONE && FrameworkSupported(extra->input->what_gpu))
+    // With an environment the GPU world has to be read back to the CPU; where that is not
+    // implemented (Metal) the frame is rendered on the CPU.
+    if (extra->input->what_gpu != PF_GPU_Framework_NONE && FrameworkSupported(extra->input->what_gpu) &&
+        (!prd->hasEnv || RibbonGPU_CanReadBack(extra->input->what_gpu)))
         extra->output->flags |= PF_RenderOutputFlag_GPU_RENDER_POSSIBLE;
     return err;
 }
@@ -549,6 +598,14 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     mat.composite = comp == 2 ? RK_COMPOSITE_BEHIND : (comp == 3 ? RK_COMPOSITE_ALONE : RK_COMPOSITE_OVER);
     mat.opacity = Param(in_data, RB_OPACITY).f() / 100;
     mat.gamma = Param(in_data, RB_LINEAR).b() ? 1.0 : 2.2;
+    mat.envIntensity = Param(in_data, RB_ENV_INTENSITY).f() / 100;
+    mat.envReflection = Param(in_data, RB_ENV_REFLECTION).f() / 100;
+    mat.envRotationDeg = Param(in_data, RB_ENV_ROTATION).angle();
+    mat.glass = Param(in_data, RB_GLASS).b();
+    mat.ior = Param(in_data, RB_GLASS_IOR).f();
+    mat.transmission = Param(in_data, RB_GLASS_TRANSMISSION).f() / 100;
+    mat.tint = Param(in_data, RB_GLASS_TINT).f() / 100;
+    mat.refractPx = Param(in_data, RB_GLASS_REFRACTION).f();
 
     // The effect layer is comp-sized: layer pixels == comp pixels.
     const double compW = in_data->width, compH = in_data->height;
@@ -560,8 +617,9 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
 
     std::vector<rb::LightDesc> lights;
     if (Param(in_data, RB_USE_COMP_LIGHTS).b()) lights = CompLights(in_data, compTime);
-    if (lights.empty()) {
+    if (lights.empty() && !prd.hasEnv) {
         // Built-in key light: shines from azimuth / elevation (0 / 0 = from the camera side).
+        // An HDRI environment replaces it (both at once would light the ribbon twice).
         double az = Param(in_data, RB_LIGHT_AZIMUTH).angle() * 3.14159265358979 / 180;
         double el = Param(in_data, RB_LIGHT_ELEVATION).angle() * 3.14159265358979 / 180;
         rb::LightDesc key;
@@ -686,7 +744,8 @@ void FromBGRA(const std::vector<float>& in, int bpc, PF_EffectWorld* w) {
     else BGRAToWorld<PF_Pixel8, A_u_char, PF_MAX_CHAN8>(in, w);
 }
 
-PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex) {
+PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex,
+                 PF_EffectWorld* env) {
     std::vector<float> s, t, d(size_t(dst->width) * dst->height * 4, 0.0f);
     if (src) {
         ToBGRA(src, bpc, s);
@@ -700,6 +759,11 @@ PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWor
         ToBGRA(tex, bpc, t);
         rb::setTexture(pk, tex->width, tex->height, tex->width);
     }
+    if (env) {
+        std::vector<float> e;
+        ToBGRA(env, bpc, e);
+        rb::setEnvironmentImage(pk, e.data(), env->width, env->height, env->width);
+    }
     rb::renderCPU(pk, s.data(), d.data(), t.empty() ? nullptr : t.data());
     FromBGRA(d, bpc, dst);
     return PF_Err_NONE;
@@ -710,22 +774,24 @@ PF_Err SmartRender(PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra
     PF_Err err = PF_Err_NONE, err2 = PF_Err_NONE;
     const PreRenderData* prd = static_cast<const PreRenderData*>(extra->input->pre_render_data);
     if (!prd) return PF_Err_BAD_CALLBACK_PARAM;
-    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr;
+    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr;
     ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT, &src));
     ERR(extra->cb->checkout_output(in_data->effect_ref, &dst));
     if (!err && prd->hasTexture) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX, &tex));
+    if (!err && prd->hasEnv) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV, &env));
 
     if (!err && dst) {
         rb::Packet pk;
         ERR(BuildPacket(in_data, *prd, dst->width, dst->height, pk));
         if (!err) {
             if (gpu) err = RibbonGPU_Render(in_data, extra, pk, prd->inRect.left - prd->outRect.left,
-                                            prd->inRect.top - prd->outRect.top, src, dst, tex);
-            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex);
+                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env);
+            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env);
         }
     }
     ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT));
     if (prd->hasTexture) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX));
+    if (prd->hasEnv) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV));
     return err;
 }
 

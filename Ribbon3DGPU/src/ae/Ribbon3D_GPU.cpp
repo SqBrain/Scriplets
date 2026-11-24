@@ -47,10 +47,11 @@ GPUState* StateFromHandle(const void* gpu_data) {
     return (h && *h) ? *reinterpret_cast<GPUState**>(*h) : nullptr;
 }
 
-// The six packet arrays, in kernel argument order.
+// The seven packet arrays, in kernel argument order (env last).
+enum { kPacketArrays = 7 };
 struct PacketArrays {
-    const void* data[6];
-    size_t bytes[6];
+    const void* data[kPacketArrays];
+    size_t bytes[kPacketArrays];
     explicit PacketArrays(const rb::Packet& pk) {
         data[0] = &pk.params; bytes[0] = sizeof(RK_Params);
         data[1] = pk.tris.data(); bytes[1] = pk.tris.size() * sizeof(RK_Tri);
@@ -58,6 +59,7 @@ struct PacketArrays {
         data[3] = pk.tileStart.data(); bytes[3] = pk.tileStart.size() * sizeof(int);
         data[4] = pk.tileTris.data(); bytes[4] = pk.tileTris.size() * sizeof(int);
         data[5] = pk.lights.data(); bytes[5] = pk.lights.size() * sizeof(RK_Light);
+        data[6] = pk.env.data(); bytes[6] = pk.env.size() * sizeof(float);
     }
 };
 
@@ -95,16 +97,16 @@ PF_Err RenderOpenCL(const PF_GPUDeviceInfo& info, GPUState& st, const rb::Packet
     cl_command_queue queue = static_cast<cl_command_queue>(info.command_queuePV);
     PacketArrays arr(pk);
     cl_int res = CL_SUCCESS;
-    cl_mem bufs[6] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
-    for (int i = 0; i < 6 && res == CL_SUCCESS; i++)
+    cl_mem bufs[kPacketArrays] = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+    for (int i = 0; i < kPacketArrays && res == CL_SUCCESS; i++)
         bufs[i] = cl->CreateBuffer(ctx, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, arr.bytes[i], const_cast<void*>(arr.data[i]), &res);
     cl_mem texMem = static_cast<cl_mem>(tex), srcMem = static_cast<cl_mem>(src), dstMem = static_cast<cl_mem>(dst);
     if (res == CL_SUCCESS) {
         std::lock_guard<std::mutex> guard(st.lock);
-        for (cl_uint i = 0; i < 6 && res == CL_SUCCESS; i++) res = cl->SetKernelArg(st.kernel, i, sizeof(cl_mem), &bufs[i]);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, 6, sizeof(cl_mem), &texMem);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, 7, sizeof(cl_mem), &srcMem);
-        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, 8, sizeof(cl_mem), &dstMem);
+        for (cl_uint i = 0; i < kPacketArrays && res == CL_SUCCESS; i++) res = cl->SetKernelArg(st.kernel, i, sizeof(cl_mem), &bufs[i]);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays, sizeof(cl_mem), &texMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 1, sizeof(cl_mem), &srcMem);
+        if (res == CL_SUCCESS) res = cl->SetKernelArg(st.kernel, kPacketArrays + 2, sizeof(cl_mem), &dstMem);
         size_t local[2] = {16, 16};
         size_t global[2] = {size_t((pk.params.width + 15) / 16) * 16, size_t((pk.params.height + 15) / 16) * 16};
         if (res == CL_SUCCESS) res = cl->EnqueueNDRangeKernel(queue, st.kernel, 2, nullptr, global, local, 0, nullptr, nullptr);
@@ -112,6 +114,12 @@ PF_Err RenderOpenCL(const PF_GPUDeviceInfo& info, GPUState& st, const rb::Packet
     for (cl_mem m : bufs)
         if (m) cl->ReleaseMemObject(m);  // freed by OpenCL once the kernel has finished
     return res == CL_SUCCESS ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED;
+}
+
+bool ReadOpenCL(const PF_GPUDeviceInfo& info, void* mem, size_t bytes, void* out) {
+    const OpenCL* cl = openCL();
+    return cl && cl->EnqueueReadBuffer(static_cast<cl_command_queue>(info.command_queuePV), static_cast<cl_mem>(mem), 1, 0, bytes,
+                                       out, 0, nullptr, nullptr) == CL_SUCCESS;
 }
 #endif
 
@@ -152,9 +160,9 @@ PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void
     if (!cu || !st.cuFunction) return PF_Err_INTERNAL_STRUCT_DAMAGED;
     CudaScope scope(cu, st.cuContext);
     PacketArrays arr(pk);
-    CUdeviceptr dev[6] = {0, 0, 0, 0, 0, 0};
+    CUdeviceptr dev[kPacketArrays] = {0, 0, 0, 0, 0, 0, 0};
     CUresult r = CUDA_SUCCESS;
-    for (int i = 0; i < 6 && r == CUDA_SUCCESS; i++) {
+    for (int i = 0; i < kPacketArrays && r == CUDA_SUCCESS; i++) {
         r = cu->MemAlloc(&dev[i], arr.bytes[i]);
         if (r == CUDA_SUCCESS) r = cu->MemcpyHtoD(dev[i], arr.data[i], arr.bytes[i]);
     }
@@ -162,7 +170,7 @@ PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void
     CUdeviceptr texP = CUdeviceptr(reinterpret_cast<uintptr_t>(tex));
     CUdeviceptr srcP = CUdeviceptr(reinterpret_cast<uintptr_t>(src));
     CUdeviceptr dstP = CUdeviceptr(reinterpret_cast<uintptr_t>(dst));
-    void* args[9] = {&dev[0], &dev[1], &dev[2], &dev[3], &dev[4], &dev[5], &texP, &srcP, &dstP};
+    void* args[kPacketArrays + 3] = {&dev[0], &dev[1], &dev[2], &dev[3], &dev[4], &dev[5], &dev[6], &texP, &srcP, &dstP};
     if (r == CUDA_SUCCESS) {
         unsigned gx = unsigned((pk.params.width + 15) / 16), gy = unsigned((pk.params.height + 15) / 16);
         r = cu->LaunchKernel(st.cuFunction, gx, gy, 1, 16, 16, 1, 0, nullptr, args, nullptr);
@@ -171,6 +179,13 @@ PF_Err RenderCUDA(GPUState& st, const rb::Packet& pk, void* src, void* dst, void
     for (CUdeviceptr p : dev)
         if (p) cu->MemFree(p);
     return r == CUDA_SUCCESS ? PF_Err_NONE : PF_Err_INTERNAL_STRUCT_DAMAGED;
+}
+
+bool ReadCUDA(GPUState& st, void* mem, size_t bytes, void* out) {
+    const CudaDriver* cu = cudaDriver();
+    if (!cu) return false;
+    CudaScope scope(cu, st.cuContext);
+    return cu->MemcpyDtoH(out, CUdeviceptr(reinterpret_cast<uintptr_t>(mem)), bytes) == CUDA_SUCCESS;
 }
 #endif
 
@@ -256,8 +271,10 @@ PF_Err RibbonGPU_DeviceSetdown(PF_InData* in_data, PF_OutData* out_data, PF_GPUD
     return PF_Err_NONE;
 }
 
+bool RibbonGPU_CanReadBack(PF_GPU_Framework fw) { return fw == PF_GPU_Framework_OPENCL || fw == PF_GPU_Framework_CUDA; }
+
 PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Packet& pk, int srcX, int srcY,
-                        PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex) {
+                        PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex, PF_EffectWorld* env) {
     GPUState* st = StateFromHandle(extra->input->gpu_data);
     Suite<PF_GPUDeviceSuite1> gpu(in_data, kPFGPUDeviceSuite, kPFGPUDeviceSuiteVersion1);
     if (!st || !gpu || !dst) return PF_Err_INTERNAL_STRUCT_DAMAGED;
@@ -269,6 +286,23 @@ PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Pack
     if (!err && src) err = gpu->GetGPUWorldData(in_data->effect_ref, src, &srcMem);
     if (!err && tex) err = gpu->GetGPUWorldData(in_data->effect_ref, tex, &texMem);
     if (err) return err;
+
+    // Environment: the CPU builds its mip chain and harmonics, so the GPU world is read back.
+    if (env) {
+        void* envMem = nullptr;
+        if (!gpu->GetGPUWorldData(in_data->effect_ref, env, &envMem) && envMem) {
+            const int pitch = int(env->rowbytes / int(sizeof(PF_PixelFloat)));
+            std::vector<float> host(size_t(pitch) * size_t(env->height) * 4);
+            bool ok = false;
+#ifdef RB_HAS_OPENCL
+            if (st->framework == PF_GPU_Framework_OPENCL) ok = ReadOpenCL(info, envMem, host.size() * sizeof(float), host.data());
+#endif
+#ifdef RB_HAS_CUDA
+            if (st->framework == PF_GPU_Framework_CUDA) ok = ReadCUDA(*st, envMem, host.size() * sizeof(float), host.data());
+#endif
+            if (ok) rb::setEnvironmentImage(pk, host.data(), env->width, env->height, pitch);
+        }
+    }
 
     // GPU worlds are 32-bit float BGRA; pitches in pixels.
     const int bpp = int(sizeof(PF_PixelFloat));

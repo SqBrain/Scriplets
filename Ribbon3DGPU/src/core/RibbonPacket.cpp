@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../kernel/RibbonKernel.h"  // rk_sh_basis: the host projects with the kernel's own basis
+
 namespace rb {
 
 Camera defaultCamera(double compW, double compH) {
@@ -202,6 +204,107 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.gamma = float(mat.gamma);
     P.solid = mesh.solid ? 1 : 0;
     P.edgeColor[0] = lin(mat.edge.x, mat.gamma); P.edgeColor[1] = lin(mat.edge.y, mat.gamma); P.edgeColor[2] = lin(mat.edge.z, mat.gamma);
+
+    const double rot = mat.envRotationDeg * 3.14159265358979 / 180;
+    P.envRotCos = float(std::cos(rot));
+    P.envRotSin = float(std::sin(rot));
+    P.envIntensity = float(std::max(0.0, mat.envIntensity));
+    P.envReflection = float(std::max(0.0, mat.envReflection));
+    P.glass = mat.glass ? 1 : 0;
+    P.glassIor = float(std::clamp(mat.ior, 1.0, 4.0));
+    P.glassF0 = float(std::pow((P.glassIor - 1.0) / (P.glassIor + 1.0), 2.0));
+    P.glassTransmission = float(std::clamp(mat.transmission, 0.0, 1.0));
+    P.glassTint = float(std::clamp(mat.tint, 0.0, 1.0));
+    P.refractPx = float(mat.refractPx * cam.scaleX);  // comp pixels -> output pixels (downsampling)
+    P.camRight[0] = float(cam.axisX.x); P.camRight[1] = float(cam.axisX.y); P.camRight[2] = float(cam.axisX.z);
+    P.camDown[0] = float(cam.axisY.x); P.camDown[1] = float(cam.axisY.y); P.camDown[2] = float(cam.axisY.z);
+    if (out.env.empty()) out.env.assign(4, 0.0f);
+}
+
+void setEnvironmentImage(Packet& p, const float* bgra, int w, int h, int pitch) {
+    RK_Params& P = p.params;
+    P.hasEnv = 0;
+    p.env.assign(4, 0.0f);
+    if (!bgra || w <= 0 || h <= 0) return;
+    const double gamma = P.gamma;
+    // Level 0: area-averaged resample to W0 x H0 (2:1, the equirectangular layout).
+    const int W0 = std::min(1024, std::max(2, w)), H0 = std::max(1, W0 / 2);
+    std::vector<float> lvl(size_t(W0) * H0 * 3, 0.0f);
+    std::vector<double> acc(size_t(W0) * 3);
+    for (int y = 0; y < H0; y++) {
+        const int sy0 = int(std::floor(double(y) * h / H0)), sy1 = std::max(sy0 + 1, int(std::floor(double(y + 1) * h / H0)));
+        std::fill(acc.begin(), acc.end(), 0.0);
+        std::vector<int> cnt(size_t(W0), 0);
+        for (int sy = sy0; sy < std::min(sy1, h); sy++) {
+            const float* row = bgra + size_t(sy) * size_t(pitch) * 4;
+            for (int sx = 0; sx < w; sx++) {
+                const float* px = row + size_t(sx) * 4;
+                const int x = std::min(W0 - 1, int(double(sx) * W0 / w));
+                const double a = px[3];
+                double r = 0, g = 0, b = 0;
+                if (a > 1e-6) {
+                    r = px[2] / a; g = px[1] / a; b = px[0] / a;
+                    if (gamma != 1.0) {
+                        r = std::pow(std::max(r, 0.0), gamma); g = std::pow(std::max(g, 0.0), gamma); b = std::pow(std::max(b, 0.0), gamma);
+                    }
+                    r *= a; g *= a; b *= a;  // transparent parts of the map count as black
+                }
+                acc[size_t(x) * 3] += r; acc[size_t(x) * 3 + 1] += g; acc[size_t(x) * 3 + 2] += b;
+                cnt[size_t(x)]++;
+            }
+        }
+        for (int x = 0; x < W0; x++) {
+            const double k = cnt[size_t(x)] ? 1.0 / cnt[size_t(x)] : 0.0;
+            for (int c = 0; c < 3; c++) lvl[(size_t(y) * W0 + x) * 3 + c] = float(acc[size_t(x) * 3 + c] * k);
+        }
+    }
+    // Mip chain down to 8 pixels wide: every level a 2 x 2 average of the previous one.
+    std::vector<float> chain = lvl;
+    int levels = 1, lw = W0, lh = H0;
+    std::vector<float> prev = lvl;
+    while (lw > 8 && levels < 10) {
+        const int nw = std::max(1, lw / 2), nh = std::max(1, lh / 2);
+        std::vector<float> next(size_t(nw) * nh * 3, 0.0f);
+        for (int y = 0; y < nh; y++)
+            for (int x = 0; x < nw; x++)
+                for (int c = 0; c < 3; c++) {
+                    double s = 0;
+                    for (int dy = 0; dy < 2; dy++)
+                        for (int dx = 0; dx < 2; dx++) {
+                            const int sx = std::min(lw - 1, x * 2 + dx), sy = std::min(lh - 1, y * 2 + dy);
+                            s += prev[(size_t(sy) * lw + sx) * 3 + c];
+                        }
+                    next[(size_t(y) * nw + x) * 3 + c] = float(s / 4);
+                }
+        chain.insert(chain.end(), next.begin(), next.end());
+        prev.swap(next);
+        lw = nw;
+        lh = nh;
+        levels++;
+    }
+    // Diffuse light: project the sharpest level onto L2 spherical harmonics (solid-angle weighted),
+    // convolve with the cosine lobe and divide by pi (A_l / pi = 1, 2/3, 1/4).
+    double L[27] = {0};
+    for (int y = 0; y < H0; y++) {
+        const double th = (y + 0.5) / H0 * 3.14159265358979;
+        const double dw = (2 * 3.14159265358979 / W0) * (3.14159265358979 / H0) * std::sin(th);
+        for (int x = 0; x < W0; x++) {
+            const double ph = ((x + 0.5) / W0 - 0.5) * 2 * 3.14159265358979;
+            rk3 q = rk_v(float(std::sin(th) * std::sin(ph)), float(std::cos(th)), float(std::sin(th) * std::cos(ph)));
+            rk_sh9 b = rk_sh_basis(q);
+            const float* c = &lvl[(size_t(y) * W0 + x) * 3];
+            for (int k = 0; k < 9; k++)
+                for (int ch = 0; ch < 3; ch++) L[k * 3 + ch] += c[ch] * b.c[k] * dw;
+        }
+    }
+    static const double kBand[9] = {1.0, 2.0 / 3, 2.0 / 3, 2.0 / 3, 0.25, 0.25, 0.25, 0.25, 0.25};
+    for (int k = 0; k < 9; k++)
+        for (int ch = 0; ch < 3; ch++) P.envSH[k * 3 + ch] = float(L[k * 3 + ch] * kBand[k]);
+    p.env.swap(chain);
+    P.hasEnv = 1;
+    P.envWidth = W0;
+    P.envHeight = H0;
+    P.envLevels = levels;
 }
 
 }  // namespace rb

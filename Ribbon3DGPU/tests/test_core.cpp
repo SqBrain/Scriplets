@@ -5,6 +5,7 @@
 #include <string>
 
 #include "TestScene.h"
+#include "../src/kernel/RibbonKernel.h"  // environment and glass helpers under test
 
 using namespace rb;
 using test::Image;
@@ -335,6 +336,84 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Environment: atan2 approximation, harmonics for a uniform and a sky environment, orientation of
+// the map, mip levels; glass over a background.
+static void testEnvironment() {
+    std::printf("environment\n");
+    double worst = 0;
+    for (int i = 0; i < 20000; i++) {
+        double a = -3.14159 + 6.28318 * i / 20000, r = 0.1 + (i % 7);
+        float y = float(r * std::sin(a)), x = float(r * std::cos(a));
+        worst = std::max(worst, std::fabs(double(rk_atan2(y, x)) - std::atan2(double(y), double(x))));
+    }
+    CHECK(worst < 2e-5, "atan2 approximation error %.2e", worst);
+
+    const int EW = 512, EH = 256;
+    auto makeEnv = [&](auto color) {
+        std::vector<float> img(size_t(EW) * EH * 4);
+        for (int y = 0; y < EH; y++)
+            for (int x = 0; x < EW; x++) {
+                V3 c = color(x, y);
+                float* p = &img[(size_t(y) * EW + x) * 4];
+                p[0] = float(c.z); p[1] = float(c.y); p[2] = float(c.x); p[3] = 1;  // BGRA
+            }
+        return img;
+    };
+    Packet pk;
+    Material mat;
+    mat.gamma = 1;
+    buildPacket(RibbonMesh(), defaultCamera(640, 360), {}, mat, 64, 64, pk);
+
+    // Uniform 0.5: diffuse light 0.5 from every side, reflections 0.5 at every blur level.
+    std::vector<float> uni = makeEnv([](int, int) { return V3(0.5, 0.5, 0.5); });
+    setEnvironmentImage(pk, uni.data(), EW, EH, EW);
+    const RK_Params* P = &pk.params;
+    CHECK(P->hasEnv && P->envWidth == 512 && P->envHeight == 256 && P->envLevels == 7, "mip chain %d x %d, %d levels",
+          P->envWidth, P->envHeight, P->envLevels);
+    bool flat = true;
+    const rk3 dirs[6] = {rk_v(1, 0, 0), rk_v(-1, 0, 0), rk_v(0, 1, 0), rk_v(0, -1, 0), rk_v(0, 0, 1), rk_v(0.6f, -0.48f, 0.64f)};
+    for (const rk3& d : dirs) {
+        rk3 e = rk_env_irr(P, d);
+        flat = flat && std::fabs(e.x - 0.5f) < 0.005f;
+        for (float lod = 0; lod <= 6; lod += 1.5f) flat = flat && std::fabs(rk_env(P, pk.env.data(), d, lod).y - 0.5f) < 1e-4f;
+    }
+    CHECK(flat, "uniform environment: irradiance / pi and reflections 0.5 everywhere");
+
+    // Sky: upper half 1, lower half 0. Facing up gets ~1, down ~0, sideways ~0.5.
+    std::vector<float> sky = makeEnv([&](int, int y) { return y < EH / 2 ? V3(1, 1, 1) : V3(0, 0, 0); });
+    setEnvironmentImage(pk, sky.data(), EW, EH, EW);
+    float up = rk_env_irr(P, rk_v(0, -1, 0)).x, down = rk_env_irr(P, rk_v(0, 1, 0)).x, side = rk_env_irr(P, rk_v(1, 0, 0)).x;
+    CHECK(std::fabs(up - 1) < 0.1f && down < 0.1f && std::fabs(side - 0.5f) < 0.03f, "sky irradiance up %.3f down %.3f side %.3f", up, down, side);
+    CHECK(rk_env(P, pk.env.data(), rk_v(0, -1, 0), 0).x > 0.99f && rk_env(P, pk.env.data(), rk_v(0, 1, 0), 0).x < 0.01f,
+          "top of the map is up (-Y)");
+
+    // A bright spot in the image center lies straight ahead (+Z); Env Rotation turns it.
+    std::vector<float> spot = makeEnv([&](int x, int y) {
+        return (std::abs(x - EW / 2) < 8 && std::abs(y - EH / 2) < 8) ? V3(10, 10, 10) : V3(0, 0, 0);
+    });
+    setEnvironmentImage(pk, spot.data(), EW, EH, EW);
+    CHECK(rk_env(P, pk.env.data(), rk_v(0, 0, 1), 0).x > 5 && rk_env(P, pk.env.data(), rk_v(0, 0, -1), 0).x < 0.01f,
+          "image center = +Z (%.2f)", rk_env(P, pk.env.data(), rk_v(0, 0, 1), 0).x);
+    float sharp = rk_env(P, pk.env.data(), rk_v(0.25f, 0, 0.968f), 0).x, blurred = rk_env(P, pk.env.data(), rk_v(0.25f, 0, 0.968f), 4).x;
+    CHECK(sharp < 0.01f && blurred > 0.01f, "higher levels blur the spot (%.3f -> %.3f)", sharp, blurred);
+    mat.envRotationDeg = 90;
+    buildPacket(RibbonMesh(), defaultCamera(640, 360), {}, mat, 64, 64, pk);
+    setEnvironmentImage(pk, spot.data(), EW, EH, EW);
+    float px = rk_env(P, pk.env.data(), rk_v(1, 0, 0), 0).x, nx = rk_env(P, pk.env.data(), rk_v(-1, 0, 0), 0).x;
+    CHECK((px > 5) != (nx > 5) && rk_env(P, pk.env.data(), rk_v(0, 0, 1), 0).x < 0.01f, "rotation 90 moves the spot to the side (%.2f / %.2f)", px, nx);
+
+    // Glass over a transparent background: reflection alpha + the body that does not transmit.
+    rk_hit h;
+    h.r = h.g = h.b = 0.1f; h.a = 1; h.sr = h.sg = h.sb = 0.2f; h.sa = 0.1f; h.fres = 0.1f;
+    h.tr = h.tg = h.tb = 0.8f; h.topaque = 0.2f; h.dx = h.dy = 0;
+    rk4 none; none.r = none.g = none.b = none.a = 0;
+    rk4 o = rk_glass_over(h, none);
+    CHECK(std::fabs(o.a - (0.1f + 0.9f * 0.2f)) < 1e-6f && std::fabs(o.r - (0.2f + 0.9f * 0.1f)) < 1e-6f, "glass over nothing");
+    rk4 white; white.r = white.g = white.b = white.a = 1;
+    o = rk_glass_over(h, white);
+    CHECK(std::fabs(o.a - 1) < 1e-6f && std::fabs(o.r - (0.2f + 0.9f * (0.8f + 0.1f))) < 1e-6f, "glass over an opaque background");
+}
+
 // Orientation = Front: the drawing is a view from above, the ribbon lies flat on the floor facing down.
 static void testFront() {
     std::printf("front\n");
@@ -575,6 +654,7 @@ int main(int argc, char** argv) {
     testControlNulls();
     testCycle();
     testFront();
+    testEnvironment();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

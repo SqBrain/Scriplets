@@ -245,10 +245,29 @@ static SPBasicSuite sBasic = {Acquire, Release};
 
 // ---- render callbacks
 static PF_LRect Full() { PF_LRect r = {0, 0, W, H}; return r; }
+// HDRI layer for "Environment": a sky (bright, blueish above, dark ground below, a sun).
+static const int EW = 256, EH = 128;
+static bool gEnvOn = false, gStripes = false;
+static std::vector<float> gEnvPixels;
+static void MakeEnv() {
+    gEnvPixels.assign(size_t(EW) * EH * 4, 0.0f);
+    for (int y = 0; y < EH; y++)
+        for (int x = 0; x < EW; x++) {
+            float* p = &gEnvPixels[(size_t(y) * EW + x) * 4];
+            bool sky = y < EH / 2, sun = std::abs(x - 150) < 6 && std::abs(y - 30) < 6;
+            float r = sun ? 8.0f : (sky ? 0.7f : 0.12f), g = sun ? 7.5f : (sky ? 0.8f : 0.1f), b = sun ? 7.0f : (sky ? 1.0f : 0.08f);
+            p[0] = b; p[1] = g; p[2] = r; p[3] = 1;  // BGRA, opaque (32 bpc values above 1 allowed)
+        }
+}
+static float InputGrey(int x) { return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f; }
 static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderRequest* req, A_long, A_long, A_u_long, PF_CheckoutResult* r) {
     std::memset(r, 0, sizeof(*r));
     if (index == RB_INPUT) {
         r->max_result_rect = Full();
+        r->result_rect = req->rect;
+    }
+    if (index == RB_ENV_LAYER && gEnvOn) {
+        r->max_result_rect = {0, 0, EW, EH};
         r->result_rect = req->rect;
     }
     return PF_Err_NONE;  // texture: no layer selected
@@ -274,8 +293,11 @@ static PF_Err PreRenderChecked(PF_InData* in, PF_OutData* out, PF_PreRenderExtra
     }
     return e;
 }
-static PF_EffectWorld gSrc, gDst;
-static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) { *w = id == RB_CHECKOUT_INPUT ? &gSrc : nullptr; return PF_Err_NONE; }
+static PF_EffectWorld gSrc, gDst, gEnv;
+static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) {
+    *w = id == RB_CHECKOUT_INPUT ? &gSrc : (id == RB_CHECKOUT_ENV ? &gEnv : nullptr);
+    return PF_Err_NONE;
+}
 static PF_Err CheckinPixels(PF_ProgPtr, A_long) { return PF_Err_NONE; }
 static PF_Err CheckoutOutput(PF_ProgPtr, PF_EffectWorld** w) { *w = &gDst; return PF_Err_NONE; }
 
@@ -299,9 +321,21 @@ static std::vector<float> RunCPU(int bpc) {
     size_t px = bpc == 32 ? 16 : 4;
     std::vector<char> sbuf(W * H * px), dbuf(W * H * px);
     gSrc = {sbuf.data(), A_long(W * px), W, H}; gDst = {dbuf.data(), A_long(W * px), W, H};
-    for (int i = 0; i < W * H; i++) {  // opaque dark grey input
-        if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)sbuf.data() + i; p->alpha = 1; p->red = p->green = p->blue = 0.2f; }
-        else { PF_Pixel8* p = (PF_Pixel8*)sbuf.data() + i; p->alpha = 255; p->red = p->green = p->blue = 51; }
+    for (int i = 0; i < W * H; i++) {  // opaque input: dark grey, or vertical stripes
+        float v = InputGrey(i % W);
+        if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)sbuf.data() + i; p->alpha = 1; p->red = p->green = p->blue = v; }
+        else { PF_Pixel8* p = (PF_Pixel8*)sbuf.data() + i; p->alpha = 255; p->red = p->green = p->blue = (unsigned char)(v * 255 + 0.5f); }
+    }
+    std::vector<char> ebuf;
+    if (gEnvOn) {  // the CPU path gets the HDRI at the render bit depth, like from AE
+        size_t epx = bpc == 32 ? 16 : 4;
+        ebuf.resize(size_t(EW) * EH * epx);
+        for (int i = 0; i < EW * EH; i++) {
+            const float* e = &gEnvPixels[size_t(i) * 4];
+            if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)ebuf.data() + i; p->blue = e[0]; p->green = e[1]; p->red = e[2]; p->alpha = e[3]; }
+            else { PF_Pixel8* p = (PF_Pixel8*)ebuf.data() + i; p->blue = (unsigned char)(std::min(e[0], 1.0f) * 255); p->green = (unsigned char)(std::min(e[1], 1.0f) * 255); p->red = (unsigned char)(std::min(e[2], 1.0f) * 255); p->alpha = 255; }
+        }
+        gEnv = {ebuf.data(), A_long(EW * epx), EW, EH};
     }
     PF_SmartRenderInput sin; std::memset(&sin, 0, sizeof(sin)); sin.bitdepth = short(bpc); sin.pre_render_data = pout.pre_render_data;
     PF_SmartRenderCallbacks scb = {CheckoutPixels, CheckinPixels, CheckoutOutput};
@@ -332,7 +366,13 @@ static std::vector<float> RunGPU() {
     PreRenderChecked(&in, &out, &pre);
     if (!(pout.flags & PF_RenderOutputFlag_GPU_RENDER_POSSIBLE)) { std::printf("GPU render not offered\n"); return {}; }
     std::vector<float> host(W * H * 4);
-    for (int i = 0; i < W * H; i++) { host[i * 4] = host[i * 4 + 1] = host[i * 4 + 2] = 0.2f; host[i * 4 + 3] = 1; }
+    for (int i = 0; i < W * H; i++) { host[i * 4] = host[i * 4 + 1] = host[i * 4 + 2] = InputGrey(i % W); host[i * 4 + 3] = 1; }
+    cl_mem envMem = nullptr;
+    if (gEnvOn) {  // GPU worlds live on the device: the effect has to read the HDRI back
+        cl_int ee;
+        envMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gEnvPixels.size() * 4, gEnvPixels.data(), &ee);
+        gEnv = {envMem, EW * 16, EW, EH};
+    }
     cl_int e;
     cl_mem s = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, host.size() * 4, host.data(), &e);
     cl_mem d = clCreateBuffer(gCtx, CL_MEM_READ_WRITE, host.size() * 4, nullptr, &e);
@@ -346,6 +386,7 @@ static std::vector<float> RunGPU() {
     std::vector<float> res(host.size());
     clEnqueueReadBuffer(gQ, d, CL_TRUE, 0, res.size() * 4, res.data(), 0, nullptr, nullptr);
     pout.delete_pre_render_data_func(pout.pre_render_data);
+    if (envMem) clReleaseMemObject(envMem);
     PF_GPUDeviceSetdownInput din = {gout.gpu_data, PF_GPU_Framework_OPENCL, 0};
     PF_GPUDeviceSetdownExtra dex = {&din};
     EffectMain(PF_Cmd_GPU_DEVICE_SETDOWN, &in, &out, nullptr, nullptr, &dex);
@@ -595,6 +636,65 @@ static int TestFront() {
     return fails;
 }
 
+// Environment (HDRI layer) and glass, CPU against GPU (OpenCL, with the HDRI read back from the device).
+static int TestEnvGlass() {
+    int fails = 0;
+    ResetComp();
+    MakeEnv();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;  // over the layer
+    gDefs[RB_THICKNESS - 1].u.fs_d.value = 0;
+    auto compare = [&](const char* what, double minChanged, const std::vector<float>& ref) {
+        std::vector<float> c = RunCPU(32), g = RunGPU();
+        double maxG = 0;
+        for (size_t i = 0; i < c.size() && i < g.size(); i++) maxG = std::max(maxG, double(std::fabs(c[i] - g[i])));
+        double changed = ref.empty() ? 1.0 : DiffFraction(ref, c);
+        std::printf("%s: CPU vs GPU %.2e, %.2f %% of pixels differ from the reference\n", what, maxG, 100 * changed);
+        if (g.empty() || maxG > 2e-3 || changed < minChanged) { std::printf("FAIL: %s\n", what); fails++; }
+        return c;
+    };
+    std::vector<float> plain = RunCPU(32);
+    gEnvOn = true;
+    std::vector<float> lit = compare("environment (32 bpc HDRI)", 0.01, plain);
+    std::vector<float> lit8 = RunCPU(8);
+    double d8 = 0;
+    for (size_t i = 0; i < lit.size(); i++) d8 = std::max(d8, double(std::fabs(std::min(lit[i], 1.0f) - lit8[i])));
+    std::printf("environment, 8 bpc: max diff to 32 bpc %.3f (the 8-bit HDRI is clipped at 1)\n", d8);
+    if (lit8.empty()) { std::printf("FAIL: 8 bpc environment\n"); fails++; }
+
+    gDefs[RB_ENV_ROTATION - 1].u.ad.value = 120 * 65536;
+    compare("environment rotated 120 degrees", 0.005, lit);
+    gDefs[RB_ENV_ROTATION - 1].u.ad.value = 0;
+
+    // Glass over striped input: refraction shifts the stripes seen through the ribbon.
+    gStripes = true;
+    gDefs[RB_GLASS - 1].u.bd.value = TRUE;
+    gDefs[RB_GLASS_REFRACTION - 1].u.fs_d.value = 0;
+    std::vector<float> straight = compare("glass, no refraction", 0.0, {});
+    gDefs[RB_GLASS_REFRACTION - 1].u.fs_d.value = 60;
+    compare("glass, refraction 60 px", 0.01, straight);
+    // Ribbon only: glass is see-through (alpha between 0 and 1 inside the ribbon).
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    std::vector<float> alone = RunCPU(32);
+    size_t partial = 0, opaque = 0;
+    for (size_t i = 3; i < alone.size(); i += 4) { partial += alone[i] > 0.02f && alone[i] < 0.9f; opaque += alone[i] >= 0.999f; }
+    std::printf("glass, ribbon only: %zu see-through pixels, %zu opaque\n", partial, opaque);
+    if (partial < 5000 || opaque > partial / 4) { std::printf("FAIL: glass transparency\n"); fails++; }
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    // Thick glass: the far side of the solid is seen through the near one.
+    gDefs[RB_THICKNESS - 1].u.fs_d.value = 14;
+    gDefs[RB_BEVEL_SIZE - 1].u.fs_d.value = 4;
+    compare("thick glass", 0.005, straight);
+
+    gDefs[RB_THICKNESS - 1].u.fs_d.value = 0;
+    gDefs[RB_GLASS - 1].u.bd.value = FALSE;
+    gDefs[RB_GLASS_REFRACTION - 1].u.fs_d.value = 30;
+    gEnvOn = false;
+    gStripes = false;
+    ResetComp();
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -659,6 +759,7 @@ int main(int argc, char** argv) {
     fails += TestConfigure();
     fails += TestCycle();
     fails += TestFront();
+    fails += TestEnvGlass();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");
