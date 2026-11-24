@@ -31,6 +31,7 @@ echo "   version=$ver outflags=$of outflags2=$of2 spec=$smaj.$smin"
 echo "== PiPL resource"
 python3 "$here/tools/make_pipl.py" --name "Ribbon 3D GPU" --category "Generate" --match-name "SQB Ribbon3D GPU" \
     --version "$ver" --outflags "$of" --outflags2 "$of2" --spec-major "$smaj" --spec-minor "$smin" \
+    --support-url "https://github.com/SqBrain/Scriplets" \
     --bin "$gen/Ribbon3D_PiPL.bin" --rc "$gen/Ribbon3D_PiPL.rc"
 "$WINDRES" -O coff -i "$gen/Ribbon3D_PiPL.rc" -o "$obj/pipl_res.o"
 

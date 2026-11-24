@@ -18,15 +18,15 @@ def decode_pipl(data: bytes):
         vendor, key, pid, length = struct.unpack_from("<IIii", data, off)
         off += 16
         payload = data[off:off + length]
-        off += length + (-length) % 4
+        off += length + (-length) % 4  # readers round lengths up to 4
         k = key.to_bytes(4, "big").decode("ascii", "replace")
         props.append((vendor.to_bytes(4, "big").decode("ascii", "replace"), k, pid, payload))
     return word, version, props, off == len(data)
 
 
 def show(payload: bytes, key: str) -> str:
-    if key in ("name", "catg", "eMNA"):
-        return repr(payload[1:1 + payload[0]].decode())
+    if key in ("name", "catg", "eMNA", "eURL"):
+        return repr(payload[1:1 + payload[0]].decode()) + " (length %d)" % len(payload)
     if key == "8664":
         return repr(payload.rstrip(b"\0").decode())
     if key == "kind":

@@ -8,14 +8,15 @@
 #include "AE_EffectCBSuites.h"
 #include "AE_EffectSuites.h"
 #include "AE_EffectGPUSuites.h"
-#include "AE_GeneralPlug.h"
-#if __has_include("AE_GeneralPlugOld.h")
-#include "AE_GeneralPlugOld.h"   // older AEGP suite versions we use (still served by AE)
-#endif
+#include "AE_GeneralPlug.h"   // also brings the older AEGP suite versions (AE_GeneralPlugOld.h)
 #include "AE_Macros.h"
 #include "Param_Utils.h"
 
 #include "Ribbon3D_Flags.h"
+
+#ifndef PF_DEF_NAME  // SDKs before the name field was hidden behind this macro
+#define PF_DEF_NAME name
+#endif
 
 #define RB_NAME        "Ribbon 3D GPU"
 #define RB_MATCH_NAME  "SQB Ribbon3D GPU"

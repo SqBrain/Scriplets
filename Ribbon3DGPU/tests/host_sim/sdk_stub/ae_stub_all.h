@@ -37,7 +37,7 @@ enum { PF_Param_LAYER, PF_Param_PATH = 12 };
 typedef struct {
   union { struct { PF_FpLong value; } fs_d; struct { A_long value; } sd; struct { A_long value; } bd; struct { PF_Fixed value; } ad;
           struct { A_long value; } pd; struct { PF_Pixel value, dephault; } cd; struct { PF_PathID path_id; A_long reserved0; A_long dephault; } path_d; } u;
-  A_long param_type; A_char name[32]; union { A_long id; } uu; A_long flags;
+  A_long param_type; A_char name_do_not_use_directly[32]; union { A_long id; } uu; A_long flags;
 } PF_ParamDef;
 typedef struct SPBasicSuite { int32 (*AcquireSuite)(const char*, int32, const void**); int32 (*ReleaseSuite)(const char*, int32); } SPBasicSuite;
 enum { kSPNoError = 0 };
@@ -56,7 +56,8 @@ typedef struct { A_u_long my_version; A_long out_flags, out_flags2; A_long num_p
 enum { PF_Precision_INTEGER, PF_Precision_TENTHS, PF_Precision_HUNDREDTHS, PF_Precision_THOUSANDTHS };
 enum { PF_ValueDisplayFlag_NONE = 0, PF_ValueDisplayFlag_PERCENT = 1 };
 enum { PF_LayerDefault_NONE = 0, PF_LayerDefault_MYSELF = -1 };
-#define PF_STUB_ADD(NAME, ID) do { std::strncpy(def.name, NAME, 31); def.uu.id = (ID); ERR(PF_ADD_PARAM(in_data, -1, &def)); } while (0)
+#define PF_DEF_NAME name_do_not_use_directly
+#define PF_STUB_ADD(NAME, ID) do { std::strncpy(def.PF_DEF_NAME, NAME, 31); def.uu.id = (ID); ERR(PF_ADD_PARAM(in_data, -1, &def)); } while (0)
 #define PF_ADD_SLIDER(N, a, b, c, d, DF, ID) do { def.u.sd.value = DF; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_FLOAT_SLIDERX(N, a, b, c, d, DF, P, DISP, FL, ID) do { def.u.fs_d.value = DF; (void)(P); (void)(DISP); def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_ANGLE(N, DF, ID) do { def.u.ad.value = (DF) * 65536; PF_STUB_ADD(N, ID); } while (0)
@@ -106,7 +107,7 @@ typedef struct { PF_Err (*PF_CheckoutPath)(PF_ProgPtr, PF_PathID, A_long, A_long
 typedef struct { PF_Err (*PF_PathIsOpen)(PF_ProgPtr, PF_PathOutlinePtr, PF_Boolean*); PF_Err (*PF_PathNumSegments)(PF_ProgPtr, PF_PathOutlinePtr, A_long*);
   PF_Err (*PF_PathPrepareSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, A_long, PF_PathSegPrepPtr*);
   PF_Err (*PF_PathGetSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathSegPrepPtr*, PF_FpLong*);
-  PF_Err (*PF_PathEval)(PF_ProgPtr, PF_PathOutlinePtr, PF_PathSegPrepPtr*, A_long, PF_FpLong, PF_FpLong*, PF_FpLong*);
+  PF_Err (*PF_PathEvalSegLength)(PF_ProgPtr, PF_PathOutlinePtr, PF_PathSegPrepPtr*, A_long, PF_FpLong, PF_FpLong*, PF_FpLong*);
   PF_Err (*PF_PathCleanupSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathSegPrepPtr*); } PF_PathDataSuite1;
 typedef struct _AEGP_Layer* AEGP_LayerH; typedef struct _AEGP_Comp* AEGP_CompH; typedef struct _AEGP_Stream* AEGP_StreamRefH; typedef A_long AEGP_PluginID;
 typedef A_long AEGP_ObjectType; enum { AEGP_ObjectType_NONE = 3, AEGP_ObjectType_AV = 0, AEGP_ObjectType_LIGHT = 1, AEGP_ObjectType_CAMERA = 2 };
@@ -136,4 +137,5 @@ typedef struct { A_Err (*AEGP_GetNewLayerStream)(AEGP_PluginID, AEGP_LayerH, AEG
 typedef struct { A_Err (*AEGP_GetLightType)(AEGP_LayerH, AEGP_LightType*); } AEGP_LightSuite2;
 typedef struct _PF_PluginData* PF_PluginDataPtr; typedef PF_Err (*PF_PluginDataCB2)(PF_PluginDataPtr, const char*, const char*, const char*, const char*, const char*, const char*, const char*);
 #define AE_RESERVED_INFO 8
-#define PF_REGISTER_EFFECT_EXT2(P, CB, N, M, C, R, E, U) ((CB)((P), (N), (M), (C), (E), "", "", (U)))
+enum { PF_Err_INVALID_CALLBACK = 517 };
+#define PF_REGISTER_EFFECT_EXT2(P, CB, N, M, C, R, E, U) result = (CB)((P), (N), (M), (C), (E), "", "", (U))

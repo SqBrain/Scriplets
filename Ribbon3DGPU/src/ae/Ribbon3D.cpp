@@ -105,7 +105,7 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
 
     AEFX_CLR_STRUCT(def);
     def.param_type = PF_Param_PATH;
-    std::strncpy(def.name, "Path", sizeof(def.name) - 1);
+    std::strncpy(def.PF_DEF_NAME, "Path", sizeof(def.PF_DEF_NAME) - 1);
     def.u.path_d.dephault = 1;  // first mask
     def.uu.id = RB_ID(RB_PATH);
     ERR(PF_ADD_PARAM(in_data, -1, &def));
@@ -297,7 +297,7 @@ bool ReadMaskPolyline(PF_InData* in_data, PF_PathID id, rb::Polyline& out) {
         int k = int(std::clamp(std::ceil(len / 3.0), 8.0, 512.0));
         for (int q = (out.pts.empty() ? 0 : 1); q <= k; q++) {
             PF_FpLong x = 0, y = 0;
-            pd->PF_PathEval(in_data->effect_ref, path, &prep, s, len * q / k, &x, &y);
+            pd->PF_PathEvalSegLength(in_data->effect_ref, path, &prep, s, len * q / k, &x, &y);
             out.pts.push_back(rb::V3(x, y, 0));
         }
         pd->PF_PathCleanupSegLength(in_data->effect_ref, path, s, &prep);
@@ -588,8 +588,10 @@ extern "C" DllExport PF_Err PluginDataEntryFunction2(PF_PluginDataPtr inPtr, PF_
     (void)inSPBasicSuitePtr;
     (void)inHostName;
     (void)inHostVersion;
-    return PF_REGISTER_EFFECT_EXT2(inPtr, inPluginDataCallBackPtr, RB_NAME, RB_MATCH_NAME, RB_CATEGORY,
-                                   AE_RESERVED_INFO, "EffectMain", "https://github.com/SqBrain/Scriplets");
+    PF_Err result = PF_Err_INVALID_CALLBACK;  // the SDK macro assigns to "result"
+    PF_REGISTER_EFFECT_EXT2(inPtr, inPluginDataCallBackPtr, RB_NAME, RB_MATCH_NAME, RB_CATEGORY, AE_RESERVED_INFO,
+                            "EffectMain", "https://github.com/SqBrain/Scriplets");
+    return result;
 }
 #else  // SDKs before AE 2022
 extern "C" DllExport PF_Err PluginDataEntryFunction(PF_PluginDataPtr inPtr, PF_PluginDataCB inPluginDataCallBackPtr,
@@ -598,7 +600,9 @@ extern "C" DllExport PF_Err PluginDataEntryFunction(PF_PluginDataPtr inPtr, PF_P
     (void)inSPBasicSuitePtr;
     (void)inHostName;
     (void)inHostVersion;
-    return PF_REGISTER_EFFECT(inPtr, inPluginDataCallBackPtr, RB_NAME, RB_MATCH_NAME, RB_CATEGORY, AE_RESERVED_INFO);
+    PF_Err result = PF_Err_INVALID_CALLBACK;
+    PF_REGISTER_EFFECT(inPtr, inPluginDataCallBackPtr, RB_NAME, RB_MATCH_NAME, RB_CATEGORY, AE_RESERVED_INFO);
+    return result;
 }
 #endif
 

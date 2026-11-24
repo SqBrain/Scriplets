@@ -54,6 +54,9 @@ resource 'PiPL' (16000) {
         },
         AE_Reserved_Info {
             0
+        },
+        AE_Effect_Support_URL {
+            "https://github.com/SqBrain/Scriplets"
         }
     }
 };
