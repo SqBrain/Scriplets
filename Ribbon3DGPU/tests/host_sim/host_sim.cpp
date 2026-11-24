@@ -3,6 +3,7 @@
 #define CL_TARGET_OPENCL_VERSION 120
 #include <CL/cl.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -312,11 +313,29 @@ static void MakeRoughness() {
             p[0] = p[1] = p[2] = g; p[3] = 1;
         }
 }
+// Gradient layer: 120 x 9, transparent margins, red -> blue between x 20 and 99, fading out over
+// the last 20 visible pixels (like a shape layer's gradient-filled rectangle).
+static const int GW = 120, GH = 9;
+static bool gGradOn = false;
+static std::vector<float> gGradPixels;
+static void MakeGradientLayer() {
+    gGradPixels.assign(size_t(GW) * GH * 4, 0.0f);
+    for (int y = 0; y < GH; y++)
+        for (int x = 20; x < 100; x++) {
+            float f = (x - 20) / 79.0f, a = x >= 80 ? 1 - (x - 79) / 21.0f : 1;
+            float* p = &gGradPixels[(size_t(y) * GW + x) * 4];
+            p[0] = f * a; p[1] = 0; p[2] = (1 - f) * a; p[3] = a;  // BGRA premultiplied
+        }
+}
 static float InputGrey(int x) { return gStripes ? ((x / 12) % 2 ? 0.85f : 0.1f) : 0.2f; }
 static PF_Err CheckoutLayer(PF_ProgPtr, A_long index, A_long, const PF_RenderRequest* req, A_long, A_long, A_u_long, PF_CheckoutResult* r) {
     std::memset(r, 0, sizeof(*r));
     if (index == RB_INPUT) {
         r->max_result_rect = Full();
+        r->result_rect = req->rect;
+    }
+    if (index == RB_GRAD_LAYER && gGradOn) {
+        r->max_result_rect = {0, 0, GW, GH};
         r->result_rect = req->rect;
     }
     if (index == RB_ROUGH_LAYER && gRoughOn) {
@@ -354,12 +373,13 @@ static PF_Err PreRenderChecked(PF_InData* in, PF_OutData* out, PF_PreRenderExtra
     }
     return e;
 }
-static PF_EffectWorld gSrc, gDst, gEnv, gNrm, gRough;
+static PF_EffectWorld gSrc, gDst, gEnv, gNrm, gRough, gGrad;
 static PF_Err CheckoutPixels(PF_ProgPtr, A_long id, PF_EffectWorld** w) {
     *w = id == RB_CHECKOUT_INPUT ? &gSrc
        : id == RB_CHECKOUT_ENV   ? &gEnv
        : id == RB_CHECKOUT_NRM   ? &gNrm
        : id == RB_CHECKOUT_ROUGH ? &gRough
+       : id == RB_CHECKOUT_GRAD  ? &gGrad
                                  : nullptr;
     return PF_Err_NONE;
 }
@@ -425,6 +445,17 @@ static std::vector<float> RunCPU(int bpc) {
         }
         gRough = {rbuf.data(), A_long(NMW * rpx), NMW, NMH};
     }
+    std::vector<char> gbuf;
+    if (gGradOn) {
+        size_t gpx = bpc == 32 ? 16 : 4;
+        gbuf.resize(size_t(GW) * GH * gpx);
+        for (int i = 0; i < GW * GH; i++) {
+            const float* e = &gGradPixels[size_t(i) * 4];
+            if (bpc == 32) { PF_PixelFloat* p = (PF_PixelFloat*)gbuf.data() + i; p->blue = e[0]; p->green = e[1]; p->red = e[2]; p->alpha = e[3]; }
+            else { PF_Pixel8* p = (PF_Pixel8*)gbuf.data() + i; p->blue = (unsigned char)(e[0] * 255 + 0.5f); p->green = (unsigned char)(e[1] * 255 + 0.5f); p->red = (unsigned char)(e[2] * 255 + 0.5f); p->alpha = (unsigned char)(e[3] * 255 + 0.5f); }
+        }
+        gGrad = {gbuf.data(), A_long(GW * gpx), GW, GH};
+    }
     PF_SmartRenderInput sin; std::memset(&sin, 0, sizeof(sin)); sin.bitdepth = short(bpc); sin.pre_render_data = pout.pre_render_data;
     PF_SmartRenderCallbacks scb = {CheckoutPixels, CheckinPixels, CheckoutOutput};
     PF_SmartRenderExtra sre = {&sin, &scb};
@@ -467,6 +498,12 @@ static std::vector<float> RunGPU() {
         nrmMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gNrmPixels.size() * 4, gNrmPixels.data(), &ee);
         gNrm = {nrmMem, NMW * 16, NMW, NMH};
     }
+    cl_mem gradMem = nullptr;
+    if (gGradOn) {
+        cl_int ee;
+        gradMem = clCreateBuffer(gCtx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, gGradPixels.size() * 4, gGradPixels.data(), &ee);
+        gGrad = {gradMem, GW * 16, GW, GH};
+    }
     cl_mem roughMem = nullptr;
     if (gRoughOn) {
         cl_int ee;
@@ -489,6 +526,7 @@ static std::vector<float> RunGPU() {
     if (envMem) clReleaseMemObject(envMem);
     if (nrmMem) clReleaseMemObject(nrmMem);
     if (roughMem) clReleaseMemObject(roughMem);
+    if (gradMem) clReleaseMemObject(gradMem);
     PF_GPUDeviceSetdownInput din = {gout.gpu_data, PF_GPU_Framework_OPENCL, 0};
     PF_GPUDeviceSetdownExtra dex = {&din};
     EffectMain(PF_Cmd_GPU_DEVICE_SETDOWN, &in, &out, nullptr, nullptr, &dex);
@@ -955,6 +993,36 @@ static void MeanColor(const std::vector<float>& img, int x0, int x1, int y0, int
     if (n > 0) { rgb[0] /= n; rgb[1] /= n; rgb[2] /= n; }
 }
 
+// Saved projects identify parameters by disk ID: unique, and unchanged by the new layout.
+static int TestDiskIds() {
+    int fails = 0;
+    std::vector<A_long> ids;
+    for (const PF_ParamDef& d : gDefs) ids.push_back(d.uu.id);
+    std::vector<A_long> sorted = ids;
+    std::sort(sorted.begin(), sorted.end());
+    bool unique = std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end();
+    // IDs of 0.1.11 (index in the old order + 1) and the new parameters after them.
+    struct Known { int param; A_long id; const char* name; } known[] = {
+        {RB_PATH, 2, "Path"}, {RB_WIDTH, 7, "Width"}, {RB_TEXTURE, 29, "Texture Layer"}, {RB_GLASS_FROST, RB_DISK_ID(RB_GLASS_FROST), "Frost (px)"},
+        {RB_NRM_LAYER, RB_DISK_ID(RB_NRM_LAYER), "Normal Map Layer"}, {RB_GRAD_LAYER, RB_DISK_ID(RB_GRAD_LAYER), "Gradient Layer"}};
+    bool ok = unique;
+    for (const Known& k : known) {
+        const PF_ParamDef& d = gDefs[size_t(k.param - 1)];
+        if (d.uu.id != k.id || std::strcmp(d.PF_DEF_NAME, k.name) != 0) {
+            std::printf("  param %d: id %d name \"%s\", expected id %d \"%s\"\n", k.param, int(d.uu.id), d.PF_DEF_NAME, int(k.id), k.name);
+            ok = false;
+        }
+    }
+    const bool newAfterOld = RB_DISK_ID(RB_GRAD_SOURCE) > RB_DISK_ID(RB_TRIM_MASKS) && RB_DISK_ID(RB_GRAD_LAYER) > RB_DISK_ID(RB_TRIM_MASKS);
+    // Frost now sits in the Glass group, the surface maps in Material.
+    const bool layout = RB_GLASS_TOPIC < RB_GLASS_FROST && RB_GLASS_FROST < RB_GLASS_TOPIC_END && RB_LOOK_TOPIC < RB_NRM_TOPIC &&
+                        RB_ROUGH_TOPIC_END < RB_LOOK_TOPIC_END;
+    std::printf("disk IDs: %zu unique: %s, old IDs kept: %s, layout: %s\n", ids.size(), unique ? "yes" : "no", ok ? "yes" : "no",
+                layout ? "ok" : "wrong");
+    if (!ok || !newAfterOld || !layout) { std::printf("FAIL: disk IDs\n"); fails++; }
+    return fails;
+}
+
 // Gradient along the path: red-ish at the start of the mask, blue-ish at its end; CPU = GPU.
 static int TestGradient() {
     int fails = 0;
@@ -976,6 +1044,33 @@ static int TestGradient() {
     if (!(a[0] > a[2] * 2 && b[2] > b[0] * 2) || g.empty() || maxG > 2e-3) { std::printf("FAIL: gradient along path\n"); fails++; }
     // Single-mask effect: no "Random per Path", its seed is hidden.
     if (!(gDefs[RB_GRAD_SEED - 1].ui_flags & PF_PUI_INVISIBLE)) { std::printf("FAIL: seed visible in the single-mask effect\n"); fails++; }
+    // From a layer (AE's own gradient editor): its colors, and its opacity fades the ribbon's end.
+    MakeGradientLayer();
+    gGradOn = true;
+    gDefs[RB_GRAD_SOURCE - 1].u.pd.value = RB_GRAD_FROM_LAYER;
+    gDefs[RB_GRAD_COLOR_1 - 1].u.cd.value = {255, 0, 255, 0};  // colors are ignored now (green)
+    gDefs[RB_GRAD_COLOR_2 - 1].u.cd.value = {255, 0, 255, 0};
+    std::vector<float> l = RunCPU(32), lg = RunGPU();
+    gGradOn = false;
+    gDefs[RB_GRAD_SOURCE - 1].u.pd.value = RB_GRAD_FROM_COLORS;
+    double ml = 0;
+    for (size_t i = 0; i < l.size() && i < lg.size(); i++) ml = std::max(ml, double(std::fabs(l[i] - lg[i])));
+    double s0[3], s1[3];
+    MeanColor(l, 80, 160, 0, H, s0);
+    MeanColor(l, 600, 700, 0, H, s1);
+    double aStart = 0, aEnd = 0, nS = 0, nE = 0;
+    for (int y = 0; y < H; y++) {
+        for (int x = 90; x < 150; x++) { float a = l[(size_t(y) * W + x) * 4 + 3]; if (a > 0.01f) { aStart += a; nS++; } }
+        for (int x = 820; x < 870; x++) { float a = l[(size_t(y) * W + x) * 4 + 3]; if (a > 0.01f) { aEnd += a; nE++; } }
+    }
+    aStart /= std::max(nS, 1.0); aEnd /= std::max(nE, 1.0);
+    std::printf("gradient layer: start rgb %.2f %.2f %.2f, middle rgb %.2f %.2f %.2f, opacity start %.2f end %.2f, CPU vs GPU %.2e\n", s0[0],
+                s0[1], s0[2], s1[0], s1[1], s1[2], aStart, aEnd, ml);
+    // Red start and blue middle from the layer, not the (green) Color 1 / 2; lighting adds some white.
+    if (!(s0[0] > s0[2] * 2 && s0[1] < s0[0] * 0.5 && s1[2] > s1[0] && s1[1] < s1[2] * 0.5 && aStart > 0.95 && aEnd < 0.5) || lg.empty() ||
+        ml > 2e-3) {
+        std::printf("FAIL: gradient layer\n"); fails++;
+    }
     gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_OFF;
     gDefs[RB_TWIST - 1].u.fs_d.value = 1;
     gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
@@ -1168,6 +1263,7 @@ int main(int argc, char** argv) {
     fails += TestWind();
     fails += TestNormalMap();
     fails += TestRoughEnds();
+    fails += TestDiskIds();
     fails += TestGradient();
     fails += TestSections();
 

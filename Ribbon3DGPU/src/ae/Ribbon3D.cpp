@@ -62,6 +62,7 @@ struct PreRenderData {
     bool hasEnv = false;
     bool hasNormal = false;
     bool hasRough = false;
+    bool hasGrad = false;  // gradient from a layer
 };
 
 void DeletePreRenderData(void* p) { delete static_cast<PreRenderData*>(p); }
@@ -112,334 +113,343 @@ PF_Err GlobalSetup(PF_InData* in_data, PF_OutData* out_data) {
     return PF_Err_NONE;
 }
 
+// Every parameter must be added at its index (the order of the RB_ enum); RB_ID checks that and
+// gives the parameter its disk ID (the D_ enum), which saved projects use.
+struct AddOrder {
+    int next = 1;
+    bool ok = true;
+    int check(int index) {
+        ok = ok && index == next;
+        next++;
+        return 0;
+    }
+};
+#define RB_ID(param) (order.check(param), RB_DISK_ID(param))
+#define RB_CLR() AEFX_CLR_STRUCT(def)
+
 PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     PF_Err err = PF_Err_NONE;
     PF_ParamDef def;
+    AddOrder order;
 
-    AEFX_CLR_STRUCT(def);
+    // ---- the path and the ribbon along it
+    RB_CLR();
     def.param_type = PF_Param_PATH;
     std::strncpy(def.PF_DEF_NAME, "Path", sizeof(def.PF_DEF_NAME) - 1);
     def.u.path_d.dephault = 1;  // first mask
     def.uu.id = RB_ID(RB_PATH);
     RB_HIDE_IF_MULTI();  // the multi-mask effect takes every mask
     ERR(PF_ADD_PARAM(in_data, -1, &def));
-
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
+    def.ui_flags = RB_SINGLE_PUI;  // multi-mask effect only
+    PF_ADD_POPUP("Trim Masks", 2, 1, "Simultaneously|Individually", RB_ID(RB_TRIM_MASKS));
+    RB_CLR();
     PF_ADD_SLIDER("Segments", 2, 4000, 10, 1500, 400, RB_ID(RB_SEGMENTS));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Start", -100, 200, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_START));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("End", -100, 200, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_END));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Offset", -10000, 10000, -100, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_OFFSET));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
+    PF_ADD_CHECKBOX("Cycle", "Wrap around path ends", TRUE, 0, RB_ID(RB_CYCLE));
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Width", 0, 10000, 0, 500, 60, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIDTH));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Width Start", 0, 1000, 0, 200, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIDTH_START));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Width End", 0, 1000, 0, 200, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIDTH_END));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
+    // Front: the path is a view from above, the ribbon lies flat on that plane facing down.
+    PF_ADD_POPUP("Orientation", 2, RB_ORIENT_TWIST, "Twist|Front", RB_ID(RB_ORIENTATION));
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Twist (turns)", -100, 100, -5, 5, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_TWIST));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_ANGLE("Twist Angle", 0, RB_ID(RB_TWIST_ANGLE));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Twist Speed (deg/s)", -100000, 100000, -720, 720, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_TWIST_SPEED));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_CHECKBOXX("Twist Along Path", TRUE, 0, RB_ID(RB_TWIST_ALONG));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Wave Amplitude", -10000, 10000, 0, 300, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WAVE_AMP));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Wave Length", 1, 100000, 20, 2000, 500, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WAVE_LENGTH));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Wave Speed (px/s)", -100000, 100000, -1000, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WAVE_SPEED));
 
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Path Transform", RB_ID(RB_XF_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("X Rotation", 0, RB_ID(RB_XF_ROT_X));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Y Rotation", 0, RB_ID(RB_XF_ROT_Y));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Z Rotation", 0, RB_ID(RB_XF_ROT_Z));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Offset X", -100000, 100000, -1000, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_X));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Offset Y", -100000, 100000, -1000, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_Y));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Offset Z", -100000, 100000, -2000, 2000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_Z));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Scale", 0, 10000, 0, 400, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_XF_SCALE));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_XF_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Material", RB_ID(RB_LOOK_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Front Color", 204, 18, 41, RB_ID(RB_FRONT_COLOR));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Back Color", 245, 204, 133, RB_ID(RB_BACK_COLOR));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_LAYER("Texture Layer", PF_LayerDefault_NONE, RB_ID(RB_TEXTURE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Texture Repeat", 0.01, 1000, 0.1, 20, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_TEX_REPEAT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Texture Offset", -100000, 100000, -1, 1, 0, PF_Precision_THOUSANDTHS, 0, 0, RB_ID(RB_TEX_OFFSET));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Ambient", 0, 10, 0, 1, 0.15, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_AMBIENT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Diffuse", 0, 10, 0, 2, 0.9, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_DIFFUSE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Specular", 0, 10, 0, 2, 0.6, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SPECULAR));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Glossiness", 1, 2000, 1, 200, 40, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLOSS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Satin", 0, 1, 0, 1, 0.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SATIN));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Sheen", 0, 10, 0, 1, 0.25, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SHEEN));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Translucency", 0, 10, 0, 1, 0.15, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_TRANSLUCENCY));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Metal", 0, 1, 0, 1, 0, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_METAL));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_LOOK_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Lighting", RB_ID(RB_LIGHT_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOXX("Use Comp Lights", TRUE, 0, RB_ID(RB_USE_COMP_LIGHTS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Light Azimuth", -35, RB_ID(RB_LIGHT_AZIMUTH));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Light Elevation", 40, RB_ID(RB_LIGHT_ELEVATION));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Light Intensity", 0, 10000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_LIGHT_INTENSITY));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Light Color", 255, 255, 255, RB_ID(RB_LIGHT_COLOR));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_LIGHT_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Render", RB_ID(RB_RENDER_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Antialiasing", 4, 3, "Off (1x)|Low (4x)|High (9x)|Best (16x)", RB_ID(RB_QUALITY));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Composite", 3, 3, "Over Layer|Behind Layer|Ribbon Only", RB_ID(RB_COMPOSITE));  // default: Ribbon Only
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Opacity", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_OPACITY));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOXX("Linear Working Space", FALSE, 0, RB_ID(RB_LINEAR));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_RENDER_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Thickness & Bevel", RB_ID(RB_SOLID_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Thickness", 0, 5000, 0, 100, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_THICKNESS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Bevel Size", 0, 2500, 0, 50, 3, PF_Precision_TENTHS, 0, 0, RB_ID(RB_BEVEL_SIZE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Bevel Style", 2, 1, "Round|Chamfer", RB_ID(RB_BEVEL_STYLE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_SLIDER("Bevel Smoothness", 1, 16, 1, 12, 5, RB_ID(RB_BEVEL_SEGMENTS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Edge Color", 3, 1, "Front Color|Back Color|Custom", RB_ID(RB_EDGE_COLOR_MODE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Custom Edge Color", 235, 225, 205, RB_ID(RB_EDGE_COLOR));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOXX("End Caps", TRUE, 0, RB_ID(RB_END_CAPS));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_SOLID_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_ADD_TOPIC("Control Nulls", RB_ID(RB_NULLS_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_ADD_POPUP("Path Source", 2, RB_SOURCE_MASK, "Mask|Control Nulls", RB_ID(RB_PATH_SOURCE));
-    PF_ADD_BUTTON("Mask to Nulls", "Create Nulls from Mask", RB_MULTI_PUI, PF_ParamFlag_SUPERVISE, RB_ID(RB_MAKE_NULLS));
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_ADD_CHECKBOX("Closed Loop", "", FALSE, 0, RB_ID(RB_NULLS_CLOSED));
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_ADD_TOPIC("Points", RB_ID(RB_POINTS_TOPIC));  // groups start collapsed in AE
-    for (int i = 0; i < RB_MAX_NULLS; i++) {
-        char name[32];
-        std::snprintf(name, sizeof(name), "Point %d", i + 1);
-        AEFX_CLR_STRUCT(def);
-        RB_HIDE_IF_MULTI();
-        PF_ADD_LAYER(name, PF_LayerDefault_NONE, RB_ID(RB_NULL_1 + i));
-    }
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_END_TOPIC(RB_ID(RB_POINTS_TOPIC_END));
-    AEFX_CLR_STRUCT(def);
-    RB_HIDE_IF_MULTI();
-    PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
-
-    // 0.1.04: outside the groups, so they are visible without twirling anything open.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOX("Cycle", "Wrap around path ends", TRUE, 0, RB_ID(RB_CYCLE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_LAYER("Fit Layer", PF_LayerDefault_NONE, RB_ID(RB_FIT_LAYER));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_BUTTON("Fit to Layer", "Configure", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_FIT_CONFIGURE));
-    // 0.1.05: Front = the path is a view from above, the ribbon lies flat on that plane facing down.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Orientation", 2, RB_ORIENT_TWIST, "Twist|Front", RB_ID(RB_ORIENTATION));
-
-    // 0.1.06: image-based light from an HDRI layer, and glass.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Environment", RB_ID(RB_ENV_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_LAYER("HDRI Layer", PF_LayerDefault_NONE, RB_ID(RB_ENV_LAYER));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Env Intensity", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_INTENSITY));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Env Rotation", 0, RB_ID(RB_ENV_ROTATION));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Reflections", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_REFLECTION));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_ENV_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Glass", RB_ID(RB_GLASS_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOX("Glass", "Enable", FALSE, 0, RB_ID(RB_GLASS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("IOR", 1, 3, 1, 2.5, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GLASS_IOR));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Transmission", 0, 100, 0, 100, 90, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TRANSMISSION));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Tint", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TINT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Refraction (px)", 0, 2000, 0, 200, 30, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_REFRACTION));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_GLASS_TOPIC_END));
-
-    // 0.1.07: wind - one end pinned, the rest streams downwind and flutters.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Wind", RB_ID(RB_WIND_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Wind Strength", 0, 1000, 0, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STRENGTH));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_ANGLE("Wind Direction", 90, RB_ID(RB_WIND_DIRECTION));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Pinned End", 2, 1, "Start|End", RB_ID(RB_WIND_PIN));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Flutter (px)", 0, 5000, 0, 300, 60, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_FLUTTER));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Flutter Speed (Hz)", 0, 50, 0, 6, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_WIND_SPEED));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Flutter Wavelength", 10, 20000, 50, 2000, 300, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_WAVELENGTH));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Twist Flutter", 0, 720, 0, 180, 40, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_TWIST));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Gusts", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_GUSTS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Stiffness", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STIFFNESS));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_SLIDER("Random Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_WIND_SEED));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_WIND_TOPIC_END));
-
-    // 0.1.08: normal map - relief on the ribbon's surface.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Normal Map", RB_ID(RB_NRM_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_LAYER("Normal Map Layer", PF_LayerDefault_NONE, RB_ID(RB_NRM_LAYER));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Normal Strength", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_NRM_STRENGTH));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Normal Mapping", 2, 1, "Tiles|Like Texture", RB_ID(RB_NRM_MAPPING));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Tile Size (px)", 1, 10000, 5, 500, 100, PF_Precision_TENTHS, 0, 0, RB_ID(RB_NRM_TILE));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Green Channel", 2, 1, "OpenGL (Y+)|DirectX (Y-)", RB_ID(RB_NRM_FORMAT));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_NRM_TOPIC_END));
-
-    // 0.1.09: roughness map, rounded ribbon ends.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Roughness Map", RB_ID(RB_ROUGH_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_LAYER("Roughness Layer", PF_LayerDefault_NONE, RB_ID(RB_ROUGH_LAYER));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Roughness Amount", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ROUGH_AMOUNT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_CHECKBOX("Invert", "Gloss map (white = smooth)", FALSE, 0, RB_ID(RB_ROUGH_INVERT));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_ROUGH_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Frosted Glass", RB_ID(RB_FROST_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Frost (px)", 0, 500, 0, 60, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_FROST));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Frost Samples", 3, 2, "Low (8)|Medium (16)|High (32)", RB_ID(RB_FROST_QUALITY));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_FROST_TOPIC_END));
-
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Ends", RB_ID(RB_ENDS_TOPIC));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("End Rounding", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_END_ROUNDING));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Round Ends", 3, 1, "Both|Start|End", RB_ID(RB_END_ROUND_WHICH));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_ENDS_TOPIC_END));
-
-    // 0.1.10: gradient instead of the front / back colors.
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_TOPIC("Gradient", RB_ID(RB_GRAD_TOPIC));
-    AEFX_CLR_STRUCT(def);
-#ifdef RB_MULTI_MASK
-    PF_ADD_POPUP("Gradient", 3, RB_GRAD_OFF, "Off|Along Path|Random per Path", RB_ID(RB_GRAD_MODE));
-#else
-    PF_ADD_POPUP("Gradient", 2, RB_GRAD_OFF, "Off|Along Path", RB_ID(RB_GRAD_MODE));
-#endif
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Gradient Colors", 3, 2, "2|3|4", RB_ID(RB_GRAD_COUNT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Color 1", 230, 57, 70, RB_ID(RB_GRAD_COLOR_1));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Color 2", 244, 162, 97, RB_ID(RB_GRAD_COLOR_2));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Color 3", 42, 157, 143, RB_ID(RB_GRAD_COLOR_3));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_COLOR("Color 4", 38, 70, 83, RB_ID(RB_GRAD_COLOR_4));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Gradient Repeat", 0.01, 1000, 0.1, 10, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GRAD_REPEAT));
-    AEFX_CLR_STRUCT(def);
-    PF_ADD_FLOAT_SLIDERX("Gradient Offset", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GRAD_OFFSET));
-    AEFX_CLR_STRUCT(def);
-    def.ui_flags = RB_SINGLE_PUI;  // random colors per path: multi-mask effect only
-    PF_ADD_SLIDER("Gradient Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_GRAD_SEED));
-    AEFX_CLR_STRUCT(def);
-    PF_END_TOPIC(RB_ID(RB_GRAD_TOPIC_END));
-
-    // 0.1.11: cross section (flat / round tube / any outline from a mask), trim mode for masks.
-    AEFX_CLR_STRUCT(def);
+    // ---- shape: cross section, thickness, ends, transform, control nulls
+    RB_CLR();
     PF_ADD_TOPIC("Cross Section", RB_ID(RB_SECTION_TOPIC));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_POPUP("Cross Section", 3, 1, "Flat|Round|Custom Profile", RB_ID(RB_SECTION));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     def.param_type = PF_Param_PATH;
     std::strncpy(def.PF_DEF_NAME, "Profile Mask", sizeof(def.PF_DEF_NAME) - 1);
     def.u.path_d.dephault = 0;  // none
     def.uu.id = RB_ID(RB_PROFILE_MASK);
     ERR(PF_ADD_PARAM(in_data, -1, &def));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_ADD_SLIDER("Profile Detail", 6, 256, 6, 96, 24, RB_ID(RB_PROFILE_DETAIL));
-    AEFX_CLR_STRUCT(def);
+    RB_CLR();
     PF_END_TOPIC(RB_ID(RB_SECTION_TOPIC_END));
-    AEFX_CLR_STRUCT(def);
-    def.ui_flags = RB_SINGLE_PUI;  // multi-mask effect only
-    PF_ADD_POPUP("Trim Masks", 2, 1, "Simultaneously|Individually", RB_ID(RB_TRIM_MASKS));
 
+    RB_CLR();
+    PF_ADD_TOPIC("Thickness & Bevel", RB_ID(RB_SOLID_TOPIC));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Thickness", 0, 5000, 0, 100, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_THICKNESS));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Bevel Size", 0, 2500, 0, 50, 3, PF_Precision_TENTHS, 0, 0, RB_ID(RB_BEVEL_SIZE));
+    RB_CLR();
+    PF_ADD_POPUP("Bevel Style", 2, 1, "Round|Chamfer", RB_ID(RB_BEVEL_STYLE));
+    RB_CLR();
+    PF_ADD_SLIDER("Bevel Smoothness", 1, 16, 1, 12, 5, RB_ID(RB_BEVEL_SEGMENTS));
+    RB_CLR();
+    PF_ADD_POPUP("Edge Color", 3, 1, "Front Color|Back Color|Custom", RB_ID(RB_EDGE_COLOR_MODE));
+    RB_CLR();
+    PF_ADD_COLOR("Custom Edge Color", 235, 225, 205, RB_ID(RB_EDGE_COLOR));
+    RB_CLR();
+    PF_ADD_CHECKBOXX("End Caps", TRUE, 0, RB_ID(RB_END_CAPS));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_SOLID_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Ends", RB_ID(RB_ENDS_TOPIC));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("End Rounding", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_END_ROUNDING));
+    RB_CLR();
+    PF_ADD_POPUP("Round Ends", 3, 1, "Both|Start|End", RB_ID(RB_END_ROUND_WHICH));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_ENDS_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Path Transform", RB_ID(RB_XF_TOPIC));
+    RB_CLR();
+    PF_ADD_ANGLE("X Rotation", 0, RB_ID(RB_XF_ROT_X));
+    RB_CLR();
+    PF_ADD_ANGLE("Y Rotation", 0, RB_ID(RB_XF_ROT_Y));
+    RB_CLR();
+    PF_ADD_ANGLE("Z Rotation", 0, RB_ID(RB_XF_ROT_Z));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Offset X", -100000, 100000, -1000, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_X));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Offset Y", -100000, 100000, -1000, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_Y));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Offset Z", -100000, 100000, -2000, 2000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_XF_OFF_Z));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Scale", 0, 10000, 0, 400, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_XF_SCALE));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_XF_TOPIC_END));
+
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_ADD_TOPIC("Control Nulls", RB_ID(RB_NULLS_TOPIC));
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_ADD_POPUP("Path Source", 2, RB_SOURCE_MASK, "Mask|Control Nulls", RB_ID(RB_PATH_SOURCE));
+    PF_ADD_BUTTON("Mask to Nulls", "Create Nulls from Mask", RB_MULTI_PUI, PF_ParamFlag_SUPERVISE, RB_ID(RB_MAKE_NULLS));
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_ADD_CHECKBOX("Closed Loop", "", FALSE, 0, RB_ID(RB_NULLS_CLOSED));
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_ADD_TOPIC("Points", RB_ID(RB_POINTS_TOPIC));  // groups start collapsed in AE
+    for (int i = 0; i < RB_MAX_NULLS; i++) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "Point %d", i + 1);
+        RB_CLR();
+        RB_HIDE_IF_MULTI();
+        PF_ADD_LAYER(name, PF_LayerDefault_NONE, RB_ID(RB_NULL_1 + i));
+    }
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_END_TOPIC(RB_ID(RB_POINTS_TOPIC_END));
+    RB_CLR();
+    RB_HIDE_IF_MULTI();
+    PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
+
+    // ---- look: material (with the surface maps), gradient, glass, environment, lighting
+    RB_CLR();
+    PF_ADD_TOPIC("Material", RB_ID(RB_LOOK_TOPIC));
+    RB_CLR();
+    PF_ADD_COLOR("Front Color", 204, 18, 41, RB_ID(RB_FRONT_COLOR));
+    RB_CLR();
+    PF_ADD_COLOR("Back Color", 245, 204, 133, RB_ID(RB_BACK_COLOR));
+    RB_CLR();
+    PF_ADD_LAYER("Texture Layer", PF_LayerDefault_NONE, RB_ID(RB_TEXTURE));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Texture Repeat", 0.01, 1000, 0.1, 20, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_TEX_REPEAT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Texture Offset", -100000, 100000, -1, 1, 0, PF_Precision_THOUSANDTHS, 0, 0, RB_ID(RB_TEX_OFFSET));
+    RB_CLR();
+    PF_ADD_LAYER("Fit Layer", PF_LayerDefault_NONE, RB_ID(RB_FIT_LAYER));
+    PF_ADD_BUTTON("Fit to Layer", "Configure", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_FIT_CONFIGURE));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Ambient", 0, 10, 0, 1, 0.15, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_AMBIENT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Diffuse", 0, 10, 0, 2, 0.9, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_DIFFUSE));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Specular", 0, 10, 0, 2, 0.6, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SPECULAR));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Glossiness", 1, 2000, 1, 200, 40, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLOSS));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Satin", 0, 1, 0, 1, 0.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SATIN));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Sheen", 0, 10, 0, 1, 0.25, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_SHEEN));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Translucency", 0, 10, 0, 1, 0.15, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_TRANSLUCENCY));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Metal", 0, 1, 0, 1, 0, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_METAL));
+    RB_CLR();
+    PF_ADD_TOPIC("Normal Map", RB_ID(RB_NRM_TOPIC));
+    RB_CLR();
+    PF_ADD_LAYER("Normal Map Layer", PF_LayerDefault_NONE, RB_ID(RB_NRM_LAYER));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Normal Strength", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_NRM_STRENGTH));
+    RB_CLR();
+    PF_ADD_POPUP("Normal Mapping", 2, 1, "Tiles|Like Texture", RB_ID(RB_NRM_MAPPING));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Tile Size (px)", 1, 10000, 5, 500, 100, PF_Precision_TENTHS, 0, 0, RB_ID(RB_NRM_TILE));
+    RB_CLR();
+    PF_ADD_POPUP("Green Channel", 2, 1, "OpenGL (Y+)|DirectX (Y-)", RB_ID(RB_NRM_FORMAT));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_NRM_TOPIC_END));
+    RB_CLR();
+    PF_ADD_TOPIC("Roughness Map", RB_ID(RB_ROUGH_TOPIC));
+    RB_CLR();
+    PF_ADD_LAYER("Roughness Layer", PF_LayerDefault_NONE, RB_ID(RB_ROUGH_LAYER));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Roughness Amount", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ROUGH_AMOUNT));
+    RB_CLR();
+    PF_ADD_CHECKBOX("Invert", "Gloss map (white = smooth)", FALSE, 0, RB_ID(RB_ROUGH_INVERT));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_ROUGH_TOPIC_END));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_LOOK_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Gradient", RB_ID(RB_GRAD_TOPIC));
+    RB_CLR();
+#ifdef RB_MULTI_MASK
+    PF_ADD_POPUP("Gradient", 3, RB_GRAD_OFF, "Off|Along Path|Random per Path", RB_ID(RB_GRAD_MODE));
+#else
+    PF_ADD_POPUP("Gradient", 2, RB_GRAD_OFF, "Off|Along Path", RB_ID(RB_GRAD_MODE));
+#endif
+    RB_CLR();
+    PF_ADD_POPUP("Gradient Source", 2, RB_GRAD_FROM_COLORS, "Colors|Layer", RB_ID(RB_GRAD_SOURCE));
+    RB_CLR();
+    PF_ADD_LAYER("Gradient Layer", PF_LayerDefault_NONE, RB_ID(RB_GRAD_LAYER));
+    RB_CLR();
+    PF_ADD_POPUP("Gradient Colors", 3, 2, "2|3|4", RB_ID(RB_GRAD_COUNT));
+    RB_CLR();
+    PF_ADD_COLOR("Color 1", 230, 57, 70, RB_ID(RB_GRAD_COLOR_1));
+    RB_CLR();
+    PF_ADD_COLOR("Color 2", 244, 162, 97, RB_ID(RB_GRAD_COLOR_2));
+    RB_CLR();
+    PF_ADD_COLOR("Color 3", 42, 157, 143, RB_ID(RB_GRAD_COLOR_3));
+    RB_CLR();
+    PF_ADD_COLOR("Color 4", 38, 70, 83, RB_ID(RB_GRAD_COLOR_4));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Gradient Repeat", 0.01, 1000, 0.1, 10, 1, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GRAD_REPEAT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Gradient Offset", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GRAD_OFFSET));
+    RB_CLR();
+    def.ui_flags = RB_SINGLE_PUI;  // random colors per path: multi-mask effect only
+    PF_ADD_SLIDER("Gradient Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_GRAD_SEED));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_GRAD_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Glass", RB_ID(RB_GLASS_TOPIC));
+    RB_CLR();
+    PF_ADD_CHECKBOX("Glass", "Enable", FALSE, 0, RB_ID(RB_GLASS));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("IOR", 1, 3, 1, 2.5, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_GLASS_IOR));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Transmission", 0, 100, 0, 100, 90, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TRANSMISSION));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Tint", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GLASS_TINT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Refraction (px)", 0, 2000, 0, 200, 30, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_REFRACTION));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Frost (px)", 0, 500, 0, 60, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_GLASS_FROST));
+    RB_CLR();
+    PF_ADD_POPUP("Frost Samples", 3, 2, "Low (8)|Medium (16)|High (32)", RB_ID(RB_FROST_QUALITY));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_GLASS_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Environment", RB_ID(RB_ENV_TOPIC));
+    RB_CLR();
+    PF_ADD_LAYER("HDRI Layer", PF_LayerDefault_NONE, RB_ID(RB_ENV_LAYER));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Env Intensity", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_INTENSITY));
+    RB_CLR();
+    PF_ADD_ANGLE("Env Rotation", 0, RB_ID(RB_ENV_ROTATION));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Reflections", 0, 1000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_ENV_REFLECTION));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_ENV_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Lighting", RB_ID(RB_LIGHT_TOPIC));
+    RB_CLR();
+    PF_ADD_CHECKBOXX("Use Comp Lights", TRUE, 0, RB_ID(RB_USE_COMP_LIGHTS));
+    RB_CLR();
+    PF_ADD_ANGLE("Light Azimuth", -35, RB_ID(RB_LIGHT_AZIMUTH));
+    RB_CLR();
+    PF_ADD_ANGLE("Light Elevation", 40, RB_ID(RB_LIGHT_ELEVATION));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Light Intensity", 0, 10000, 0, 300, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_LIGHT_INTENSITY));
+    RB_CLR();
+    PF_ADD_COLOR("Light Color", 255, 255, 255, RB_ID(RB_LIGHT_COLOR));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_LIGHT_TOPIC_END));
+
+    // ---- motion and output
+    RB_CLR();
+    PF_ADD_TOPIC("Wind", RB_ID(RB_WIND_TOPIC));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Wind Strength", 0, 1000, 0, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STRENGTH));
+    RB_CLR();
+    PF_ADD_ANGLE("Wind Direction", 90, RB_ID(RB_WIND_DIRECTION));
+    RB_CLR();
+    PF_ADD_POPUP("Pinned End", 2, 1, "Start|End", RB_ID(RB_WIND_PIN));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Flutter (px)", 0, 5000, 0, 300, 60, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_FLUTTER));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Flutter Speed (Hz)", 0, 50, 0, 6, 1.5, PF_Precision_HUNDREDTHS, 0, 0, RB_ID(RB_WIND_SPEED));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Flutter Wavelength", 10, 20000, 50, 2000, 300, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_WAVELENGTH));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Twist Flutter", 0, 720, 0, 180, 40, PF_Precision_TENTHS, 0, 0, RB_ID(RB_WIND_TWIST));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Gusts", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_GUSTS));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Stiffness", 0, 100, 0, 100, 30, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_WIND_STIFFNESS));
+    RB_CLR();
+    PF_ADD_SLIDER("Random Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_WIND_SEED));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_WIND_TOPIC_END));
+
+    RB_CLR();
+    PF_ADD_TOPIC("Render", RB_ID(RB_RENDER_TOPIC));
+    RB_CLR();
+    PF_ADD_POPUP("Antialiasing", 4, 3, "Off (1x)|Low (4x)|High (9x)|Best (16x)", RB_ID(RB_QUALITY));
+    RB_CLR();
+    PF_ADD_POPUP("Composite", 3, 3, "Over Layer|Behind Layer|Ribbon Only", RB_ID(RB_COMPOSITE));  // default: Ribbon Only
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Opacity", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_OPACITY));
+    RB_CLR();
+    PF_ADD_CHECKBOXX("Linear Working Space", FALSE, 0, RB_ID(RB_LINEAR));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_RENDER_TOPIC_END));
+
+    if (!order.ok || order.next != RB_NUM_PARAMS) return PF_Err_INTERNAL_STRUCT_DAMAGED;  // order out of step with the enum
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
+#undef RB_ID
+#undef RB_CLR
 
 bool FrameworkSupported(PF_GPU_Framework fw) { return RibbonGPU_Supports(fw); }
 
@@ -554,6 +564,24 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
         if (!err) prd->hasRough = true;
     }
 
+    // Gradient layer (Gradient Source = Layer): the whole frame, its middle row becomes the gradient.
+    if (Param(in_data, RB_GRAD_MODE).popup() != RB_GRAD_OFF && Param(in_data, RB_GRAD_SOURCE).popup() == RB_GRAD_FROM_LAYER) {
+        PF_RenderRequest greq = req;
+        PF_CheckoutResult gprobe;
+        AEFX_CLR_STRUCT(gprobe);
+        ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_GRAD_LAYER, RB_CHECKOUT_GRAD_PROBE, &greq, in_data->current_time,
+                                      in_data->time_step, in_data->time_scale, &gprobe));
+        if (!err && gprobe.max_result_rect.right > gprobe.max_result_rect.left &&
+            gprobe.max_result_rect.bottom > gprobe.max_result_rect.top) {
+            greq.rect = gprobe.max_result_rect;
+            PF_CheckoutResult gres;
+            AEFX_CLR_STRUCT(gres);
+            ERR(extra->cb->checkout_layer(in_data->effect_ref, RB_GRAD_LAYER, RB_CHECKOUT_GRAD, &greq, in_data->current_time,
+                                          in_data->time_step, in_data->time_scale, &gres));
+            if (!err) prd->hasGrad = true;
+        }
+    }
+
     // Control nulls are other layers: tell AE's cache about their current transforms. With
     // PF_OutFlag2_I_MIX_GUID_DEPENDENCIES AE requires GuidMixInPtr on EVERY pre-render (else
     // "internal verification failure"), so it is called in every mode and even after an error.
@@ -580,7 +608,7 @@ PF_Err PreRender(PF_InData* in_data, PF_OutData* out_data, PF_PreRenderExtra* ex
     // With an environment the GPU world has to be read back to the CPU; where that is not
     // implemented (Metal) the frame is rendered on the CPU.
     if (extra->input->what_gpu != PF_GPU_Framework_NONE && FrameworkSupported(extra->input->what_gpu) &&
-        (!prd->hasEnv || RibbonGPU_CanReadBack(extra->input->what_gpu)))
+        (!(prd->hasEnv || prd->hasGrad) || RibbonGPU_CanReadBack(extra->input->what_gpu)))
         extra->output->flags |= PF_RenderOutputFlag_GPU_RENDER_POSSIBLE;
     return err;
 }
@@ -897,7 +925,9 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
         const int mode = Param(in_data, RB_GRAD_MODE).popup();
         mat.gradMode = mode == RB_GRAD_ALONG ? 1 : (mode == RB_GRAD_RANDOM && kAllMasks ? 2 : 0);
         const int count = std::clamp(Param(in_data, RB_GRAD_COUNT).popup() + 1, 2, 4);
-        for (int i = 0; i < count; i++) mat.gradColors.push_back(Param(in_data, RB_GRAD_COLOR_1 + i).color());
+        std::vector<rb::V3> stops;
+        for (int i = 0; i < count; i++) stops.push_back(Param(in_data, RB_GRAD_COLOR_1 + i).color());
+        mat.gradLut = rb::gradientFromColors(stops);  // a gradient layer replaces it at render time
         mat.gradRepeat = Param(in_data, RB_GRAD_REPEAT).f();
         mat.gradOffset = Param(in_data, RB_GRAD_OFFSET).f() / 100;
         mat.gradEdge = Param(in_data, RB_EDGE_COLOR_MODE).popup() != 3;  // custom edge color stays
@@ -1097,7 +1127,7 @@ void FromBGRA(const std::vector<float>& in, int bpc, PF_EffectWorld* w) {
 }
 
 PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex,
-                 PF_EffectWorld* env, PF_EffectWorld* nrm, PF_EffectWorld* rough) {
+                 PF_EffectWorld* env, PF_EffectWorld* nrm, PF_EffectWorld* rough, PF_EffectWorld* grad) {
     std::vector<float> s, t, nm, rm, d(size_t(dst->width) * dst->height * 4, 0.0f);
     if (src) {
         ToBGRA(src, bpc, s);
@@ -1120,6 +1150,11 @@ PF_Err RenderCPU(int bpc, rb::Packet& pk, const PreRenderData& prd, PF_EffectWor
         ToBGRA(nrm, bpc, nm);
         rb::setNormalMap(pk, nrm->width, nrm->height, nrm->width);
     }
+    if (grad) {
+        std::vector<float> g;
+        ToBGRA(grad, bpc, g);
+        rb::setGradientImage(pk, g.data(), grad->width, grad->height, grad->width);
+    }
     if (rough) {
         ToBGRA(rough, bpc, rm);
         rb::setRoughnessMap(pk, rough->width, rough->height, rough->width);
@@ -1135,21 +1170,22 @@ PF_Err SmartRender(PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra
     PF_Err err = PF_Err_NONE, err2 = PF_Err_NONE;
     const PreRenderData* prd = static_cast<const PreRenderData*>(extra->input->pre_render_data);
     if (!prd) return PF_Err_BAD_CALLBACK_PARAM;
-    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr, *nrm = nullptr, *rough = nullptr;
+    PF_EffectWorld *src = nullptr, *dst = nullptr, *tex = nullptr, *env = nullptr, *nrm = nullptr, *rough = nullptr, *grad = nullptr;
     ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT, &src));
     ERR(extra->cb->checkout_output(in_data->effect_ref, &dst));
     if (!err && prd->hasTexture) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_TEX, &tex));
     if (!err && prd->hasEnv) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV, &env));
     if (!err && prd->hasNormal) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM, &nrm));
     if (!err && prd->hasRough) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ROUGH, &rough));
+    if (!err && prd->hasGrad) ERR(extra->cb->checkout_layer_pixels(in_data->effect_ref, RB_CHECKOUT_GRAD, &grad));
 
     if (!err && dst) {
         rb::Packet pk;
         ERR(BuildPacket(in_data, *prd, dst->width, dst->height, pk));
         if (!err) {
             if (gpu) err = RibbonGPU_Render(in_data, extra, pk, prd->inRect.left - prd->outRect.left,
-                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env, nrm, rough);
-            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env, nrm, rough);
+                                            prd->inRect.top - prd->outRect.top, src, dst, tex, env, nrm, rough, grad);
+            else err = RenderCPU(int(extra->input->bitdepth), pk, *prd, src, dst, tex, env, nrm, rough, grad);
         }
     }
     ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_INPUT));
@@ -1157,6 +1193,7 @@ PF_Err SmartRender(PF_InData* in_data, PF_OutData* out_data, PF_SmartRenderExtra
     if (prd->hasEnv) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ENV));
     if (prd->hasNormal) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_NRM));
     if (prd->hasRough) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_ROUGH));
+    if (prd->hasGrad) ERR2(extra->cb->checkin_layer_pixels(in_data->effect_ref, RB_CHECKOUT_GRAD));
     return err;
 }
 

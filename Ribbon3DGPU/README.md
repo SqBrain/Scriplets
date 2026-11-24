@@ -40,7 +40,7 @@
   шаблоном `AE_General.r`; раскладка ключевых структур SDK (размеры, выравнивания, смещения
   полей) совпадает с правилами MSVC. Плагин запущен и работает в After Effects на Windows (проверено
   пользователем); видеокарта и путь рендера (CUDA / OpenCL / CPU) на его машине отдельно не замерялись.
-- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.11, видна в About эффекта); 1.0 — первый выпуск.
+- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.12, видна в About эффекта); 1.0 — первый выпуск.
 
 ## Сборка
 
@@ -128,35 +128,50 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 
 ## Параметры
 
+В порядке Effect Controls (с 0.1.12; группы выделены жирным).
+
 | Параметр | Описание |
 |---|---|
-| Path | Маска на этом слое — путь ленты |
+| Path | Маска на этом слое — путь ленты (в Multi-Mask скрыт: берутся все маски) |
+| Trim Masks | Только Multi-Mask: Simultaneously — Start/End/Offset на каждую маску сразу; Individually — маски по порядку как один длинный путь |
 | Segments | Сегментов вдоль ленты (2–4000). 300–600 хватает почти всегда |
 | Start / End / Offset | Обрезка вдоль пути, % длины (как Trim Paths) |
+| Cycle | Когда Start/End + Offset выходят за 0…100 %, лента продолжается с другого конца пути (и на открытом пути). Выключено — часть за концом скрыта |
 | Width, Width Start / End | Ширина, px, и сужение к концам, % |
-| Twist (turns), Twist Angle | Число оборотов закрутки и начальный поворот (0° — лента в плоскости маски) |
-| Twist Speed | Автовращение закрутки, °/с |
-| Twist Along Path | Узор закрутки привязан к пути (при росте ленты не «плывёт») |
+| Orientation | **Twist** — лента идёт по пути и закручивается параметрами Twist. **Front** — маска — вид сверху: лента лежит плашмя лицом вниз, Twist не действует |
+| Twist (turns), Twist Angle, Twist Speed, Twist Along Path | Закрутка: обороты, начальный поворот, автовращение °/с, привязка узора к пути |
 | Wave Amplitude / Length / Speed | Волна из плоскости маски — объём и «полёт» |
-| **Path Transform** | Поворот X/Y/Z, смещение X/Y/Z и масштаб пути в 3D (центр — центр маски) |
-| **Material** | Цвета лица/изнанки; Texture Layer (u — вдоль ленты, v — поперёк, альфа текстуры = прозрачность ленты), Repeat/Offset; Ambient, Diffuse, Specular, Glossiness; Satin (0 — глянец, 1 — анизотропный блик вдоль волокон); Sheen (блеск по Френелю на скользящих углах); Translucency (свет сзади просвечивает тонкую ленту); Metal (блик окрашивается цветом ленты) |
-| **Lighting** | Use Comp Lights; встроенный свет (Azimuth, Elevation, Intensity, Color), если в композиции нет источников |
-| **Render** | Antialiasing 1/4/9/16 сэмплов (в Draft-превью всегда 1); Composite: поверх слоя / за слоем / только лента (по умолчанию — только лента, вокруг прозрачно); Opacity; Linear Working Space — для проектов с линейным рабочим пространством |
-| **Thickness & Bevel** (0.1.01) | Thickness — толщина ленты, px (0 — тонкий двусторонний лист, как в 0.1.00); Bevel Size — радиус скругления или размер среза рёбер; Bevel Style — Round / Chamfer (срез 45°); Bevel Smoothness — сегментов на скругление (в Draft-превью не больше 2); Edge Color — цвет рёбер: как лицо / как изнанка / свой (Custom Edge Color); End Caps — закрыть торцы |
-| **Control Nulls** (0.1.02) | Path Source — Mask или Control Nulls; кнопка **Create Nulls from Mask**; Closed Loop — замкнуть сплайн через нули; Points → Point 1…32 — слои-точки по порядку (пустые пропускаются) |
-| Cycle (0.1.04) | Когда Start/End + Offset выходят за 0…100 %, лента продолжается с другого конца пути — и на открытом пути тоже. Выключено — часть за концом пути просто скрыта |
-| Orientation (0.1.05) | **Twist** — как раньше: лента идёт по пути и закручивается параметрами Twist. **Front** — маска считается видом сверху: лента лежит плашмя в горизонтальной плоскости лицевой стороной вниз, Twist не действует |
-| **Cross Section** (0.1.11) | Cross Section — Flat (лента, как раньше) / Round (трубка диаметром Width) / Custom Profile (сечение по маске); Profile Mask — маска с формой сечения; Profile Detail — точек по окружности сечения |
-| Trim Masks (0.1.11, Multi-Mask) | Simultaneously — Start/End/Offset на каждую маску сразу; Individually — маски по порядку как один длинный путь |
-| **Gradient** (0.1.10) | Gradient — Off / Along Path / Random per Path (последнее — только Multi-Mask); Gradient Colors — 2, 3 или 4 цвета; Color 1…4; Gradient Repeat и Gradient Offset — для Along Path; Gradient Seed — для Random per Path |
-| **Roughness Map** (0.1.09) | Roughness Layer — ч/б карта шероховатости (белое — матовое, чёрное — гладкое); Roughness Amount — насколько карта заменяет Glossiness; Invert — для gloss-карт (белое — гладкое). Укладка — как у Normal Map |
-| **Frosted Glass** (0.1.09) | Frost (px) — размытие того, что видно сквозь стекло (матовое стекло); с Roughness Map — по карте: белое матовое, чёрное прозрачное; Frost Samples — качество размытия |
-| **Ends** (0.1.09) | End Rounding — скругление концов ленты (0 — прямой срез, 100 % — полукруг); Round Ends — оба конца / только начало / только конец |
-| **Normal Map** (0.1.08) | Normal Map Layer — слой с картой нормалей (tangent space); Normal Strength — сила рельефа; Normal Mapping — Tiles (квадратные плитки Tile Size px) или Like Texture (как текстура: Texture Repeat / Offset); Green Channel — OpenGL (Y+) или DirectX (Y−) |
-| **Wind** (0.1.07) | Wind Strength (0 — выключен); Wind Direction (0° — вверх, 90° — вправо); Pinned End — какой конец закреплён (Start / End); Flutter (px), Flutter Speed (Hz), Flutter Wavelength — волны от точки крепления к свободному концу; Twist Flutter — закручивание на ветру, °; Gusts — порывы; Stiffness — насколько неподвижна часть у крепления; Random Seed — другой рисунок порывов |
-| **Environment** (0.1.06) | HDRI Layer — слой с HDRI-картой (равнопромежуточная проекция 2:1); Env Intensity — сила света от карты; Env Rotation — поворот карты вокруг вертикали; Reflections — сила отражений |
-| **Glass** (0.1.06) | Glass — включить стекло; IOR — коэффициент преломления (1.5 — стекло); Transmission — сколько света проходит насквозь; Tint — насколько цвет ленты окрашивает стекло; Refraction (px) — сила смещения фона при преломлении |
-| Fit Layer + **Configure** (0.1.04) | Выберите слой (композиция, изображение, видео; текст/шейп — по размеру композиции), нажмите Configure: слой становится текстурой, Width выставляется так, чтобы слой лёг на видимую ленту без растяжения |
+| **Cross Section** | Flat (лента) / Round (трубка диаметром Width) / Custom Profile (сечение по маске Profile Mask); Profile Detail — точек по сечению |
+| **Thickness & Bevel** | Для Flat: Thickness, Bevel Size, Bevel Style (Round / Chamfer), Bevel Smoothness, Edge Color, End Caps |
+| **Ends** | End Rounding (0 — прямой срез, 100 % — полукруг / полусфера), Round Ends — оба / начало / конец |
+| **Path Transform** | Поворот X/Y/Z, смещение X/Y/Z и масштаб пути в 3D (центр — центр масок) |
+| **Control Nulls** | Path Source — Mask или Control Nulls; **Create Nulls from Mask**; Closed Loop; Points → Point 1…32 (в Multi-Mask скрыта) |
+| **Material** | Front / Back Color; Texture Layer, Repeat, Offset; Fit Layer + **Configure** (слой → текстура, Width — без растяжения); Ambient, Diffuse, Specular, Glossiness, Satin, Sheen, Translucency, Metal; подгруппы **Normal Map** (Layer, Strength, Mapping Tiles / Like Texture, Tile Size, Green Channel) и **Roughness Map** (Layer, Amount, Invert) |
+| **Gradient** | Off / Along Path / Random per Path (Multi-Mask); Gradient Source — Colors (Color 1…4) или Layer (Gradient Layer — градиент из слоя, см. ниже); Gradient Repeat / Offset; Gradient Seed |
+| **Glass** | Glass; IOR; Transmission; Tint; Refraction (px); Frost (px) — матовость (размытие фона сквозь стекло, по Roughness Map — узором); Frost Samples |
+| **Environment** | HDRI Layer, Env Intensity, Env Rotation, Reflections |
+| **Lighting** | Use Comp Lights; встроенный свет (Azimuth, Elevation, Intensity, Color), если в композиции нет источников и нет HDRI |
+| **Wind** | Wind Strength (0 — выключен), Direction, Pinned End, Flutter (px), Flutter Speed, Flutter Wavelength, Twist Flutter, Gusts, Stiffness, Random Seed |
+| **Render** | Antialiasing; Composite (по умолчанию Ribbon Only); Opacity; Linear Working Space |
+
+Порядок параметров менялся в 0.1.12, но их ID в проекте (по ним AE сохраняет значения) остались
+прежними — проекты, сохранённые с более ранними сборками, должны открываться со своими значениями.
+
+## Градиент из слоя (0.1.12)
+
+Эффектам AE не даёт свой Gradient Editor (полоску с ползунками, как у шейпов), поэтому градиент можно
+взять из слоя — и редактировать его привычным редактором AE:
+
+1. Нарисуйте прямоугольник шейп-слоем, Fill → **Linear Gradient**, настройте цвета и непрозрачность в
+   Gradient Editor (горизонтальный градиент слева направо). Подойдёт и солид с Gradient Ramp или
+   картинка с градиентом.
+2. Выключите слою глаз и выберите его в **Gradient → Gradient Layer**, **Gradient Source → Layer**.
+
+Эффект читает средний ряд слоя от первого до последнего видимого пикселя (поля вокруг прямоугольника
+не мешают). Левый край — начало ленты, правый — конец (Repeat / Offset / Random per Path работают
+как с цветами). Непрозрачность градиента становится прозрачностью ленты — так делается затухающий
+хвост. Градиент можно анимировать в самом шейпе. На Mac (Metal) кадры с градиентом из слоя считаются
+на CPU.
 
 ## Сечение: круглые ленты и своя форма (0.1.11)
 

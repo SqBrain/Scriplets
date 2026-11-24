@@ -426,10 +426,11 @@ static void testSections() {
 static void testGradient() {
     std::printf("gradient\n");
     RK_Params P{};
-    P.gamma = 1; P.gradMode = 1; P.gradCount = 3; P.gradRepeat = 1; P.gradOffset = 0;
-    const float stops[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-    for (int i = 0; i < 9; i++) P.gradColors[i] = stops[i];
-    auto near3 = [](rk3 a, float r, float g, float b) { return std::fabs(a.x - r) < 1e-5f && std::fabs(a.y - g) < 1e-5f && std::fabs(a.z - b) < 1e-5f; };
+    P.gamma = 1; P.gradMode = 1; P.gradRepeat = 1; P.gradOffset = 0;
+    std::vector<float> lut = gradientFromColors({V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1)});
+    std::copy(lut.begin(), lut.end(), P.gradLut);
+    // 64 table entries: positions between entries are linear, so allow the table's step.
+    auto near3 = [](rk4 a, float r, float g, float b) { return std::fabs(a.r - r) < 2e-2f && std::fabs(a.g - g) < 2e-2f && std::fabs(a.b - b) < 2e-2f && a.a == 1; };
     CHECK(near3(rk_gradient(&P, 0), 1, 0, 0) && near3(rk_gradient(&P, 0.5f), 0, 1, 0) && near3(rk_gradient(&P, 1), 0, 0, 1), "stops");
     CHECK(near3(rk_gradient(&P, 0.25f), 0.5f, 0.5f, 0), "linear between stops");
     P.gradRepeat = 2;  // 0..0.5 forward, 0.5..1 back: continuous
@@ -441,8 +442,25 @@ static void testGradient() {
     P.gradMode = 2;  // per path: the vertex value directly
     CHECK(near3(rk_gradient(&P, 0.25f), 0.5f, 0.5f, 0), "per-path value unchanged by repeat / offset");
     P.gamma = 2.2f; P.gradMode = 1; P.gradOffset = 0;
-    rk3 mid = rk_gradient(&P, 0.25f);
-    CHECK(std::fabs(mid.x - std::pow(0.5f, 2.2f)) < 1e-4f, "interpolated in the working space, then linearized");
+    rk4 mid = rk_gradient(&P, 0.25f);
+    CHECK(std::fabs(mid.r - std::pow(0.5f, 2.2f)) < 1e-2f, "interpolated in the working space, then linearized");
+    // From an image: the middle row between the first and last visible pixel; transparency kept.
+    const int IW = 40, IH = 5;
+    std::vector<float> img(size_t(IW) * IH * 4, 0.0f);
+    for (int x = 10; x <= 29; x++) {  // a red -> blue ramp with a fading end, transparent margins
+        float f = (x - 10) / 19.0f, a = x > 24 ? 1 - (x - 24) / 5.0f : 1;
+        float* px = &img[(size_t(2) * IW + x) * 4];
+        px[0] = f * a; px[1] = 0; px[2] = (1 - f) * a; px[3] = a;  // BGRA premultiplied
+    }
+    std::vector<float> fromImg;
+    // The last visible pixel is x = 28: blue 18/19, opacity 0.2.
+    const bool got = gradientFromImage(img.data(), IW, IH, IW, fromImg);
+    const float* endPx = got ? &fromImg[(RK_GRAD_LUT - 1) * 4] : nullptr;
+    CHECK(got && std::fabs(fromImg[0] - 1) < 1e-6f && fromImg[3] > 0.99f &&
+              std::fabs(endPx[2] - 18 / 19.0f) < 1e-4f && std::fabs(endPx[3] - 0.2f) < 1e-4f && endPx[0] < 0.06f,
+          "image row: red at the start, blue at the end, fading out (end: b %.3f, a %.3f)", got ? endPx[2] : -1.0f, got ? endPx[3] : -1.0f);
+    std::vector<float> none(size_t(IW) * IH * 4, 0.0f);
+    CHECK(!gradientFromImage(none.data(), IW, IH, IW, fromImg), "transparent image: no gradient");
 }
 
 // Rounded ends: the outline near each end follows a circle, the texture is cut, not squeezed.

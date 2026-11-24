@@ -281,7 +281,7 @@ bool RibbonGPU_CanReadBack(PF_GPU_Framework fw) { return fw == PF_GPU_Framework_
 
 PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Packet& pk, int srcX, int srcY,
                         PF_EffectWorld* src, PF_EffectWorld* dst, PF_EffectWorld* tex, PF_EffectWorld* env,
-                        PF_EffectWorld* nrm, PF_EffectWorld* rough) {
+                        PF_EffectWorld* nrm, PF_EffectWorld* rough, PF_EffectWorld* grad) {
     GPUState* st = StateFromHandle(extra->input->gpu_data);
     Suite<PF_GPUDeviceSuite1> gpu(in_data, kPFGPUDeviceSuite, kPFGPUDeviceSuiteVersion1);
     if (!st || !gpu || !dst) return PF_Err_INTERNAL_STRUCT_DAMAGED;
@@ -296,22 +296,26 @@ PF_Err RibbonGPU_Render(PF_InData* in_data, PF_SmartRenderExtra* extra, rb::Pack
     if (!err && rough) err = gpu->GetGPUWorldData(in_data->effect_ref, rough, &roughMem);
     if (err) return err;
 
-    // Environment: the CPU builds its mip chain and harmonics, so the GPU world is read back.
-    if (env) {
-        void* envMem = nullptr;
-        if (!gpu->GetGPUWorldData(in_data->effect_ref, env, &envMem) && envMem) {
-            const int pitch = int(env->rowbytes / int(sizeof(PF_PixelFloat)));
-            std::vector<float> host(size_t(pitch) * size_t(env->height) * 4);
-            bool ok = false;
+    // The environment's mip chain / harmonics and the gradient table are built on the CPU, so
+    // those GPU worlds are read back.
+    auto readBack = [&](PF_EffectWorld* w, std::vector<float>& host, int& pitch) {
+        void* mem = nullptr;
+        if (!w || gpu->GetGPUWorldData(in_data->effect_ref, w, &mem) || !mem) return false;
+        pitch = int(w->rowbytes / int(sizeof(PF_PixelFloat)));
+        host.assign(size_t(pitch) * size_t(w->height) * 4, 0.0f);
+        bool ok = false;
 #ifdef RB_HAS_OPENCL
-            if (st->framework == PF_GPU_Framework_OPENCL) ok = ReadOpenCL(info, envMem, host.size() * sizeof(float), host.data());
+        if (st->framework == PF_GPU_Framework_OPENCL) ok = ReadOpenCL(info, mem, host.size() * sizeof(float), host.data());
 #endif
 #ifdef RB_HAS_CUDA
-            if (st->framework == PF_GPU_Framework_CUDA) ok = ReadCUDA(*st, envMem, host.size() * sizeof(float), host.data());
+        if (st->framework == PF_GPU_Framework_CUDA) ok = ReadCUDA(*st, mem, host.size() * sizeof(float), host.data());
 #endif
-            if (ok) rb::setEnvironmentImage(pk, host.data(), env->width, env->height, pitch);
-        }
-    }
+        return ok;
+    };
+    std::vector<float> host;
+    int pitch = 0;
+    if (env && readBack(env, host, pitch)) rb::setEnvironmentImage(pk, host.data(), env->width, env->height, pitch);
+    if (grad && readBack(grad, host, pitch)) rb::setGradientImage(pk, host.data(), grad->width, grad->height, pitch);
 
     // GPU worlds are 32-bit float BGRA; pitches in pixels.
     const int bpp = int(sizeof(PF_PixelFloat));

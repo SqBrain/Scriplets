@@ -256,25 +256,26 @@ RK_FN rk3 rk_normal_map(RK_IN(RK_Params) P, RK_IN(float) nm, rk3 Nf, rk3 T, floa
 
 // ---------------------------------------------------------------- gradient
 
-// Gradient color at t: evenly spaced stops, interpolated in the working space (as AE's own
-// gradients look), then linearized. Along the ribbon t repeats and is mirrored past the ends, so
-// animating the offset makes the colors flow without a jump.
-RK_FN rk3 rk_gradient(RK_IN(RK_Params) P, float t) {
+// Gradient color (linear) and opacity at t, from the RGBA table: interpolated in the working space
+// (as AE's own gradients look), then linearized. Along the ribbon t repeats and is mirrored past
+// the ends, so animating the offset makes the colors flow without a jump.
+RK_FN rk4 rk_gradient(RK_IN(RK_Params) P, float t) {
     if (P->gradMode == 1) {
         t = t * P->gradRepeat + P->gradOffset;
         t = t - 2.0f * RK_FLOOR(t * 0.5f);
         if (t > 1.0f) t = 2.0f - t;
     }
-    t = rk_clampf(t, 0.0f, 1.0f);
-    int n = P->gradCount < 2 ? 2 : (P->gradCount > 4 ? 4 : P->gradCount);
-    float x = t * (float)(n - 1);
+    float x = rk_clampf(t, 0.0f, 1.0f) * (float)(RK_GRAD_LUT - 1);
     int i = (int)RK_FLOOR(x);
-    if (i > n - 2) i = n - 2;
+    if (i > RK_GRAD_LUT - 2) i = RK_GRAD_LUT - 2;
     float f = x - (float)i;
-    float r = rk_mixf(P->gradColors[i * 3], P->gradColors[i * 3 + 3], f);
-    float g = rk_mixf(P->gradColors[i * 3 + 1], P->gradColors[i * 3 + 4], f);
-    float b = rk_mixf(P->gradColors[i * 3 + 2], P->gradColors[i * 3 + 5], f);
-    return rk_v(rk_lin(r, P->gamma), rk_lin(g, P->gamma), rk_lin(b, P->gamma));
+    RK_IN(float) a = P->gradLut + i * 4;
+    rk4 c;
+    c.r = rk_lin(rk_mixf(a[0], a[4], f), P->gamma);
+    c.g = rk_lin(rk_mixf(a[1], a[5], f), P->gamma);
+    c.b = rk_lin(rk_mixf(a[2], a[6], f), P->gamma);
+    c.a = rk_clampf(rk_mixf(a[3], a[7], f), 0.0f, 1.0f);
+    return c;
 }
 
 // ---------------------------------------------------------------- shading
@@ -339,14 +340,17 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     rk3 frontC = rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2]);
     rk3 backC = rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
     rk3 edgeC = rk_v(P->edgeColor[0], P->edgeColor[1], P->edgeColor[2]);
+    float gradA = 1.0f;
     if (P->gradMode != 0) {
-        frontC = rk_gradient(P, gt);
+        rk4 gc = rk_gradient(P, gt);
+        frontC = rk_v(gc.r, gc.g, gc.b);
         backC = frontC;
+        gradA = gc.a;  // the gradient's opacity fades the ribbon
         if (P->gradEdge) edgeC = frontC;
     }
 
     rk3 base;
-    float alpha = 1.0f;
+    float alpha = gradA;
     if (P->solid) {
         // Faces get the front / back color (or the texture over it), edges the edge color; the
         // bevel blends between them by how much its normal faces front or back.
@@ -359,7 +363,7 @@ RK_FN rk_hit rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) vert
     } else if (P->hasTexture) {
         rk4 tc = rk_texture(P, tex, u, v);
         base = rk_v(tc.r, tc.g, tc.b);
-        alpha = tc.a;
+        alpha = tc.a * gradA;
     } else {
         base = front ? frontC : backC;
     }

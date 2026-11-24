@@ -224,16 +224,11 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
     P.camDown[0] = float(cam.axisY.x); P.camDown[1] = float(cam.axisY.y); P.camDown[2] = float(cam.axisY.z);
     if (out.env.empty()) out.env.assign(4, 0.0f);
 
-    P.gradMode = mat.gradMode;
-    P.gradCount = int(std::clamp<size_t>(mat.gradColors.size(), 2, 4));
+    P.gradMode = mat.gradLut.size() == size_t(RK_GRAD_LUT * 4) ? mat.gradMode : 0;
     P.gradEdge = mat.gradEdge ? 1 : 0;
     P.gradRepeat = float(mat.gradRepeat);
     P.gradOffset = float(mat.gradOffset);
-    for (int i = 0; i < 4; i++) {
-        const V3 c = mat.gradColors.empty() ? V3(1, 1, 1) : mat.gradColors[std::min<size_t>(size_t(i), mat.gradColors.size() - 1)];
-        P.gradColors[i * 3] = float(c.x); P.gradColors[i * 3 + 1] = float(c.y); P.gradColors[i * 3 + 2] = float(c.z);
-    }
-    if (mat.gradColors.size() < 2) P.gradMode = 0;
+    if (P.gradMode) std::copy(mat.gradLut.begin(), mat.gradLut.end(), P.gradLut);
     P.nrmStrength = float(std::max(0.0, mat.normalStrength));
     P.roughAmount = float(std::clamp(mat.roughAmount, 0.0, 1.0));
     P.roughInvert = mat.roughInvert ? 1 : 0;
@@ -254,6 +249,49 @@ void buildPacket(const RibbonMesh& mesh, const Camera& cam, const std::vector<Li
         P.nrmOffsetU = float(mat.texOffset);
         P.nrmWrapV = 0;
     }
+}
+
+std::vector<float> gradientFromColors(const std::vector<V3>& colors) {
+    std::vector<float> lut(size_t(RK_GRAD_LUT) * 4, 1.0f);
+    const size_t n = colors.size();
+    if (n == 0) return lut;
+    for (int i = 0; i < RK_GRAD_LUT; i++) {
+        const double x = double(i) / (RK_GRAD_LUT - 1) * double(n - 1);
+        const size_t k = std::min(size_t(x), n > 1 ? n - 2 : 0);
+        const double f = n > 1 ? x - double(k) : 0;
+        const V3 c = n > 1 ? colors[k] + (colors[k + 1] - colors[k]) * f : colors[0];
+        lut[size_t(i) * 4] = float(c.x); lut[size_t(i) * 4 + 1] = float(c.y); lut[size_t(i) * 4 + 2] = float(c.z);
+        lut[size_t(i) * 4 + 3] = 1.0f;
+    }
+    return lut;
+}
+
+bool gradientFromImage(const float* bgra, int w, int h, int pitch, std::vector<float>& lut) {
+    if (!bgra || w <= 0 || h <= 0) return false;
+    const float* row = bgra + size_t(h / 2) * size_t(pitch) * 4;
+    int x0 = -1, x1 = -1;
+    for (int x = 0; x < w; x++)
+        if (row[size_t(x) * 4 + 3] > 0.004f) { if (x0 < 0) x0 = x; x1 = x; }
+    if (x0 < 0) return false;
+    lut.assign(size_t(RK_GRAD_LUT) * 4, 0.0f);
+    for (int i = 0; i < RK_GRAD_LUT; i++) {
+        // Pixel centers from the first to the last visible pixel, linear between pixels.
+        const double fx = x0 + (x1 - x0) * double(i) / (RK_GRAD_LUT - 1);
+        const int xa = int(std::floor(fx)), xb = std::min(xa + 1, x1);
+        const double f = fx - xa;
+        double c[4];
+        for (int ch = 0; ch < 4; ch++) c[ch] = row[size_t(xa) * 4 + ch] * (1 - f) + row[size_t(xb) * 4 + ch] * f;
+        const double a = c[3], k = a > 1e-6 ? 1 / a : 0;  // straight color, premultiplied input
+        lut[size_t(i) * 4] = float(c[2] * k); lut[size_t(i) * 4 + 1] = float(c[1] * k); lut[size_t(i) * 4 + 2] = float(c[0] * k);
+        lut[size_t(i) * 4 + 3] = float(std::clamp(a, 0.0, 1.0));
+    }
+    return true;
+}
+
+void setGradientImage(Packet& p, const float* bgra, int w, int h, int pitch) {
+    std::vector<float> lut;
+    if (!gradientFromImage(bgra, w, h, pitch, lut)) return;
+    std::copy(lut.begin(), lut.end(), p.params.gradLut);
 }
 
 void setEnvironmentImage(Packet& p, const float* bgra, int w, int h, int pitch) {

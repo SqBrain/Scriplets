@@ -108,11 +108,12 @@ typedef struct {
 
     /* Gradient instead of the front / back colors: 0 off, 1 along the ribbon (vertex grad = u,
        with repeat and offset, mirrored past the ends), 2 per path (vertex grad = the path's value). */
-    int   gradMode, gradCount;      /* 2..4 evenly spaced stops */
+    int   gradMode;
     int   gradEdge;                 /* 1: solid edges follow the gradient too */
     float gradRepeat, gradOffset;
-    float gradColors[12];           /* working-space encoded, linearized after interpolation */
-    float pad6;
+#define RK_GRAD_LUT 64
+    float gradLut[RK_GRAD_LUT * 4]; /* RGBA from 0 to 1, working-space encoded (linearized after
+                                       interpolation); alpha = the ribbon's opacity there */
 } RK_Params;
 
 #endif

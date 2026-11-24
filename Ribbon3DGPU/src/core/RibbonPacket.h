@@ -61,9 +61,10 @@ struct Material {
     bool normalTiles = true;        // true: square tiles of normalTilePx; false: stretched like the texture
     double normalTilePx = 100;
     bool normalDirectX = false;     // green channel points down (DirectX) instead of up (OpenGL)
-    // Gradient instead of the front / back colors (gamma-encoded stops, 2..4).
+    // Gradient instead of the front / back colors: an RGBA table of RK_GRAD_LUT entries
+    // (gradientFromColors, or setGradientImage on the packet for a gradient layer).
     int gradMode = 0;               // 0 off, 1 along the ribbon, 2 per path (vertex grad set by the caller)
-    std::vector<V3> gradColors;
+    std::vector<float> gradLut;
     double gradRepeat = 1, gradOffset = 0;
     bool gradEdge = true;           // solid edges follow the gradient
     // Roughness map (same mapping as the normal map; the image comes with setRoughnessMap).
@@ -116,6 +117,15 @@ inline void setRoughnessMap(Packet& p, int width, int height, int pitchPixels) {
     p.params.roughHeight = height;
     p.params.roughPitch = pitchPixels;
 }
+
+// Gradient table from evenly spaced, opaque color stops (gamma-encoded, 2 or more).
+std::vector<float> gradientFromColors(const std::vector<V3>& colors);
+// Gradient table from an image (BGRA floats, premultiplied, working space): its middle row from
+// the first to the last visible pixel, so a shape layer's gradient rectangle anywhere in the
+// layer works; transparent stops fade the ribbon. False when the row has nothing visible.
+bool gradientFromImage(const float* bgra, int width, int height, int pitchPixels, std::vector<float>& lut);
+// Replaces the packet's gradient table with the one from an image (see gradientFromImage).
+void setGradientImage(Packet& p, const float* bgra, int width, int height, int pitchPixels);
 
 inline void setTexture(Packet& p, int width, int height, int pitchPixels) {
     p.params.hasTexture = (width > 0 && height > 0) ? 1 : 0;
