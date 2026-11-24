@@ -3,12 +3,15 @@
 // numbers for the PiPL resource, so PiPL and code can never disagree.
 #pragma once
 
-#define RB_MAJOR_VERSION 1
-#define RB_MINOR_VERSION 4
-#define RB_BUG_VERSION   0
-#define RB_BUILD_VERSION 1
+// Shown as MAJOR.MINOR.BUILD with two build digits: 0.1.04. Pre-release builds count up in BUILD;
+// 1.0 is the first public release. BUILD lives in AE's 9-bit build field (up to 511): the
+// bug-fix field has only 4 bits, too few for a build counter.
+#define RB_MAJOR_VERSION 0
+#define RB_MINOR_VERSION 1
+#define RB_BUILD_VERSION 4
+#define RB_STAGE PF_Stage_DEVELOP  // PF_Stage_RELEASE from 1.0 on
 
-#define RB_VERSION PF_VERSION(RB_MAJOR_VERSION, RB_MINOR_VERSION, RB_BUG_VERSION, PF_Stage_RELEASE, RB_BUILD_VERSION)
+#define RB_VERSION PF_VERSION(RB_MAJOR_VERSION, RB_MINOR_VERSION, 0, RB_STAGE, RB_BUILD_VERSION)
 
 // NON_PARAM_VARY: "Twist Speed" / "Wave Speed" animate with time alone.
 #define RB_OUT_FLAGS (PF_OutFlag_DEEP_COLOR_AWARE | PF_OutFlag_NON_PARAM_VARY)

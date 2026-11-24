@@ -540,6 +540,7 @@ int main(int argc, char** argv) {
     std::printf("params: %zu added, num_params %d (expected %d incl. input)\n", gDefs.size(), out.num_params, RB_NUM_PARAMS);
     int fails = 0;
     if (int(gDefs.size()) + 1 != out.num_params) { std::printf("FAIL: param count mismatch\n"); fails++; }
+    if (gDefs[RB_COMPOSITE - 1].u.pd.value != 3) { std::printf("FAIL: Composite does not default to Ribbon Only\n"); fails++; }
     gMixFlag = (out.out_flags2 & PF_OutFlag2_I_MIX_GUID_DEPENDENCIES) != 0;
     if (!gMixFlag) { std::printf("FAIL: I_MIX_GUID_DEPENDENCIES not set\n"); fails++; }
 
@@ -548,6 +549,20 @@ int main(int argc, char** argv) {
     gCtx = clCreateContext(nullptr, 1, &gDev, nullptr, nullptr, nullptr);
     gQ = clCreateCommandQueue(gCtx, gDev, 0, nullptr);
 
+    // Default (Ribbon Only): transparent around the ribbon, on CPU and GPU alike.
+    {
+        std::vector<float> a = RunCPU(32), ag = RunGPU();
+        size_t clear = 0, opaque = 0;
+        double maxA = 0;
+        for (size_t i = 0; i < a.size(); i += 4) {
+            clear += a[i + 3] == 0.0f;
+            opaque += a[i + 3] > 0.99f;
+            if (!ag.empty()) maxA = std::max(maxA, double(std::fabs(a[i + 3] - ag[i + 3])));
+        }
+        std::printf("ribbon only: %zu transparent px, %zu opaque px, CPU vs GPU alpha max diff %.2e\n", clear, opaque, maxA);
+        if (clear < size_t(W * H / 2) || opaque < 5000 || ag.empty() || maxA > 1e-3) { std::printf("FAIL: ribbon only\n"); fails++; }
+    }
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;  // the checks below compare with the grey input: Over Layer
     std::vector<float> c32 = RunCPU(32), c8 = RunCPU(8), g = RunGPU();
     if (c32.empty() || c8.empty() || g.empty()) return 1;
     double cover = 0, maxG = 0, max8 = 0;

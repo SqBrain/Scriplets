@@ -87,7 +87,7 @@ enum {
     RB_LINEAR,
     RB_RENDER_TOPIC_END,
 
-    // v1.1 - appended at the end so projects saved with v1.0 keep their parameter indices.
+    // 0.1.01 - appended at the end so projects saved with 0.1.00 keep their parameter indices.
     RB_SOLID_TOPIC,
     RB_THICKNESS,
     RB_BEVEL_SIZE,
@@ -98,7 +98,7 @@ enum {
     RB_END_CAPS,
     RB_SOLID_TOPIC_END,
 
-    // v1.2 - control nulls (appended for the same reason).
+    // 0.1.02 - control nulls (appended for the same reason).
     RB_NULLS_TOPIC,
     RB_PATH_SOURCE,       // 1: mask, 2: control nulls
     RB_MAKE_NULLS,        // button
@@ -108,7 +108,7 @@ enum {
     RB_POINTS_TOPIC_END = RB_NULL_1 + RB_MAX_NULLS,
     RB_NULLS_TOPIC_END,
 
-    // v1.4 (appended for the same reason).
+    // 0.1.04 (appended for the same reason).
     RB_CYCLE,             // checkbox: the ribbon wraps around the ends of the path
     RB_FIT_LAYER,         // layer for the "Configure" button
     RB_FIT_CONFIGURE,     // button: texture = that layer, width = its aspect over the visible length

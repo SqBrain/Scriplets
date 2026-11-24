@@ -38,8 +38,9 @@
 - **Сборка с настоящим AE SDK 27.0.0 (Windows)** проходит без ошибок и предупреждений
   (`tools/build_win_mingw.sh`, MinGW-w64). Ресурс PiPL сверен с форматом самого `PiPLtool.exe` и
   шаблоном `AE_General.r`; раскладка ключевых структур SDK (размеры, выравнивания, смещения
-  полей) совпадает с правилами MSVC. **В After Effects плагин ещё не запускался** — это первый
-  шаг проверки у пользователя.
+  полей) совпадает с правилами MSVC. Плагин запущен и работает в After Effects на Windows (проверено
+  пользователем); видеокарта и путь рендера (CUDA / OpenCL / CPU) на его машине отдельно не замерялись.
+- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.04, видна в About эффекта); 1.0 — первый выпуск.
 
 ## Сборка
 
@@ -94,7 +95,8 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
    (эффект рисует в пространстве композиции через её камеру).
 2. Нарисуйте на солиде маску (путь ленты) и поставьте ей режим **None**, чтобы она не обрезала слой.
 3. **Effect → Generate → Ribbon 3D GPU**, в поле **Path** выберите маску.
-4. Для прозрачного фона: **Render → Composite → Ribbon Only**.
+4. По умолчанию рисуется только лента на прозрачном фоне (**Render → Composite → Ribbon Only**);
+   чтобы лента легла поверх содержимого слоя — **Over Layer**, под ним — **Behind Layer**.
 5. GPU: **File → Project Settings → Video Rendering and Effects → Mercury GPU Acceleration**
    (CUDA / OpenCL / Metal). При других вариантах (в т. ч. DirectX) эффект считается на CPU.
 
@@ -102,7 +104,7 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 композиции — если включено **Use Comp Lights** (точечный, направленный, прожектор, ambient).
 Без камеры используется вид AE по умолчанию (50 мм).
 
-## Управление нулями (v1.2)
+## Управление нулями (0.1.02)
 
 Кнопка **Control Nulls → Create Nulls from Mask** создаёт по 3D-нулю на каждую вершину маски
 («Ribbon Pt 01», «Ribbon Pt 02»…, одним шагом отмены), подставляет их в слоты **Points** и
@@ -119,7 +121,7 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 родителей и выражения): эффект подмешивает трансформации нулей в ключ кэша AE
 (`PF_OutFlag2_I_MIX_GUID_DEPENDENCIES`), поэтому неизменённые кадры по-прежнему берутся из кэша.
 С этим флагом AE требует вызова `GuidMixInPtr` в каждом PreRender, в любом режиме — иначе выдаёт
-«internal verification failure» (так было в 1.3.0 в режиме Mask, исправлено в 1.3.1).
+«internal verification failure».
 
 Нули можно добавлять и вручную: выберите любые слои в слотах Point 1…32 (порядок слотов = порядок
 точек). Вершины маски сверх 32 не превращаются в нули — об этом выводится сообщение.
@@ -139,13 +141,13 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 | **Path Transform** | Поворот X/Y/Z, смещение X/Y/Z и масштаб пути в 3D (центр — центр маски) |
 | **Material** | Цвета лица/изнанки; Texture Layer (u — вдоль ленты, v — поперёк, альфа текстуры = прозрачность ленты), Repeat/Offset; Ambient, Diffuse, Specular, Glossiness; Satin (0 — глянец, 1 — анизотропный блик вдоль волокон); Sheen (блеск по Френелю на скользящих углах); Translucency (свет сзади просвечивает тонкую ленту); Metal (блик окрашивается цветом ленты) |
 | **Lighting** | Use Comp Lights; встроенный свет (Azimuth, Elevation, Intensity, Color), если в композиции нет источников |
-| **Render** | Antialiasing 1/4/9/16 сэмплов (в Draft-превью всегда 1); Composite: поверх слоя / за слоем / только лента; Opacity; Linear Working Space — для проектов с линейным рабочим пространством |
-| **Thickness & Bevel** (v1.1) | Thickness — толщина ленты, px (0 — тонкий двусторонний лист, как в v1.0); Bevel Size — радиус скругления или размер среза рёбер; Bevel Style — Round / Chamfer (срез 45°); Bevel Smoothness — сегментов на скругление (в Draft-превью не больше 2); Edge Color — цвет рёбер: как лицо / как изнанка / свой (Custom Edge Color); End Caps — закрыть торцы |
-| **Control Nulls** (v1.2) | Path Source — Mask или Control Nulls; кнопка **Create Nulls from Mask**; Closed Loop — замкнуть сплайн через нули; Points → Point 1…32 — слои-точки по порядку (пустые пропускаются) |
-| Cycle (v1.4) | Когда Start/End + Offset выходят за 0…100 %, лента продолжается с другого конца пути — и на открытом пути тоже. Выключено — часть за концом пути просто скрыта |
-| Fit Layer + **Configure** (v1.4) | Выберите слой (композиция, изображение, видео; текст/шейп — по размеру композиции), нажмите Configure: слой становится текстурой, Width выставляется так, чтобы слой лёг на видимую ленту без растяжения |
+| **Render** | Antialiasing 1/4/9/16 сэмплов (в Draft-превью всегда 1); Composite: поверх слоя / за слоем / только лента (по умолчанию — только лента, вокруг прозрачно); Opacity; Linear Working Space — для проектов с линейным рабочим пространством |
+| **Thickness & Bevel** (0.1.01) | Thickness — толщина ленты, px (0 — тонкий двусторонний лист, как в 0.1.00); Bevel Size — радиус скругления или размер среза рёбер; Bevel Style — Round / Chamfer (срез 45°); Bevel Smoothness — сегментов на скругление (в Draft-превью не больше 2); Edge Color — цвет рёбер: как лицо / как изнанка / свой (Custom Edge Color); End Caps — закрыть торцы |
+| **Control Nulls** (0.1.02) | Path Source — Mask или Control Nulls; кнопка **Create Nulls from Mask**; Closed Loop — замкнуть сплайн через нули; Points → Point 1…32 — слои-точки по порядку (пустые пропускаются) |
+| Cycle (0.1.04) | Когда Start/End + Offset выходят за 0…100 %, лента продолжается с другого конца пути — и на открытом пути тоже. Выключено — часть за концом пути просто скрыта |
+| Fit Layer + **Configure** (0.1.04) | Выберите слой (композиция, изображение, видео; текст/шейп — по размеру композиции), нажмите Configure: слой становится текстурой, Width выставляется так, чтобы слой лёг на видимую ленту без растяжения |
 
-## Подгонка под слой и Cycle (v1.4)
+## Подгонка под слой и Cycle (0.1.04)
 
 **Configure.** Выберите слой в **Fit Layer** и нажмите **Configure**. Слой станет текстурой (Texture Layer), а
 Width выставится по формуле

@@ -80,8 +80,8 @@ double Ratio(const PF_RationalScale& s) { return s.den ? double(s.num) / double(
 
 PF_Err About(PF_InData* in_data, PF_OutData* out_data) {
     (void)in_data;
-    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "%s v%d.%d.%d\r%s", RB_NAME, RB_MAJOR_VERSION,
-                  RB_MINOR_VERSION, RB_BUG_VERSION, RB_DESCRIPTION);
+    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "%s v%d.%d.%02d\r%s", RB_NAME, RB_MAJOR_VERSION,
+                  RB_MINOR_VERSION, RB_BUILD_VERSION, RB_DESCRIPTION);
     return PF_Err_NONE;
 }
 
@@ -203,7 +203,7 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_ADD_POPUP("Antialiasing", 4, 3, "Off (1x)|Low (4x)|High (9x)|Best (16x)", RB_ID(RB_QUALITY));
     AEFX_CLR_STRUCT(def);
-    PF_ADD_POPUP("Composite", 3, 1, "Over Layer|Behind Layer|Ribbon Only", RB_ID(RB_COMPOSITE));
+    PF_ADD_POPUP("Composite", 3, 3, "Over Layer|Behind Layer|Ribbon Only", RB_ID(RB_COMPOSITE));  // default: Ribbon Only
     AEFX_CLR_STRUCT(def);
     PF_ADD_FLOAT_SLIDERX("Opacity", 0, 100, 0, 100, 100, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_OPACITY));
     AEFX_CLR_STRUCT(def);
@@ -250,7 +250,7 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
 
-    // v1.4: outside the groups, so they are visible without twirling anything open.
+    // 0.1.04: outside the groups, so they are visible without twirling anything open.
     AEFX_CLR_STRUCT(def);
     PF_ADD_CHECKBOX("Cycle", "Wrap around path ends", TRUE, 0, RB_ID(RB_CYCLE));
     AEFX_CLR_STRUCT(def);
