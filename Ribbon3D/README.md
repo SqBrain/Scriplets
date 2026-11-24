@@ -10,6 +10,9 @@ ScriptUI-панель, которая строит живой 3D-риг лент
 
 *(превью отрисованы тестовым растеризатором из `tests/`, не самим AE)*
 
+> Нужна скорость и попиксельное освещение? Есть нативная версия-эффект с рендером на GPU
+> (CUDA / OpenCL / Metal): [`../Ribbon3DGPU`](../Ribbon3DGPU/README.md).
+
 ## Установка
 
 1. Скопируйте `Ribbon3D.jsx` в `…/Adobe After Effects <версия>/Scripts/ScriptUI Panels/`.

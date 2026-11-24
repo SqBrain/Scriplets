@@ -1,0 +1,253 @@
+// Ribbon3D GPU - per-pixel render kernel.
+//
+// Single source compiled as C++ (CPU fallback), OpenCL C, CUDA and Metal Shading Language.
+// Rules that keep it portable: C99 subset, no function overloading, no references, no
+// compound literals, float literals always with an "f" suffix, no out-parameters
+// (Metal would need "thread" pointers) - small structs are returned by value instead.
+//
+// Per pixel: SxS samples; for every sample the triangles binned to the pixel's tile are
+// tested (edge functions), the nearest one wins (1/w depth), the hit is shaded with a
+// perspective-correct interpolation of the vertex attributes. Shading is cached per
+// triangle inside a pixel, so it usually runs once or twice per pixel.
+#ifndef RIBBON_KERNEL_H
+#define RIBBON_KERNEL_H
+
+#if defined(__OPENCL_VERSION__)
+    #define RK_FN
+    #define RK_IN(T) __global const T*
+    #define RK_OUT(T) __global T*
+    #define RK_SQRT sqrt
+    #define RK_POW pow
+    #define RK_FLOOR floor
+    #define RK_FABS fabs
+#elif defined(__CUDACC__) || defined(__CUDA__)
+    #define RK_FN __device__ static inline
+    #define RK_IN(T) const T*
+    #define RK_OUT(T) T*
+    #define RK_SQRT sqrtf
+    #define RK_POW powf
+    #define RK_FLOOR floorf
+    #define RK_FABS fabsf
+#elif defined(__METAL_VERSION__)
+    #include <metal_stdlib>
+    using namespace metal;
+    #define RK_FN static inline
+    #define RK_IN(T) device const T*
+    #define RK_OUT(T) device T*
+    #define RK_SQRT sqrt
+    #define RK_POW pow
+    #define RK_FLOOR floor
+    #define RK_FABS fabs
+#else
+    #include <cmath>
+    #define RK_FN static inline
+    #define RK_IN(T) const T*
+    #define RK_OUT(T) T*
+    #define RK_SQRT std::sqrt
+    #define RK_POW std::pow
+    #define RK_FLOOR std::floor
+    #define RK_FABS std::fabs
+#endif
+
+#include "RibbonShared.h"
+
+typedef struct { float x, y, z; } rk3;
+typedef struct { float r, g, b, a; } rk4;
+
+RK_FN rk3 rk_v(float x, float y, float z) { rk3 r; r.x = x; r.y = y; r.z = z; return r; }
+RK_FN rk3 rk_add(rk3 a, rk3 b) { return rk_v(a.x + b.x, a.y + b.y, a.z + b.z); }
+RK_FN rk3 rk_sub(rk3 a, rk3 b) { return rk_v(a.x - b.x, a.y - b.y, a.z - b.z); }
+RK_FN rk3 rk_scale(rk3 a, float s) { return rk_v(a.x * s, a.y * s, a.z * s); }
+RK_FN rk3 rk_mulv(rk3 a, rk3 b) { return rk_v(a.x * b.x, a.y * b.y, a.z * b.z); }
+RK_FN float rk_dot(rk3 a, rk3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+RK_FN float rk_maxf(float a, float b) { return a > b ? a : b; }
+RK_FN float rk_minf(float a, float b) { return a < b ? a : b; }
+RK_FN float rk_clampf(float x, float a, float b) { return x < a ? a : (x > b ? b : x); }
+RK_FN float rk_mixf(float a, float b, float t) { return a + (b - a) * t; }
+RK_FN rk3 rk_mix3(rk3 a, rk3 b, float t) { return rk_add(a, rk_scale(rk_sub(b, a), t)); }
+RK_FN rk3 rk_norm(rk3 a, rk3 fb) {
+    float l = RK_SQRT(rk_dot(a, a));
+    return l > 1e-12f ? rk_scale(a, 1.0f / l) : fb;
+}
+RK_FN float rk_smooth(float e0, float e1, float x) {
+    float t = rk_clampf((x - e0) / rk_maxf(e1 - e0, 1e-6f), 0.0f, 1.0f);
+    return t * t * (3.0f - 2.0f * t);
+}
+RK_FN float rk_lin(float c, float gamma) { return gamma == 1.0f ? c : RK_POW(rk_maxf(c, 0.0f), gamma); }
+RK_FN float rk_enc(float c, float gamma) { return gamma == 1.0f ? c : RK_POW(rk_maxf(c, 0.0f), 1.0f / gamma); }
+
+RK_FN rk3 rk_vtx3(RK_IN(float) a) { return rk_v(a[0], a[1], a[2]); }
+
+// Bilinear texture fetch (BGRA float, premultiplied); u wraps, v clamps. Returns linear straight color + alpha.
+RK_FN rk4 rk_texture(RK_IN(RK_Params) P, RK_IN(float) tex, float u, float v) {
+    float fu = u * P->texRepeat + P->texOffset;
+    fu = fu - RK_FLOOR(fu);
+    float fx = fu * (float)P->texWidth - 0.5f, fy = rk_clampf(v, 0.0f, 1.0f) * (float)P->texHeight - 0.5f;
+    float x0f = RK_FLOOR(fx), y0f = RK_FLOOR(fy), tx = fx - x0f, ty = fy - y0f;
+    int x0 = (int)x0f, y0 = (int)y0f, W = P->texWidth, H = P->texHeight;
+    int x1 = x0 + 1, y1 = y0 + 1;
+    x0 = ((x0 % W) + W) % W; x1 = ((x1 % W) + W) % W;
+    y0 = y0 < 0 ? 0 : (y0 >= H ? H - 1 : y0);
+    y1 = y1 < 0 ? 0 : (y1 >= H ? H - 1 : y1);
+    int i00 = (y0 * P->texPitch + x0) * 4, i10 = (y0 * P->texPitch + x1) * 4;
+    int i01 = (y1 * P->texPitch + x0) * 4, i11 = (y1 * P->texPitch + x1) * 4;
+    float w00 = (1.0f - tx) * (1.0f - ty), w10 = tx * (1.0f - ty), w01 = (1.0f - tx) * ty, w11 = tx * ty;
+    rk4 c;
+    c.b = tex[i00] * w00 + tex[i10] * w10 + tex[i01] * w01 + tex[i11] * w11;
+    c.g = tex[i00 + 1] * w00 + tex[i10 + 1] * w10 + tex[i01 + 1] * w01 + tex[i11 + 1] * w11;
+    c.r = tex[i00 + 2] * w00 + tex[i10 + 2] * w10 + tex[i01 + 2] * w01 + tex[i11 + 2] * w11;
+    c.a = tex[i00 + 3] * w00 + tex[i10 + 3] * w10 + tex[i01 + 3] * w01 + tex[i11 + 3] * w11;
+    if (c.a > 1e-6f) {
+        float ia = 1.0f / c.a;
+        c.r = rk_lin(c.r * ia, P->gamma); c.g = rk_lin(c.g * ia, P->gamma); c.b = rk_lin(c.b * ia, P->gamma);
+    } else {
+        c.r = 0.0f; c.g = 0.0f; c.b = 0.0f; c.a = 0.0f;
+    }
+    return c;
+}
+
+// Shades one hit. w0..w2: screen-space barycentrics, iw: interpolated 1/depth. Returns linear color + alpha.
+RK_FN rk4 rk_shade(RK_IN(RK_Params) P, RK_IN(RK_Tri) t, RK_IN(RK_Vertex) verts, RK_IN(RK_Light) lights,
+                   RK_IN(float) tex, float w0, float w1, float w2, float iw) {
+    RK_IN(RK_Vertex) a = verts + t->v[0];
+    RK_IN(RK_Vertex) b = verts + t->v[1];
+    RK_IN(RK_Vertex) c = verts + t->v[2];
+    float q0 = w0 * t->iw[0] / iw, q1 = w1 * t->iw[1] / iw, q2 = w2 * t->iw[2] / iw;
+
+    rk3 pos = rk_add(rk_add(rk_scale(rk_vtx3(a->pos), q0), rk_scale(rk_vtx3(b->pos), q1)), rk_scale(rk_vtx3(c->pos), q2));
+    rk3 n = rk_add(rk_add(rk_scale(rk_vtx3(a->nrm), q0), rk_scale(rk_vtx3(b->nrm), q1)), rk_scale(rk_vtx3(c->nrm), q2));
+    rk3 tg = rk_add(rk_add(rk_scale(rk_vtx3(a->tan), q0), rk_scale(rk_vtx3(b->tan), q1)), rk_scale(rk_vtx3(c->tan), q2));
+    float u = a->uv[0] * q0 + b->uv[0] * q1 + c->uv[0] * q2;
+    float v = a->uv[1] * q0 + b->uv[1] * q1 + c->uv[1] * q2;
+
+    rk3 V = rk_norm(rk_sub(rk_v(P->camPos[0], P->camPos[1], P->camPos[2]), pos), rk_v(0.0f, 0.0f, -1.0f));
+    int front = t->front > 0.5f;
+    n = rk_norm(n, rk_v(0.0f, 0.0f, -1.0f));
+    if (!front) n = rk_scale(n, -1.0f);
+    // An interpolated normal may turn slightly away at grazing angles: bend it back to the viewer.
+    float nv = rk_dot(n, V);
+    if (nv < 0.02f) n = rk_norm(rk_add(n, rk_scale(V, 0.02f - nv)), V);
+    tg = rk_norm(tg, rk_v(1.0f, 0.0f, 0.0f));
+
+    rk3 base;
+    float alpha = 1.0f;
+    if (P->hasTexture) {
+        rk4 tc = rk_texture(P, tex, u, v);
+        base = rk_v(tc.r, tc.g, tc.b);
+        alpha = tc.a;
+    } else {
+        base = front ? rk_v(P->frontColor[0], P->frontColor[1], P->frontColor[2])
+                     : rk_v(P->backColor[0], P->backColor[1], P->backColor[2]);
+    }
+
+    rk3 white = rk_v(1.0f, 1.0f, 1.0f);
+    rk3 specCol = rk_mix3(white, base, P->metal);
+    rk3 col = rk_scale(base, P->ambient);
+    for (int i = 0; i < P->numLights; i++) {
+        RK_IN(RK_Light) L = lights + i;
+        rk3 lc = rk_vtx3(L->color);
+        if (L->type == RK_LIGHT_AMBIENT) { col = rk_add(col, rk_mulv(base, lc)); continue; }
+        rk3 ld;
+        float att = 1.0f;
+        if (L->type == RK_LIGHT_PARALLEL) {
+            ld = rk_scale(rk_vtx3(L->dir), -1.0f);
+        } else {
+            ld = rk_norm(rk_sub(rk_vtx3(L->pos), pos), V);
+            if (L->type == RK_LIGHT_SPOT) att = rk_smooth(L->cosOuter, L->cosInner, -rk_dot(ld, rk_vtx3(L->dir)));
+        }
+        float ndl = rk_dot(n, ld);
+        float diff = rk_maxf(ndl, 0.0f) * P->diffuse * (1.0f - P->metal);
+        float trans = rk_maxf(-ndl, 0.0f) * P->translucency;
+        rk3 H = rk_norm(rk_add(ld, V), n);
+        float blinn = RK_POW(rk_maxf(rk_dot(n, H), 0.0f), P->gloss);
+        float th = rk_dot(tg, H);
+        float aniso = RK_POW(RK_SQRT(rk_maxf(1.0f - th * th, 0.0f)), P->gloss);
+        float spec = rk_mixf(blinn, aniso, P->satin) * P->specular * rk_clampf(ndl * 4.0f, 0.0f, 1.0f);
+        col = rk_add(col, rk_scale(rk_mulv(lc, rk_add(rk_scale(base, diff + trans), rk_scale(specCol, spec))), att));
+    }
+    float fres = RK_POW(1.0f - rk_clampf(rk_dot(n, V), 0.0f, 1.0f), 5.0f) * P->sheen;
+    col = rk_add(col, rk_scale(rk_mix3(white, base, 0.5f), fres));
+
+    rk4 out;
+    out.r = col.x; out.g = col.y; out.b = col.z; out.a = alpha;
+    return out;
+}
+
+RK_FN void rk_render_pixel(int x, int y, RK_IN(RK_Params) P, RK_IN(RK_Tri) tris, RK_IN(RK_Vertex) verts,
+                           RK_IN(int) tileStart, RK_IN(int) tileTris, RK_IN(RK_Light) lights,
+                           RK_IN(float) tex, RK_IN(float) src, RK_OUT(float) dst) {
+    if (x >= P->width || y >= P->height) return;
+    int tile = (y / RK_TILE) * P->tilesX + (x / RK_TILE);
+    int first = tileStart[tile], last = tileStart[tile + 1];
+    int S = P->samples;
+    float invS = 1.0f / (float)S;
+    float cr = 0.0f, cg = 0.0f, cb = 0.0f, ca = 0.0f;
+
+    if (first < last) {
+        int id0 = -1, id1 = -1;
+        rk4 col0, col1;
+        col0.r = col0.g = col0.b = col0.a = 0.0f;
+        col1 = col0;
+        for (int sy = 0; sy < S; sy++) {
+            for (int sx = 0; sx < S; sx++) {
+                float px = (float)x + ((float)sx + 0.5f) * invS;
+                float py = (float)y + ((float)sy + 0.5f) * invS;
+                float best = 0.0f, bw0 = 0.0f, bw1 = 0.0f, bw2 = 0.0f;
+                int bt = -1;
+                for (int i = first; i < last; i++) {
+                    int ti = tileTris[i];
+                    RK_IN(RK_Tri) t = tris + ti;
+                    if (px < t->minx || px > t->maxx || py < t->miny || py > t->maxy) continue;
+                    float w0 = ((t->px[2] - t->px[1]) * (py - t->py[1]) - (t->py[2] - t->py[1]) * (px - t->px[1])) * t->ia;
+                    float w1 = ((t->px[0] - t->px[2]) * (py - t->py[2]) - (t->py[0] - t->py[2]) * (px - t->px[2])) * t->ia;
+                    float w2 = 1.0f - w0 - w1;
+                    if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) continue;
+                    float iw = w0 * t->iw[0] + w1 * t->iw[1] + w2 * t->iw[2];
+                    if (iw > best) { best = iw; bt = ti; bw0 = w0; bw1 = w1; bw2 = w2; }
+                }
+                if (bt >= 0) {
+                    rk4 c;
+                    if (bt == id0) c = col0;
+                    else if (bt == id1) c = col1;
+                    else {
+                        c = rk_shade(P, tris + bt, verts, lights, tex, bw0, bw1, bw2, best);
+                        id1 = id0; col1 = col0; id0 = bt; col0 = c;
+                    }
+                    cr += c.r * c.a; cg += c.g * c.a; cb += c.b * c.a; ca += c.a;
+                }
+            }
+        }
+    }
+
+    // Average samples, encode to the working space, apply opacity (premultiplied result).
+    float n = invS * invS;
+    float ra = ca * n;
+    float rr = 0.0f, rg = 0.0f, rb = 0.0f;
+    if (ra > 0.0f) {
+        rr = rk_enc(cr / ca, P->gamma) * ra;
+        rg = rk_enc(cg / ca, P->gamma) * ra;
+        rb = rk_enc(cb / ca, P->gamma) * ra;
+    }
+    rr *= P->opacity; rg *= P->opacity; rb *= P->opacity; ra *= P->opacity;
+
+    int di = (y * P->dstPitch + x) * 4;
+    int sx = x - P->srcX, sy = y - P->srcY;
+    float sB = 0.0f, sG = 0.0f, sR = 0.0f, sA = 0.0f;
+    if (sx >= 0 && sy >= 0 && sx < P->srcW && sy < P->srcH) {
+        int si = (sy * P->srcPitch + sx) * 4;
+        sB = src[si]; sG = src[si + 1]; sR = src[si + 2]; sA = src[si + 3];
+    }
+    float oB, oG, oR, oA;
+    if (P->composite == RK_COMPOSITE_ALONE) {
+        oB = rb; oG = rg; oR = rr; oA = ra;
+    } else if (P->composite == RK_COMPOSITE_BEHIND) {
+        float k = 1.0f - sA;
+        oB = sB + rb * k; oG = sG + rg * k; oR = sR + rr * k; oA = sA + ra * k;
+    } else {
+        float k = 1.0f - ra;
+        oB = rb + sB * k; oG = rg + sG * k; oR = rr + sR * k; oA = ra + sA * k;
+    }
+    dst[di] = oB; dst[di + 1] = oG; dst[di + 2] = oR; dst[di + 3] = oA;
+}
+
+#endif
