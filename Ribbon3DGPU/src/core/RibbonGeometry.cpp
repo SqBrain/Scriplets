@@ -153,6 +153,46 @@ void appendMesh(RibbonMesh& dst, const RibbonMesh& src) {
     dst.solid = dst.solid || src.solid;
 }
 
+M3 axisRotation(const V3& axisIn, double deg) {
+    const V3 a = normalize(axisIn, V3(0, 0, 1));
+    const double t = deg * kPi / 180, c = std::cos(t), s = std::sin(t), k = 1 - c;
+    M3 r;
+    r.m[0][0] = c + a.x * a.x * k;       r.m[0][1] = a.x * a.y * k - a.z * s; r.m[0][2] = a.x * a.z * k + a.y * s;
+    r.m[1][0] = a.y * a.x * k + a.z * s; r.m[1][1] = c + a.y * a.y * k;       r.m[1][2] = a.y * a.z * k - a.x * s;
+    r.m[2][0] = a.z * a.x * k - a.y * s; r.m[2][1] = a.z * a.y * k + a.x * s; r.m[2][2] = c + a.z * a.z * k;
+    return r;
+}
+
+Polyline rotatePolyline(const Polyline& in, const M3& R, const V3& pivot) {
+    Polyline out = in;
+    for (auto& p : out.pts) p = pivot + R * (p - pivot);
+    out.up = normalize(R * in.up, in.up);
+    for (auto& rc : out.rolls) rc.up = normalize(R * rc.up, rc.up);
+    return out;
+}
+
+void pathStartFrame(const Polyline& p, V3& origin, V3& dir, V3& up) {
+    origin = p.pts.empty() ? V3() : p.pts.front();
+    dir = V3(1, 0, 0);
+    for (size_t i = 1; i < p.pts.size(); i++)
+        if (length(p.pts[i] - origin) > 1e-6) { dir = normalize(p.pts[i] - origin); break; }
+    up = normalize(orthoTo(p.up, dir), V3(0, 0, 1));
+}
+
+M3 rayRotation(int k, int n, double fanDeg, double coneDeg, const V3& dir, const V3& up) {
+    M3 r;
+    if (n < 2) return r;
+    if (coneDeg > 0) {
+        const V3 side = normalize(cross(dir, up), V3(0, 1, 0));
+        r = axisRotation(dir, 360.0 * k / n) * axisRotation(side, coneDeg);
+    }
+    if (fanDeg > 0) {
+        const double a = fanDeg >= 359.999 ? 360.0 * k / n : fanDeg * (double(k) / (n - 1) - 0.5);
+        r = axisRotation(up, a) * r;
+    }
+    return r;
+}
+
 Polyline topViewToFloor(const Polyline& in, const V3& pivot) {
     // Rotation by -90 degrees about X: (x, y, z) -> (x, z, -y).
     auto rot = [](const V3& v) { return V3(v.x, v.z, -v.y); };

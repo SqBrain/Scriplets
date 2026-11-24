@@ -336,6 +336,38 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Repeater rays: fan in the plane, full star, 3D cone; rotation about the path start.
+static void testRays() {
+    std::printf("rays\n");
+    const V3 dir(1, 0, 0), up(0, 0, 1);
+    auto angle = [](const V3& a, const V3& b) { return std::acos(std::clamp(dot(normalize(a), normalize(b)), -1.0, 1.0)) * 180 / 3.14159265358979; };
+    bool fan = true;
+    for (int k = 0; k < 5; k++) {
+        V3 d = rayRotation(k, 5, 90, 0, dir, up) * dir;
+        fan = fan && std::fabs(d.z) < 1e-12 && std::fabs(angle(d, dir) - std::fabs(-45 + 22.5 * k)) < 1e-9;
+    }
+    CHECK(fan, "fan 90 over 5 copies: -45, -22.5, 0, 22.5, 45 degrees in the plane");
+    CHECK(length(rayRotation(2, 4, 360, 0, dir, up) * dir - dir * -1.0) < 1e-12, "fan 360: a full star (copy 3 of 4 points back)");
+    bool cone = true;
+    V3 prev;
+    for (int k = 0; k < 6; k++) {
+        V3 d = rayRotation(k, 6, 0, 30, dir, up) * dir;
+        cone = cone && std::fabs(angle(d, dir) - 30) < 1e-9;
+        if (k > 0) cone = cone && std::fabs(angle(d, prev) - 2 * std::asin(std::sin(30 * 3.14159265358979 / 180) * std::sin(3.14159265358979 / 6)) * 180 / 3.14159265358979) < 1e-6;
+        prev = d;
+    }
+    CHECK(cone, "cone 30: every ray 30 degrees off the start direction, evenly around it");
+    M3 none = rayRotation(3, 7, 0, 0, dir, up);
+    CHECK(length(none * V3(1, 2, 3) - V3(1, 2, 3)) < 1e-12, "no fan, no cone: unchanged");
+    // A path turned about its start keeps the start.
+    Polyline p;
+    p.pts = {V3(100, 200, 0), V3(300, 250, 0), V3(500, 200, 0)};
+    V3 o, d, u;
+    pathStartFrame(p, o, d, u);
+    Polyline q = rotatePolyline(p, rayRotation(0, 3, 120, 0, d, u), o);
+    CHECK(length(q.pts[0] - p.pts[0]) < 1e-12 && length(q.pts[2] - p.pts[2]) > 100, "turned about its start: the start stays, the end moves");
+}
+
 // Cross sections: round tube, custom outline (sharp corners kept), Individually trimmed paths.
 static void testSections() {
     std::printf("sections\n");
@@ -981,6 +1013,7 @@ int main(int argc, char** argv) {
     testRoundedEnds();
     testGradient();
     testSections();
+    testRays();
     testRoughnessMap();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());

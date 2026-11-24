@@ -1062,6 +1062,54 @@ static int TestRepeater() {
     }
     std::printf("repeater + Random per Path: copies differ in red by up to %.2f\n", best);
     if (best < 0.15) { std::printf("FAIL: per-copy colors\n"); fails++; }
+
+    // Rays: Rotate Around = Path Start with a fan; the copies share the start (90, 350) and spread out.
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_OFF;
+    gDefs[RB_REP_STEP_Y - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_COPIES - 1].u.sd.value = 1;
+    auto disc = [](const std::vector<float>& img, int cx, int cy, int r) {
+        double s = 0;
+        for (int y = std::max(0, cy - r); y < std::min(H, cy + r); y++)
+            for (int x = std::max(0, cx - r); x < std::min(W, cx + r); x++)
+                if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < r * r) s += img[(size_t(y) * W + x) * 4 + 3];
+        return s;
+    };
+    std::vector<float> single = RunCPU(32);
+    gDefs[RB_REP_COPIES - 1].u.sd.value = 7;
+    gDefs[RB_REP_FAN - 1].u.fs_d.value = 120;
+    gDefs[RB_REP_PIVOT - 1].u.pd.value = 2;
+    std::vector<float> rays = RunCPU(32), raysG = RunGPU();
+    gDefs[RB_REP_PIVOT - 1].u.pd.value = 1;
+    std::vector<float> centred = RunCPU(32);
+    const double s1 = disc(single, 90, 350, 25), sR = disc(rays, 90, 350, 25), sC = disc(centred, 90, 350, 25);
+    std::printf("rays (fan 120, 7 copies): around the start %.0f px (one ribbon %.0f, fan about the center %.0f), whole %.0f px (one %.0f), CPU vs GPU %.2e\n",
+                sR, s1, sC, area(rays, 0, H), area(single, 0, H), maxDiff(rays, raysG));
+    size_t raysOff = 0;
+    for (size_t i = 0; i < rays.size() && i < raysG.size(); i += 4) {
+        double d = 0;
+        for (int k = 0; k < 4; k++) d = std::max(d, double(std::fabs(rays[i + k] - raysG[i + k])));
+        raysOff += d > 2e-3;
+    }
+    std::printf("  rays: %zu px differ between CPU and GPU\n", raysOff);
+    // All copies leave from the start: around it the rays cover more than the one ribbon, while a fan
+    // about the drawing's center has just its middle copy there.
+    if (sR < s1 * 1.3 || std::fabs(sC - s1) > s1 * 0.2 || area(rays, 0, H) < area(single, 0, H) * 2 || raysOff > 40) {
+        std::printf("FAIL: rays from the path start\n"); fails++;
+    }
+    // 3D rays on a cone, and random lengths.
+    gDefs[RB_REP_PIVOT - 1].u.pd.value = 2;
+    gDefs[RB_REP_FAN - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_CONE - 1].u.fs_d.value = 35;
+    std::vector<float> cone = RunCPU(32), coneG = RunGPU();
+    gDefs[RB_REP_LENGTH - 1].u.fs_d.value = 80;
+    std::vector<float> shorter = RunCPU(32);
+    std::printf("cone 35: %.0f px, CPU vs GPU %.2e; Random Length 80 %%: %.0f px\n", area(cone, 0, H), maxDiff(cone, coneG), area(shorter, 0, H));
+    if (area(cone, 0, H) < area(single, 0, H) * 1.5 || maxDiff(cone, coneG) > 2e-3 || area(shorter, 0, H) > area(cone, 0, H) * 0.9) {
+        std::printf("FAIL: cone / random length\n"); fails++;
+    }
+    gDefs[RB_REP_CONE - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_LENGTH - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_PIVOT - 1].u.pd.value = 1;
     ResetComp();
     gDefs[RB_REP_COPIES - 1].u.sd.value = 1;
     gDefs[RB_REP_STEP_Y - 1].u.fs_d.value = 0;

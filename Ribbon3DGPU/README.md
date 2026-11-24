@@ -40,7 +40,7 @@
   шаблоном `AE_General.r`; раскладка ключевых структур SDK (размеры, выравнивания, смещения
   полей) совпадает с правилами MSVC. Плагин запущен и работает в After Effects на Windows (проверено
   пользователем); видеокарта и путь рендера (CUDA / OpenCL / CPU) на его машине отдельно не замерялись.
-- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.13, видна в About эффекта); 1.0 — первый выпуск.
+- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.14, видна в About эффекта); 1.0 — первый выпуск.
 
 ## Сборка
 
@@ -145,7 +145,7 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 | **Thickness & Bevel** | Для Flat: Thickness, Bevel Size, Bevel Style (Round / Chamfer), Bevel Smoothness, Edge Color, End Caps |
 | **Ends** | End Rounding (0 — прямой срез, 100 % — полукруг / полусфера), Round Ends — оба / начало / конец |
 | **Path Transform** | Поворот X/Y/Z, смещение X/Y/Z и масштаб пути в 3D (центр — центр масок) |
-| **Repeater** | Copies (1 — выключен); Step X / Y / Z — сдвиг каждой следующей копии; Random Position X / Y / Z, Random Rotation (в плоскости рисунка), Random Tilt (наклон в 3D), Random Width (± %), Random Offset (± % вдоль пути); Repeater Seed |
+| **Repeater** | Copies (1 — выключен); Rotate Around — Drawing Center / Path Start; Fan Angle — веер лучей в плоскости (360° — звезда); Cone Angle — лучи конусом в 3D; Step X / Y / Z — сдвиг каждой следующей копии; Random Position X / Y / Z, Random Rotation, Random Tilt, Random Width (± %), Random Length (короче до %), Random Offset (± % вдоль пути); Repeater Seed |
 | **Control Nulls** | Path Source — Mask или Control Nulls; **Create Nulls from Mask**; Closed Loop; Points → Point 1…32 (в Multi-Mask скрыта) |
 | **Material** | Front / Back Color; Texture Layer, Repeat, Offset; Fit Layer + **Configure** (слой → текстура, Width — без растяжения); Ambient, Diffuse, Specular, Glossiness, Satin, Sheen, Translucency, Metal; подгруппы **Normal Map** (Layer, Strength, Mapping Tiles / Like Texture, Tile Size, Green Channel) и **Roughness Map** (Layer, Amount, Invert) |
 | **Gradient** | Off / Along Path / Random per Path (каждая маска и каждая копия Repeater — свой цвет); Gradient Source — Colors (Color 1…4) или Layer (Gradient Layer — градиент из слоя, см. ниже); Gradient Repeat / Offset; Gradient Seed |
@@ -172,6 +172,19 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 - **Random Width** — ширина копии ± %, **Random Offset** — сдвиг вдоль пути ± % (копии не идут строем;
   с Cycle сдвинутая копия переходит через конец пути).
 - **Repeater Seed** — другой набор случайностей. Всё считается от seed, поэтому кадры стабильны.
+
+**Лучи из одной точки (0.1.14).** **Rotate Around → Path Start** — копии поворачиваются вокруг начала
+пути (у Multi-Mask — каждая маска вокруг своего начала), так все копии выходят из одной точки:
+
+- **Fan Angle** — веер: копии (включая оригинал) равномерно расходятся в плоскости рисунка на этот
+  угол, симметрично вокруг нарисованного направления; 360° — звезда во все стороны.
+- **Cone Angle** — лучи в 3D: копии отклонены от начального направления на этот угол и равномерно
+  разведены вокруг него (фонтан / взрыв).
+- **Random Rotation / Tilt** добавляют лучам неровности, **Random Length** — разную длину (End
+  укорачивается до заданного %). Для лучей оставьте Step и Random Position нулевыми — они сдвигают
+  начало. Конец-«хвост» хорошо делать с **Width Start** < 100 % и **Ends → Round Ends: End**.
+
+С **Drawing Center** веер / конус поворачивает копии вокруг центра рисунка (цветок вокруг центра).
 
 Каждая копия получает свои порывы ветра, а с **Gradient → Random per Path** — свой цвет из градиента
 (теперь и в одиночном эффекте). Копии — честная геометрия: сколько копий, столько и работы для рендера.

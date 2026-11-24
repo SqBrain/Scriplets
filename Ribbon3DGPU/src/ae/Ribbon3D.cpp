@@ -245,6 +245,12 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     RB_CLR();
     PF_ADD_SLIDER("Copies", 1, 1000, 1, 50, 1, RB_ID(RB_REP_COPIES));
     RB_CLR();
+    PF_ADD_POPUP("Rotate Around", 2, 1, "Drawing Center|Path Start", RB_ID(RB_REP_PIVOT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Fan Angle", 0, 360, 0, 360, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_FAN));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Cone Angle", 0, 180, 0, 90, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_CONE));
+    RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Step X", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_STEP_X));
     RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Step Y", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_STEP_Y));
@@ -262,6 +268,8 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     PF_ADD_FLOAT_SLIDERX("Random Tilt", 0, 180, 0, 90, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_TILT));
     RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Random Width", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_REP_WIDTH));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Length", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_REP_LENGTH));
     RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Random Offset", 0, 1000, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_REP_OFFSET));
     RB_CLR();
@@ -1002,11 +1010,18 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rb::RibbonMesh mesh;
     std::vector<rb::Polyline> base;
     if (RibbonWorldPaths(in_data, compTime, pin, base)) {
-        // Repeater: copy 1 is the original; every further copy of the whole drawing is moved by
-        // Step * index plus random position, turned around the drawing's center (random rotation in
-        // its plane, random tilt in 3D), with random width and trim offset. All from the seed, so
-        // every frame renders the same copies.
+        // Repeater: copies of the whole drawing. Rays first: with Fan / Cone Angle every copy (the
+        // original too) is turned evenly around the turning point - the drawing's center or each
+        // path's start, so the copies fan out from one point like rays. Then copies 2.. get the
+        // random turn (rotation in the plane, tilt in 3D) around the same point, Step * index plus
+        // a random position, random width, length and trim offset. All from the seed, so every
+        // frame renders the same copies.
         const int copies = std::clamp(Param(in_data, RB_REP_COPIES).i(), 1, 1000);
+        const bool aroundStart = Param(in_data, RB_REP_PIVOT).popup() == 2;
+        const double fanDeg = Param(in_data, RB_REP_FAN).f(), coneDeg = Param(in_data, RB_REP_CONE).f();
+        const double lengthR = Param(in_data, RB_REP_LENGTH).f() / 100;
+        std::vector<rb::V3> org(base.size()), dirs(base.size()), ups(base.size());
+        for (size_t i = 0; i < base.size(); i++) rb::pathStartFrame(base[i], org[i], dirs[i], ups[i]);
         const rb::V3 step(Param(in_data, RB_REP_STEP_X).f(), Param(in_data, RB_REP_STEP_Y).f(), Param(in_data, RB_REP_STEP_Z).f());
         const rb::V3 posR(Param(in_data, RB_REP_POS_X).f(), Param(in_data, RB_REP_POS_Y).f(), Param(in_data, RB_REP_POS_Z).f());
         const double rotR = Param(in_data, RB_REP_ROT).f(), tiltR = Param(in_data, RB_REP_TILT).f();
@@ -1018,17 +1033,26 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
         for (int c = 0; c < copies; c++) {
             std::vector<rb::Polyline> worlds = base;
             rb::RibbonSettings rc = rs;
+            auto rnd = [&](int channel) { return 2 * rb::hashUnit((long long)c * 16 + channel, repSeed) - 1; };  // -1..1
+            for (size_t i = 0; i < worlds.size(); i++) {
+                const size_t f = aroundStart ? i : 0;  // the frame the rays turn in
+                const rb::V3 pivot = aroundStart ? org[i] : center;
+                if ((fanDeg > 0 || coneDeg > 0) && copies > 1)
+                    worlds[i] = rb::rotatePolyline(worlds[i], rb::rayRotation(c, copies, fanDeg, coneDeg, dirs[f], ups[f]), pivot);
+                if (c > 0) {
+                    rb::PathTransform xf;
+                    xf.rotZ = rotR * rnd(0);
+                    xf.rotX = tiltR * rnd(1);
+                    xf.rotY = tiltR * rnd(2);
+                    xf.offset = rb::V3(step.x * c + posR.x * rnd(3), step.y * c + posR.y * rnd(4), step.z * c + posR.z * rnd(5));
+                    xf.pivot = pivot;
+                    worlds[i] = rb::transformPolyline(worlds[i], xf);
+                }
+            }
             if (c > 0) {
-                auto rnd = [&](int channel) { return 2 * rb::hashUnit((long long)c * 16 + channel, repSeed) - 1; };  // -1..1
-                rb::PathTransform xf;
-                xf.rotZ = rotR * rnd(0);
-                xf.rotX = tiltR * rnd(1);
-                xf.rotY = tiltR * rnd(2);
-                xf.offset = rb::V3(step.x * c + posR.x * rnd(3), step.y * c + posR.y * rnd(4), step.z * c + posR.z * rnd(5));
-                xf.pivot = center;
-                for (rb::Polyline& w : worlds) w = rb::transformPolyline(w, xf);
                 rc.width = rs.width * std::max(0.0, 1 + widthR * rnd(6));
                 rc.offset = rs.offset + offsetR * rnd(7);
+                rc.end = rs.start + (rs.end - rs.start) * (1 - lengthR * 0.5 * (rnd(8) + 1));  // shorter by 0..Random Length
             }
             // Every path (and copy) gets its own wind gusts; with "Random per Path" its own color.
             std::vector<double> lengths;

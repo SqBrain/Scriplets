@@ -99,6 +99,9 @@ enum {
 
     RB_REP_TOPIC,         // "Repeater": copies of the ribbon(s), the first one is the original
     RB_REP_COPIES,
+    RB_REP_PIVOT,         // 1: Drawing Center, 2: Path Start
+    RB_REP_FAN,
+    RB_REP_CONE,
     RB_REP_STEP_X,
     RB_REP_STEP_Y,
     RB_REP_STEP_Z,
@@ -108,6 +111,7 @@ enum {
     RB_REP_ROT,
     RB_REP_TILT,
     RB_REP_WIDTH,
+    RB_REP_LENGTH,
     RB_REP_OFFSET,
     RB_REP_SEED,
     RB_REP_TOPIC_END,
@@ -370,6 +374,11 @@ enum {
     D_RB_REP_OFFSET,
     D_RB_REP_SEED,
     D_RB_REP_TOPIC_END,
+    // 0.1.14
+    D_RB_REP_PIVOT,
+    D_RB_REP_FAN,
+    D_RB_REP_CONE,
+    D_RB_REP_LENGTH,
     D_RB_DISK_END
 };
 

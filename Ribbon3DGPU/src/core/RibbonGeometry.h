@@ -80,6 +80,17 @@ struct PathTransform {
 };
 Polyline transformPolyline(const Polyline& in, const PathTransform& xf);
 
+// Rotation by deg around a unit axis (right-hand rule).
+M3 axisRotation(const V3& axis, double deg);
+// The path turned by R around pivot (points, up vector and roll controls).
+Polyline rotatePolyline(const Polyline& in, const M3& R, const V3& pivot);
+// Where a path starts: its first point, the direction it leaves in and the normal of its plane.
+void pathStartFrame(const Polyline& p, V3& origin, V3& dir, V3& up);
+// Repeater rays: the turn of copy k of n around a common point. Fan: evenly over fanDeg in the
+// plane (around up), symmetric about the drawn direction; 360 = a full star. Cone: tilted by
+// coneDeg off the start direction and spun evenly around it (3D rays). Identity when both are 0.
+M3 rayRotation(int k, int n, double fanDeg, double coneDeg, const V3& dir, const V3& up);
+
 // "Front" orientation: the path as drawn in the comp is a view from above. It is laid onto the
 // horizontal plane through `pivot`: drawing X stays X, drawing Y becomes depth (the top of the
 // drawing is far, +Z), drawing Z becomes height. The ribbon lies flat with its front facing down
