@@ -40,7 +40,7 @@
   шаблоном `AE_General.r`; раскладка ключевых структур SDK (размеры, выравнивания, смещения
   полей) совпадает с правилами MSVC. Плагин запущен и работает в After Effects на Windows (проверено
   пользователем); видеокарта и путь рендера (CUDA / OpenCL / CPU) на его машине отдельно не замерялись.
-- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.12, видна в About эффекта); 1.0 — первый выпуск.
+- **Версии**: до первого выпуска — 0.1.xx (сейчас 0.1.13, видна в About эффекта); 1.0 — первый выпуск.
 
 ## Сборка
 
@@ -145,9 +145,10 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 | **Thickness & Bevel** | Для Flat: Thickness, Bevel Size, Bevel Style (Round / Chamfer), Bevel Smoothness, Edge Color, End Caps |
 | **Ends** | End Rounding (0 — прямой срез, 100 % — полукруг / полусфера), Round Ends — оба / начало / конец |
 | **Path Transform** | Поворот X/Y/Z, смещение X/Y/Z и масштаб пути в 3D (центр — центр масок) |
+| **Repeater** | Copies (1 — выключен); Step X / Y / Z — сдвиг каждой следующей копии; Random Position X / Y / Z, Random Rotation (в плоскости рисунка), Random Tilt (наклон в 3D), Random Width (± %), Random Offset (± % вдоль пути); Repeater Seed |
 | **Control Nulls** | Path Source — Mask или Control Nulls; **Create Nulls from Mask**; Closed Loop; Points → Point 1…32 (в Multi-Mask скрыта) |
 | **Material** | Front / Back Color; Texture Layer, Repeat, Offset; Fit Layer + **Configure** (слой → текстура, Width — без растяжения); Ambient, Diffuse, Specular, Glossiness, Satin, Sheen, Translucency, Metal; подгруппы **Normal Map** (Layer, Strength, Mapping Tiles / Like Texture, Tile Size, Green Channel) и **Roughness Map** (Layer, Amount, Invert) |
-| **Gradient** | Off / Along Path / Random per Path (Multi-Mask); Gradient Source — Colors (Color 1…4) или Layer (Gradient Layer — градиент из слоя, см. ниже); Gradient Repeat / Offset; Gradient Seed |
+| **Gradient** | Off / Along Path / Random per Path (каждая маска и каждая копия Repeater — свой цвет); Gradient Source — Colors (Color 1…4) или Layer (Gradient Layer — градиент из слоя, см. ниже); Gradient Repeat / Offset; Gradient Seed |
 | **Glass** | Glass; IOR; Transmission; Tint; Refraction (px); Frost (px) — матовость (размытие фона сквозь стекло, по Roughness Map — узором); Frost Samples |
 | **Environment** | HDRI Layer, Env Intensity, Env Rotation, Reflections |
 | **Lighting** | Use Comp Lights; встроенный свет (Azimuth, Elevation, Intensity, Color), если в композиции нет источников и нет HDRI |
@@ -156,6 +157,24 @@ pip install pefile && python3 Ribbon3DGPU/tools/check_aex.py build-win/Ribbon3DG
 
 Порядок параметров менялся в 0.1.12, но их ID в проекте (по ним AE сохраняет значения) остались
 прежними — проекты, сохранённые с более ранними сборками, должны открываться со своими значениями.
+
+## Repeater (0.1.13)
+
+Группа **Repeater** (в обоих эффектах, после Path Transform) размножает ленту — весь рисунок (все
+маски / нули) целиком:
+
+- **Copies** — сколько лент (1 — выключено). Первая копия — оригинал, к остальным применяются шаг и
+  случайности.
+- **Step X / Y / Z** — сдвиг каждой следующей копии (как Position у Repeater в шейпах).
+- **Random Position X / Y / Z** — случайный сдвиг каждой копии до ± значения (px).
+- **Random Rotation** — случайный поворот копии в плоскости рисунка до ± значения (°), вокруг центра
+  масок. **Random Tilt** — случайный наклон в 3D (вокруг X и Y).
+- **Random Width** — ширина копии ± %, **Random Offset** — сдвиг вдоль пути ± % (копии не идут строем;
+  с Cycle сдвинутая копия переходит через конец пути).
+- **Repeater Seed** — другой набор случайностей. Всё считается от seed, поэтому кадры стабильны.
+
+Каждая копия получает свои порывы ветра, а с **Gradient → Random per Path** — свой цвет из градиента
+(теперь и в одиночном эффекте). Копии — честная геометрия: сколько копий, столько и работы для рендера.
 
 ## Градиент из слоя (0.1.12)
 

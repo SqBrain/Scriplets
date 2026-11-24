@@ -979,6 +979,100 @@ static int TestSections() {
     return fails;
 }
 
+static void MeanColor(const std::vector<float>& img, int x0, int x1, int y0, int y1, double rgb[3]);
+
+// Repeater: copies with steps and random position / rotation / width / offset; the first copy is
+// the original; deterministic per seed; per-copy gradient colors.
+static int TestRepeater() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    auto area = [](const std::vector<float>& img, int y0, int y1) {
+        double s = 0;
+        for (int y = y0; y < y1; y++)
+            for (int x = 0; x < W; x++) s += img[(size_t(y) * W + x) * 4 + 3];
+        return s;
+    };
+    auto maxDiff = [](const std::vector<float>& a, const std::vector<float>& b) {
+        double d = b.size() == a.size() ? 0 : 1;
+        for (size_t i = 0; i < a.size() && i < b.size(); i++) d = std::max(d, double(std::fabs(a[i] - b[i])));
+        return d;
+    };
+    std::vector<float> one = RunCPU(32);
+    gDefs[RB_REP_POS_X - 1].u.fs_d.value = 80;  // random settings do nothing with a single copy
+    gDefs[RB_REP_WIDTH - 1].u.fs_d.value = 50;
+    std::vector<float> still = RunCPU(32);
+    gDefs[RB_REP_POS_X - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_WIDTH - 1].u.fs_d.value = 0;
+    gDefs[RB_REP_COPIES - 1].u.sd.value = 4;
+    gDefs[RB_REP_STEP_Y - 1].u.fs_d.value = 70;
+    std::vector<float> four = RunCPU(32), fourG = RunGPU();
+    std::printf("repeater: 1 copy %.0f px (unchanged %s), 4 copies (step Y 70) %.0f px, CPU vs GPU %.2e\n", area(one, 0, H),
+                maxDiff(one, still) == 0 ? "yes" : "no", area(four, 0, H), maxDiff(four, fourG));
+    if (maxDiff(one, still) != 0 || area(four, 0, H) < 1.8 * area(one, 0, H) || maxDiff(four, fourG) > 2e-3) { std::printf("FAIL: repeater copies\n"); fails++; }
+    // Random position / rotation / width / offset: same seed = same picture, another seed differs.
+    gDefs[RB_REP_POS_X - 1].u.fs_d.value = 60;
+    gDefs[RB_REP_POS_Z - 1].u.fs_d.value = 200;
+    gDefs[RB_REP_ROT - 1].u.fs_d.value = 20;
+    gDefs[RB_REP_TILT - 1].u.fs_d.value = 15;
+    gDefs[RB_REP_WIDTH - 1].u.fs_d.value = 60;
+    gDefs[RB_REP_OFFSET - 1].u.fs_d.value = 20;
+    gDefs[RB_END - 1].u.fs_d.value = 70;
+    std::vector<float> r1 = RunCPU(32), r1b = RunCPU(32), r1g = RunGPU();
+    gDefs[RB_REP_SEED - 1].u.sd.value = 7;
+    std::vector<float> r2 = RunCPU(32);
+    gDefs[RB_REP_SEED - 1].u.sd.value = 0;
+    // Where copies cross at the same depth, CPU and GPU rounding may pick different ribbons for a
+    // sample: count such pixels instead of taking the maximum.
+    size_t off = 0;
+    for (size_t i = 0; i + 3 < r1.size() && i + 3 < r1g.size(); i += 4) {
+        double d = 0;
+        for (int k = 0; k < 4; k++) d = std::max(d, double(std::fabs(r1[i + k] - r1g[i + k])));
+        if (d > 2e-3) {
+            if (off < 5) std::printf("  pixel %zu,%zu differs by %.3f\n", (i / 4) % W, (i / 4) / W, d);
+            off++;
+        }
+    }
+    std::printf("repeater random: same seed max diff %.1e, other seed %.1f %% of pixels differ, vs no randomness %.1f %%, CPU vs GPU: %zu px differ\n",
+                maxDiff(r1, r1b), 100 * DiffFraction(r1, r2), 100 * DiffFraction(four, r1), off);
+    if (maxDiff(r1, r1b) != 0 || DiffFraction(r1, r2) < 0.01 || DiffFraction(four, r1) < 0.01 || r1g.empty() || off > 40) {
+        std::printf("FAIL: repeater randomness\n"); fails++;
+    }
+    // Per-copy colors: two copies far apart, flat shading, Random per Path.
+    for (int i : {RB_REP_POS_X, RB_REP_POS_Z, RB_REP_ROT, RB_REP_TILT, RB_REP_WIDTH, RB_REP_OFFSET}) gDefs[size_t(i - 1)].u.fs_d.value = 0;
+    gDefs[RB_END - 1].u.fs_d.value = 100;
+    gDefs[RB_REP_COPIES - 1].u.sd.value = 2;
+    gDefs[RB_REP_STEP_Y - 1].u.fs_d.value = 250;
+    gDefs[RB_AMBIENT - 1].u.fs_d.value = 1;
+    gDefs[RB_DIFFUSE - 1].u.fs_d.value = gDefs[RB_SPECULAR - 1].u.fs_d.value = 0;
+    gDefs[RB_SHEEN - 1].u.fs_d.value = gDefs[RB_TRANSLUCENCY - 1].u.fs_d.value = 0;
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_RANDOM;
+    gDefs[RB_GRAD_COUNT - 1].u.pd.value = 1;
+    gDefs[RB_GRAD_COLOR_1 - 1].u.cd.value = {255, 255, 0, 0};
+    gDefs[RB_GRAD_COLOR_2 - 1].u.cd.value = {255, 0, 0, 255};
+    double best = 0;
+    for (int seed = 0; seed < 4; seed++) {
+        gDefs[RB_GRAD_SEED - 1].u.sd.value = seed;
+        std::vector<float> c = RunCPU(32);
+        double a[3], b[3];
+        MeanColor(c, 0, W, 120, 300, a);  // the original only
+        MeanColor(c, 0, W, 430, H, b);    // the copy only
+        best = std::max(best, std::fabs(a[0] - b[0]));
+    }
+    std::printf("repeater + Random per Path: copies differ in red by up to %.2f\n", best);
+    if (best < 0.15) { std::printf("FAIL: per-copy colors\n"); fails++; }
+    ResetComp();
+    gDefs[RB_REP_COPIES - 1].u.sd.value = 1;
+    gDefs[RB_REP_STEP_Y - 1].u.fs_d.value = 0;
+    gDefs[RB_GRAD_MODE - 1].u.pd.value = RB_GRAD_OFF;
+    gDefs[RB_GRAD_SEED - 1].u.sd.value = 0;
+    gDefs[RB_AMBIENT - 1].u.fs_d.value = 0.15; gDefs[RB_DIFFUSE - 1].u.fs_d.value = 0.9; gDefs[RB_SPECULAR - 1].u.fs_d.value = 0.6;
+    gDefs[RB_SHEEN - 1].u.fs_d.value = 0.25; gDefs[RB_TRANSLUCENCY - 1].u.fs_d.value = 0.15;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 // Mean color of the ribbon pixels (alpha > 0.5) in columns x0..x1 (Ribbon Only renders).
 static void MeanColor(const std::vector<float>& img, int x0, int x1, int y0, int y1, double rgb[3]) {
     double n = 0;
@@ -1042,8 +1136,8 @@ static int TestGradient() {
     MeanColor(c, 780, 880, 0, H, b);  // mask end (x 870)
     std::printf("gradient along path: start rgb %.2f %.2f %.2f, end rgb %.2f %.2f %.2f, CPU vs GPU %.2e\n", a[0], a[1], a[2], b[0], b[1], b[2], maxG);
     if (!(a[0] > a[2] * 2 && b[2] > b[0] * 2) || g.empty() || maxG > 2e-3) { std::printf("FAIL: gradient along path\n"); fails++; }
-    // Single-mask effect: no "Random per Path", its seed is hidden.
-    if (!(gDefs[RB_GRAD_SEED - 1].ui_flags & PF_PUI_INVISIBLE)) { std::printf("FAIL: seed visible in the single-mask effect\n"); fails++; }
+    // Random per Path works for Repeater copies too: the seed is visible in the single-mask effect.
+    if (gDefs[RB_GRAD_SEED - 1].ui_flags & PF_PUI_INVISIBLE) { std::printf("FAIL: gradient seed hidden\n"); fails++; }
     // From a layer (AE's own gradient editor): its colors, and its opacity fades the ribbon's end.
     MakeGradientLayer();
     gGradOn = true;
@@ -1266,6 +1360,7 @@ int main(int argc, char** argv) {
     fails += TestDiskIds();
     fails += TestGradient();
     fails += TestSections();
+    fails += TestRepeater();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

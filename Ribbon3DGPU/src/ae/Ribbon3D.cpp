@@ -241,6 +241,35 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     PF_END_TOPIC(RB_ID(RB_XF_TOPIC_END));
 
     RB_CLR();
+    PF_ADD_TOPIC("Repeater", RB_ID(RB_REP_TOPIC));
+    RB_CLR();
+    PF_ADD_SLIDER("Copies", 1, 1000, 1, 50, 1, RB_ID(RB_REP_COPIES));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Step X", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_STEP_X));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Step Y", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_STEP_Y));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Step Z", -100000, 100000, -500, 500, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_STEP_Z));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Position X", 0, 100000, 0, 500, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_POS_X));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Position Y", 0, 100000, 0, 500, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_POS_Y));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Position Z", 0, 100000, 0, 1000, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_POS_Z));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Rotation", 0, 360, 0, 180, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_ROT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Tilt", 0, 180, 0, 90, 0, PF_Precision_TENTHS, 0, 0, RB_ID(RB_REP_TILT));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Width", 0, 100, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_REP_WIDTH));
+    RB_CLR();
+    PF_ADD_FLOAT_SLIDERX("Random Offset", 0, 1000, 0, 100, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_REP_OFFSET));
+    RB_CLR();
+    PF_ADD_SLIDER("Repeater Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_REP_SEED));
+    RB_CLR();
+    PF_END_TOPIC(RB_ID(RB_REP_TOPIC_END));
+
+    RB_CLR();
     RB_HIDE_IF_MULTI();
     PF_ADD_TOPIC("Control Nulls", RB_ID(RB_NULLS_TOPIC));
     RB_CLR();
@@ -329,11 +358,7 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     RB_CLR();
     PF_ADD_TOPIC("Gradient", RB_ID(RB_GRAD_TOPIC));
     RB_CLR();
-#ifdef RB_MULTI_MASK
     PF_ADD_POPUP("Gradient", 3, RB_GRAD_OFF, "Off|Along Path|Random per Path", RB_ID(RB_GRAD_MODE));
-#else
-    PF_ADD_POPUP("Gradient", 2, RB_GRAD_OFF, "Off|Along Path", RB_ID(RB_GRAD_MODE));
-#endif
     RB_CLR();
     PF_ADD_POPUP("Gradient Source", 2, RB_GRAD_FROM_COLORS, "Colors|Layer", RB_ID(RB_GRAD_SOURCE));
     RB_CLR();
@@ -353,7 +378,6 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     RB_CLR();
     PF_ADD_FLOAT_SLIDERX("Gradient Offset", -100000, 100000, -200, 200, 0, PF_Precision_TENTHS, PF_ValueDisplayFlag_PERCENT, 0, RB_ID(RB_GRAD_OFFSET));
     RB_CLR();
-    def.ui_flags = RB_SINGLE_PUI;  // random colors per path: multi-mask effect only
     PF_ADD_SLIDER("Gradient Seed", 0, 100000, 0, 1000, 0, RB_ID(RB_GRAD_SEED));
     RB_CLR();
     PF_END_TOPIC(RB_ID(RB_GRAD_TOPIC_END));
@@ -776,6 +800,17 @@ std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam, PF_PathI
     return ids;
 }
 
+// Center of the bounding box of all paths, in 3D (the Repeater turns copies around it).
+rb::V3 PathCenter3(const std::vector<rb::Polyline>& paths) {
+    rb::V3 lo(1e300, 1e300, 1e300), hi(-1e300, -1e300, -1e300);
+    for (const rb::Polyline& p : paths)
+        for (const rb::V3& q : p.pts) {
+            lo = rb::V3(std::min(lo.x, q.x), std::min(lo.y, q.y), std::min(lo.z, q.z));
+            hi = rb::V3(std::max(hi.x, q.x), std::max(hi.y, q.y), std::max(hi.z, q.z));
+        }
+    return (lo + hi) * 0.5;
+}
+
 rb::Polyline MergedPoints(const std::vector<rb::Polyline>& paths) {
     rb::Polyline all;
     for (const rb::Polyline& p : paths) all.pts.insert(all.pts.end(), p.pts.begin(), p.pts.end());
@@ -923,7 +958,7 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     mat.roughInvert = Param(in_data, RB_ROUGH_INVERT).b();
     {
         const int mode = Param(in_data, RB_GRAD_MODE).popup();
-        mat.gradMode = mode == RB_GRAD_ALONG ? 1 : (mode == RB_GRAD_RANDOM && kAllMasks ? 2 : 0);
+        mat.gradMode = mode == RB_GRAD_ALONG ? 1 : (mode == RB_GRAD_RANDOM ? 2 : 0);
         const int count = std::clamp(Param(in_data, RB_GRAD_COUNT).popup() + 1, 2, 4);
         std::vector<rb::V3> stops;
         for (int i = 0; i < count; i++) stops.push_back(Param(in_data, RB_GRAD_COLOR_1 + i).color());
@@ -965,45 +1000,69 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     }
 
     rb::RibbonMesh mesh;
-    std::vector<rb::Polyline> worlds;
-    if (RibbonWorldPaths(in_data, compTime, pin, worlds)) {
-        // Every path gets its own wind gusts; with "Random per Path" its own color from the gradient.
-        std::vector<double> lengths;
-        for (size_t i = 0; i < worlds.size(); i++) {
-            rb::WindSettings w = rs.wind;
-            w.seed += int(i) * 7919;
-            worlds[i] = rb::applyWind(worlds[i], w, rs.time);
-            lengths.push_back(rb::FramedCurve(worlds[i]).length());
-        }
-        auto add = [&](size_t i, const rb::RibbonSettings& ri) {
-            rb::RibbonMesh m = rb::buildRibbon(worlds[i], ri);
-            if (mat.gradMode == 2) {
-                const float g = float(rb::hashUnit((long long)i, gradSeed));
-                for (RK_Vertex& v : m.verts) v.grad = g;
-            }
-            rb::appendMesh(mesh, m);
-        };
+    std::vector<rb::Polyline> base;
+    if (RibbonWorldPaths(in_data, compTime, pin, base)) {
+        // Repeater: copy 1 is the original; every further copy of the whole drawing is moved by
+        // Step * index plus random position, turned around the drawing's center (random rotation in
+        // its plane, random tilt in 3D), with random width and trim offset. All from the seed, so
+        // every frame renders the same copies.
+        const int copies = std::clamp(Param(in_data, RB_REP_COPIES).i(), 1, 1000);
+        const rb::V3 step(Param(in_data, RB_REP_STEP_X).f(), Param(in_data, RB_REP_STEP_Y).f(), Param(in_data, RB_REP_STEP_Z).f());
+        const rb::V3 posR(Param(in_data, RB_REP_POS_X).f(), Param(in_data, RB_REP_POS_Y).f(), Param(in_data, RB_REP_POS_Z).f());
+        const double rotR = Param(in_data, RB_REP_ROT).f(), tiltR = Param(in_data, RB_REP_TILT).f();
+        const double widthR = Param(in_data, RB_REP_WIDTH).f() / 100, offsetR = Param(in_data, RB_REP_OFFSET).f() / 100;
+        const int repSeed = Param(in_data, RB_REP_SEED).i();
+        const rb::V3 center = PathCenter3(base);
         const bool individually = kAllMasks && Param(in_data, RB_TRIM_MASKS).popup() == 2;
-        if (!individually) {
-            // Simultaneously: one ribbon per path, the same Start / End / Offset on every path.
-            for (size_t i = 0; i < worlds.size(); i++) {
-                rb::RibbonSettings ri = rs;
-                ri.wind.seed += int(i) * 7919;
-                add(i, ri);
+
+        for (int c = 0; c < copies; c++) {
+            std::vector<rb::Polyline> worlds = base;
+            rb::RibbonSettings rc = rs;
+            if (c > 0) {
+                auto rnd = [&](int channel) { return 2 * rb::hashUnit((long long)c * 16 + channel, repSeed) - 1; };  // -1..1
+                rb::PathTransform xf;
+                xf.rotZ = rotR * rnd(0);
+                xf.rotX = tiltR * rnd(1);
+                xf.rotY = tiltR * rnd(2);
+                xf.offset = rb::V3(step.x * c + posR.x * rnd(3), step.y * c + posR.y * rnd(4), step.z * c + posR.z * rnd(5));
+                xf.pivot = center;
+                for (rb::Polyline& w : worlds) w = rb::transformPolyline(w, xf);
+                rc.width = rs.width * std::max(0.0, 1 + widthR * rnd(6));
+                rc.offset = rs.offset + offsetR * rnd(7);
             }
-        } else {
-            // Individually: the paths in mask order are one long path; the ribbon's parts on each
-            // path keep one taper, texture and gradient over the whole length.
-            double total = 0;
-            for (double l : lengths) total += l;
-            const double a = rs.start + rs.offset, b = rs.end + rs.offset;
-            for (const rb::PathPart& pp : rb::individualParts(lengths, a, b, rs.cycle)) {
-                rb::RibbonSettings ri = rs;
-                ri.wind.seed += pp.path * 7919;
-                ri.start = pp.start; ri.end = pp.end; ri.offset = 0; ri.cycle = false;
-                ri.uMapLo = pp.uLo; ri.uMapHi = pp.uHi;
-                ri.lengthOverride = total * std::fabs(b - a);
-                add(size_t(pp.path), ri);
+            // Every path (and copy) gets its own wind gusts; with "Random per Path" its own color.
+            std::vector<double> lengths;
+            for (size_t i = 0; i < worlds.size(); i++) {
+                rb::WindSettings w = rc.wind;
+                w.seed += int(i) * 7919 + c * 104729;
+                worlds[i] = rb::applyWind(worlds[i], w, rc.time);
+                lengths.push_back(rb::FramedCurve(worlds[i]).length());
+            }
+            auto add = [&](size_t i, rb::RibbonSettings ri) {
+                ri.wind.seed += int(i) * 7919 + c * 104729;
+                rb::RibbonMesh m = rb::buildRibbon(worlds[i], ri);
+                if (mat.gradMode == 2) {
+                    const float g = float(rb::hashUnit((long long)i + (long long)c * 100003, gradSeed));
+                    for (RK_Vertex& v : m.verts) v.grad = g;
+                }
+                rb::appendMesh(mesh, m);
+            };
+            if (!individually) {
+                // Simultaneously: one ribbon per path, the same Start / End / Offset on every path.
+                for (size_t i = 0; i < worlds.size(); i++) add(i, rc);
+            } else {
+                // Individually: the paths in mask order are one long path; the ribbon's parts on each
+                // path keep one taper, texture and gradient over the whole length.
+                double total = 0;
+                for (double l : lengths) total += l;
+                const double a = rc.start + rc.offset, b = rc.end + rc.offset;
+                for (const rb::PathPart& pp : rb::individualParts(lengths, a, b, rc.cycle)) {
+                    rb::RibbonSettings ri = rc;
+                    ri.start = pp.start; ri.end = pp.end; ri.offset = 0; ri.cycle = false;
+                    ri.uMapLo = pp.uLo; ri.uMapHi = pp.uHi;
+                    ri.lengthOverride = total * std::fabs(b - a);
+                    add(size_t(pp.path), ri);
+                }
             }
         }
     }

@@ -39,7 +39,7 @@
 #define RB_ORIENT_FRONT 2
 #define RB_GRAD_OFF 1
 #define RB_GRAD_ALONG 2
-#define RB_GRAD_RANDOM 3     // multi-mask effect only
+#define RB_GRAD_RANDOM 3     // every path / copy its own color
 #define RB_GRAD_FROM_COLORS 1
 #define RB_GRAD_FROM_LAYER 2
 
@@ -96,6 +96,21 @@ enum {
     RB_XF_OFF_Z,
     RB_XF_SCALE,
     RB_XF_TOPIC_END,
+
+    RB_REP_TOPIC,         // "Repeater": copies of the ribbon(s), the first one is the original
+    RB_REP_COPIES,
+    RB_REP_STEP_X,
+    RB_REP_STEP_Y,
+    RB_REP_STEP_Z,
+    RB_REP_POS_X,
+    RB_REP_POS_Y,
+    RB_REP_POS_Z,
+    RB_REP_ROT,
+    RB_REP_TILT,
+    RB_REP_WIDTH,
+    RB_REP_OFFSET,
+    RB_REP_SEED,
+    RB_REP_TOPIC_END,
 
     RB_NULLS_TOPIC,       // hidden in the multi-mask effect
     RB_PATH_SOURCE,       // 1: mask, 2: control nulls
@@ -340,6 +355,21 @@ enum {
     // 0.1.12
     D_RB_GRAD_SOURCE,
     D_RB_GRAD_LAYER,
+    // 0.1.13
+    D_RB_REP_TOPIC,
+    D_RB_REP_COPIES,
+    D_RB_REP_STEP_X,
+    D_RB_REP_STEP_Y,
+    D_RB_REP_STEP_Z,
+    D_RB_REP_POS_X,
+    D_RB_REP_POS_Y,
+    D_RB_REP_POS_Z,
+    D_RB_REP_ROT,
+    D_RB_REP_TILT,
+    D_RB_REP_WIDTH,
+    D_RB_REP_OFFSET,
+    D_RB_REP_SEED,
+    D_RB_REP_TOPIC_END,
     D_RB_DISK_END
 };
 
