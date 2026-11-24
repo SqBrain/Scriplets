@@ -39,6 +39,18 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf) {
     return out;
 }
 
+Polyline topViewToFloor(const Polyline& in, const V3& pivot) {
+    // Rotation by -90 degrees about X: (x, y, z) -> (x, z, -y).
+    auto rot = [](const V3& v) { return V3(v.x, v.z, -v.y); };
+    Polyline out = in;
+    for (auto& p : out.pts) p = pivot + rot(p - pivot);
+    // The front side is -up: flip up so that the front faces down instead of up. Flipping up also
+    // flips the width direction, so the texture is not mirrored on the front side.
+    out.up = rot(in.up) * -1.0;
+    for (auto& rc : out.rolls) rc.up = rot(rc.up) * -1.0;
+    return out;
+}
+
 // ------------------------------------------------------------------ FramedCurve
 
 FramedCurve::FramedCurve(const Polyline& p) : X_(p.pts), closed_(p.closed) {

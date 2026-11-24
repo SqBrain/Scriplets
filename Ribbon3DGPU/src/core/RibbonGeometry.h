@@ -80,6 +80,12 @@ struct PathTransform {
 };
 Polyline transformPolyline(const Polyline& in, const PathTransform& xf);
 
+// "Front" orientation: the path as drawn in the comp is a view from above. It is laid onto the
+// horizontal plane through `pivot`: drawing X stays X, drawing Y becomes depth (the top of the
+// drawing is far, +Z), drawing Z becomes height. The ribbon lies flat with its front facing down
+// (+Y, AE's Y axis points down). A rigid rotation, so lengths and the control nulls' rolls carry over.
+Polyline topViewToFloor(const Polyline& in, const V3& pivot);
+
 struct RibbonSettings {
     double start = 0, end = 1, offset = 0;          // fractions of the path length
     double width = 60, widthStart = 1, widthEnd = 1; // px, multipliers at the ends

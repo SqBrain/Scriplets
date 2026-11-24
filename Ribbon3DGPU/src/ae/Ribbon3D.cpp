@@ -257,6 +257,9 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     PF_ADD_LAYER("Fit Layer", PF_LayerDefault_NONE, RB_ID(RB_FIT_LAYER));
     AEFX_CLR_STRUCT(def);
     PF_ADD_BUTTON("Fit to Layer", "Configure", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_FIT_CONFIGURE));
+    // 0.1.05: Front = the path is a view from above, the ribbon lies flat on that plane facing down.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Orientation", 2, RB_ORIENT_TWIST, "Twist|Front", RB_ID(RB_ORIENTATION));
 
     out_data->num_params = RB_NUM_PARAMS;
     return err;
@@ -450,22 +453,29 @@ struct PathInputs {
     int source = RB_SOURCE_MASK;
     bool nullsClosed = false;
     PF_PathID mask = PF_PathID_NONE;
+    bool front = false;  // Orientation = Front: the path is a view from above
     rb::PathTransform xf;
 };
 
-// The ribbon's path in world (comp) space at compTime: the mask or the control nulls, then the
-// Path Transform group around the path's bounding box center.
-bool RibbonWorldPath(PF_InData* in_data, const A_Time& compTime, PathInputs in, rb::Polyline& out) {
-    rb::Polyline path;
-    const bool ok = in.source == RB_SOURCE_NULLS ? RibbonReadControlNulls(in_data, compTime, in.nullsClosed, path)
-                                                 : ReadMaskPolyline(in_data, in.mask, path);
-    if (!ok) return false;
+// Center of the path's bounding box in the drawing plane (z = 0): the pivot for Front and Path Transform.
+rb::V3 PathPivot(const rb::Polyline& path) {
     double minx = 1e300, miny = 1e300, maxx = -1e300, maxy = -1e300;
     for (const rb::V3& q : path.pts) {
         minx = std::min(minx, q.x); maxx = std::max(maxx, q.x);
         miny = std::min(miny, q.y); maxy = std::max(maxy, q.y);
     }
-    in.xf.pivot = rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
+    return rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
+}
+
+// The ribbon's path in world (comp) space at compTime: the mask or the control nulls, laid onto the
+// floor for Orientation = Front, then the Path Transform group around the path's bounding box center.
+bool RibbonWorldPath(PF_InData* in_data, const A_Time& compTime, PathInputs in, rb::Polyline& out) {
+    rb::Polyline path;
+    const bool ok = in.source == RB_SOURCE_NULLS ? RibbonReadControlNulls(in_data, compTime, in.nullsClosed, path)
+                                                 : ReadMaskPolyline(in_data, in.mask, path);
+    if (!ok) return false;
+    if (in.front) path = rb::topViewToFloor(path, PathPivot(path));
+    in.xf.pivot = PathPivot(path);
     out = rb::transformPolyline(path, in.xf);
     return true;
 }
@@ -485,6 +495,7 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     pin.source = Param(in_data, RB_PATH_SOURCE).popup();
     pin.nullsClosed = Param(in_data, RB_NULLS_CLOSED).b();
     pin.mask = Param(in_data, RB_PATH).path();
+    pin.front = Param(in_data, RB_ORIENTATION).popup() == RB_ORIENT_FRONT;
     rb::PathTransform& xf = pin.xf;
     rs.segments = std::max(2, Param(in_data, RB_SEGMENTS).i());
     rs.start = Param(in_data, RB_START).f() / 100;
@@ -508,6 +519,7 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     if (in_data->quality == PF_Quality_LO) rs.bevelSegments = std::min(rs.bevelSegments, 2);  // draft preview
     rs.caps = Param(in_data, RB_END_CAPS).b();
     rs.cycle = Param(in_data, RB_CYCLE).b();
+    if (pin.front) rs.twistTurns = rs.twistAngleDeg = rs.twistSpeedDeg = 0;  // Front: flat, no twist
 
     xf.rotX = Param(in_data, RB_XF_ROT_X).angle();
     xf.rotY = Param(in_data, RB_XF_ROT_Y).angle();
@@ -597,6 +609,7 @@ PF_Err ConfigureFromLayer(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     pin.source = int(params[RB_PATH_SOURCE]->u.pd.value);
     pin.nullsClosed = params[RB_NULLS_CLOSED]->u.bd.value != 0;
     pin.mask = params[RB_PATH]->u.path_d.path_id;
+    pin.front = params[RB_ORIENTATION]->u.pd.value == RB_ORIENT_FRONT;
     pin.xf.rotX = params[RB_XF_ROT_X]->u.ad.value / 65536.0;
     pin.xf.rotY = params[RB_XF_ROT_Y]->u.ad.value / 65536.0;
     pin.xf.rotZ = params[RB_XF_ROT_Z]->u.ad.value / 65536.0;

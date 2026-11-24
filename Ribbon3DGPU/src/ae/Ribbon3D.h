@@ -26,6 +26,8 @@
 #define RB_MAX_NULLS 32
 #define RB_SOURCE_MASK 1
 #define RB_SOURCE_NULLS 2
+#define RB_ORIENT_TWIST 1
+#define RB_ORIENT_FRONT 2
 
 // Parameter indices. Never reorder: AE stores projects by these and by the disk IDs below.
 enum {
@@ -112,6 +114,9 @@ enum {
     RB_CYCLE,             // checkbox: the ribbon wraps around the ends of the path
     RB_FIT_LAYER,         // layer for the "Configure" button
     RB_FIT_CONFIGURE,     // button: texture = that layer, width = its aspect over the visible length
+
+    // 0.1.05 (appended for the same reason).
+    RB_ORIENTATION,       // 1: Twist (ribbon follows the path frame, Twist applies), 2: Front
 
     RB_NUM_PARAMS
 };

@@ -335,6 +335,54 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Orientation = Front: the drawing is a view from above, the ribbon lies flat on the floor facing down.
+static void testFront() {
+    std::printf("front\n");
+    Polyline drawn = bezierToPolyline(test::sCurve(), false, V3(0, 0, 1), 48);
+    double minx = 1e300, maxx = -1e300, miny = 1e300, maxy = -1e300;
+    for (const V3& q : drawn.pts) { minx = std::min(minx, q.x); maxx = std::max(maxx, q.x); miny = std::min(miny, q.y); maxy = std::max(maxy, q.y); }
+    const V3 pivot((minx + maxx) / 2, (miny + maxy) / 2, 0);
+    Polyline floor = topViewToFloor(drawn, pivot);
+    bool mapped = true;
+    for (size_t i = 0; i < drawn.pts.size(); i++) {
+        const V3 &a = drawn.pts[i], &b = floor.pts[i];
+        mapped = mapped && std::fabs(b.x - a.x) < 1e-9 && std::fabs(b.y - pivot.y) < 1e-9 && std::fabs(b.z - (pivot.y - a.y)) < 1e-9;
+    }
+    CHECK(mapped, "x kept, height = path center, depth = center - y (top of the drawing is far)");
+    CHECK(std::fabs(FramedCurve(floor).length() - FramedCurve(drawn).length()) < 1e-9, "length preserved");
+
+    RibbonSettings rs;
+    rs.segments = 120;
+    rs.twistTurns = 0;
+    rs.width = 40;
+    RibbonMesh f = buildRibbon(floor, rs), d = buildRibbon(drawn, rs);
+    bool down = true, flat = true;
+    for (const RK_Vertex& v : f.verts) {
+        down = down && v.nrm[1] > 0.999f;
+        flat = flat && std::fabs(v.pos[1] - pivot.y) < 1e-3;
+    }
+    CHECK(down, "front faces down (+Y)");
+    CHECK(flat, "ribbon lies in the horizontal plane");
+    // Texture handedness seen from the front side: the same as in the default orientation.
+    auto hand = [](const RibbonMesh& m, int k) {
+        auto P = [&](int i) { return V3(m.verts[size_t(i)].pos[0], m.verts[size_t(i)].pos[1], m.verts[size_t(i)].pos[2]); };
+        V3 du = P((k + 1) * 2) - P(k * 2), dv = P(k * 2 + 1) - P(k * 2);
+        const RK_Vertex& v = m.verts[size_t(k * 2)];
+        return dot(cross(du, dv), V3(v.nrm[0], v.nrm[1], v.nrm[2]));
+    };
+    CHECK(hand(f, 30) * hand(d, 30) > 0, "texture not mirrored on the front side");
+
+    // Control nulls drawn in the comp: their rolls turn with the path (default nulls: flat, facing down).
+    std::vector<ControlPoint> cps(3);
+    cps[0].pos = V3(200, 500, 0); cps[1].pos = V3(600, 300, 0); cps[2].pos = V3(1000, 500, 0);
+    for (ControlPoint& c : cps) { c.axisX = V3(1, 0, 0); c.axisY = V3(0, 1, 0); c.axisZ = V3(0, 0, 1); c.handleScale = 1; }
+    Polyline np = topViewToFloor(controlPointsToPolyline(cps, false, 48), V3(600, 400, 0));
+    RibbonMesh nm = buildRibbon(np, rs);
+    bool nDown = true;
+    for (const RK_Vertex& v : nm.verts) nDown = nDown && v.nrm[1] > 0.99f;
+    CHECK(nDown, "control-null ribbon faces down too");
+}
+
 // Offset past the ends of the path: Cycle wraps the ribbon (also on open paths), else it is hidden.
 static void testCycle() {
     std::printf("cycle\n");
@@ -526,6 +574,7 @@ int main(int argc, char** argv) {
     testSolidRaster();
     testControlNulls();
     testCycle();
+    testFront();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

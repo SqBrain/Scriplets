@@ -531,6 +531,70 @@ static int TestCycle() {
     return fails;
 }
 
+// Orientation = Front: the mask is the floor seen from above, the ribbon faces down. Edge-on for the
+// default camera; tilted with Path Transform X Rotation one way the front (down) side shows, the
+// other way the back side. CPU and GPU agree.
+static int TestFront() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_ORIENTATION - 1].u.pd.value = RB_ORIENT_FRONT;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;  // ribbon only
+    PF_Pixel oldFront = gDefs[RB_FRONT_COLOR - 1].u.cd.value, oldBack = gDefs[RB_BACK_COLOR - 1].u.cd.value;
+    gDefs[RB_FRONT_COLOR - 1].u.cd.value = {255, 255, 0, 0};  // A R G B: red
+    gDefs[RB_BACK_COLOR - 1].u.cd.value = {255, 0, 0, 255};   // blue
+    auto count = [](const std::vector<float>& img, size_t& red, size_t& blue, size_t& any) {
+        red = blue = any = 0;
+        for (size_t i = 0; i < img.size(); i += 4) {
+            if (img[i + 3] < 0.5f) continue;
+            any++;
+            red += img[i + 2] > img[i] + 0.1f;
+            blue += img[i] > img[i + 2] + 0.1f;
+        }
+    };
+    size_t r, b, a;
+    count(RunCPU(32), r, b, a);
+    std::printf("front, default camera: %zu px visible (edge-on)\n", a);
+    if (a > 4000) { std::printf("FAIL: front ribbon not edge-on for the front camera\n"); fails++; }
+    size_t seen[2][2] = {{0, 0}, {0, 0}};
+    for (int k = 0; k < 2; k++) {
+        gDefs[RB_XF_ROT_X - 1].u.ad.value = (k ? -60 : 60) * 65536;
+        std::vector<float> c = RunCPU(32), g = RunGPU();
+        double maxG = 0;
+        for (size_t i = 0; i < c.size() && i < g.size(); i++) maxG = std::max(maxG, double(std::fabs(c[i] - g[i])));
+        count(c, r, b, a);
+        seen[k][0] = r; seen[k][1] = b;
+        std::printf("front, X rotation %+d: %zu px, front color %zu, back color %zu, CPU vs GPU %.2e\n", k ? -60 : 60, a, r, b, maxG);
+        if (a < 5000 || g.empty() || maxG > 1e-3) { std::printf("FAIL: front tilted render\n"); fails++; }
+    }
+    // One tilt shows the underside (front color), the other the top (back color).
+    bool oneEach = (seen[0][0] > 10 * seen[0][1] && seen[1][1] > 10 * seen[1][0]) || (seen[1][0] > 10 * seen[1][1] && seen[0][1] > 10 * seen[0][0]);
+    if (!oneEach) { std::printf("FAIL: front / back sides\n"); fails++; }
+
+    // Configure gives the same width in both orientations (Front is a rigid rotation).
+    SimLayer* footage = new SimLayer(); footage->id = 300; footage->source = {1920, 1080, {1, 1}};
+    gLayers.insert(gLayers.begin(), footage);
+    gEffectLayerIds[RB_FIT_LAYER] = 300;
+    gDefs[RB_XF_ROT_X - 1].u.ad.value = 0;
+    double w[2];
+    for (int k = 0; k < 2; k++) {
+        gDefs[RB_ORIENTATION - 1].u.pd.value = k ? RB_ORIENT_FRONT : RB_ORIENT_TWIST;
+        PF_OutData out;
+        PressButton(RB_FIT_CONFIGURE, out);
+        w[k] = gDefs[RB_WIDTH - 1].u.fs_d.value;
+    }
+    std::printf("front, configure width: twist %.3f, front %.3f\n", w[0], w[1]);
+    if (std::fabs(w[0] - w[1]) > 1e-6) { std::printf("FAIL: configure differs in Front\n"); fails++; }
+
+    gDefs[RB_WIDTH - 1].u.fs_d.value = 60;
+    gDefs[RB_ORIENTATION - 1].u.pd.value = RB_ORIENT_TWIST;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    gDefs[RB_FRONT_COLOR - 1].u.cd.value = oldFront;
+    gDefs[RB_BACK_COLOR - 1].u.cd.value = oldBack;
+    ResetComp();
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -594,6 +658,7 @@ int main(int argc, char** argv) {
     fails += TestControlNulls(c32);
     fails += TestConfigure();
     fails += TestCycle();
+    fails += TestFront();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");
