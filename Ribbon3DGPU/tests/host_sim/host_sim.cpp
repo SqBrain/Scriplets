@@ -72,7 +72,10 @@ struct SimLayer {
     double pos[3] = {0, 0, 0}, anchor[3] = {0, 0, 0}, scale[3] = {100, 100, 100};
     double rotX = 0, rotY = 0, rotZ = 0;  // degrees
     std::string name;
+    struct Item { A_long w, h; A_Ratio par; } source = {0, 0, {1, 1}};  // w == 0: no source (text, shape)
 };
+static SimLayer::Item gCompItem = {960, 540, {1, 1}};
+static bool IsLayerParam(int i) { return (i >= RB_NULL_1 && i < RB_NULL_1 + RB_MAX_NULLS) || i == RB_TEXTURE || i == RB_FIT_LAYER; }
 static std::vector<SimLayer*> gLayers;  // comp order: index 0 = top
 static SimLayer gSelf, gLight;
 static std::map<int, double> gEffectNum;        // effect param streams (index -> value)
@@ -138,7 +141,7 @@ static A_Err StreamVal(AEGP_PluginID, AEGP_StreamRefH sh, AEGP_LTimeMode, const 
     SimStream* s = (SimStream*)sh;
     std::memset(&v->val, 0, sizeof(v->val));
     if (s->effectParam >= 0) {
-        if (s->effectParam >= RB_NULL_1 && s->effectParam < RB_NULL_1 + RB_MAX_NULLS) v->val.layer_id = gEffectLayerIds[s->effectParam];
+        if (IsLayerParam(s->effectParam)) v->val.layer_id = gEffectLayerIds[s->effectParam];
         else v->val.one_d = gEffectNum[s->effectParam];
         return 0;
     }
@@ -158,7 +161,7 @@ static A_Err SetStreamVal(AEGP_PluginID, AEGP_StreamRefH sh, AEGP_StreamValue2* 
     SimStream* s = (SimStream*)sh;
     if (!gUndoDepth) std::printf("  note: stream changed outside an undo group\n");
     if (s->effectParam >= 0) {
-        if (s->effectParam >= RB_NULL_1 && s->effectParam < RB_NULL_1 + RB_MAX_NULLS) gEffectLayerIds[s->effectParam] = v->val.layer_id;
+        if (IsLayerParam(s->effectParam)) gEffectLayerIds[s->effectParam] = v->val.layer_id;
         else gEffectNum[s->effectParam] = v->val.one_d;
         return 0;
     }
@@ -186,6 +189,10 @@ static A_Err StartUndo(const A_char*) { gUndoDepth++; gUndoGroups++; return 0; }
 static A_Err EndUndo() { gUndoDepth--; return 0; }
 static A_Err Register(AEGP_GlobalRefcon, const A_char*, AEGP_PluginID* id) { *id = 42; return 0; }
 static A_Err DisposeEffect(AEGP_EffectRefH) { return 0; }
+static A_Err SourceItem(AEGP_LayerH l, AEGP_ItemH* i) { *i = L(l)->source.w ? (AEGP_ItemH)&L(l)->source : nullptr; return 0; }
+static A_Err CompItem(AEGP_CompH, AEGP_ItemH* i) { *i = (AEGP_ItemH)&gCompItem; return 0; }
+static A_Err ItemDims(AEGP_ItemH i, A_long* w, A_long* h) { *w = ((SimLayer::Item*)i)->w; *h = ((SimLayer::Item*)i)->h; return 0; }
+static A_Err ItemPar(AEGP_ItemH i, A_Ratio* r) { *r = ((SimLayer::Item*)i)->par; return 0; }
 static PF_Err VertexInfo(PF_ProgPtr, PF_PathOutlinePtr, A_long i, PF_PathVertex* v) {
     // Vertex i of the two-segment mask; handles relative or absolute depending on gAbsoluteTangents.
     const double* p = i == 0 ? kSegs[0].p[0] : (i == 1 ? kSegs[0].p[3] : kSegs[1].p[3]);
@@ -213,9 +220,10 @@ static void DisposeHandle(PF_Handle) {}
 static PF_PathQuerySuite1 sPQ = {CheckoutPath, CheckinPath};
 static PF_PathDataSuite1 sPD = {IsOpen, NumSegs, VertexInfo, Prep, GetLen, Eval, Cleanup};
 static AEGP_PFInterfaceSuite1 sPFI = {GetEffectLayer, NewEffectForEffect, ToComp, GetCam};
-static AEGP_LayerSuite8 sLS = {NumLayers, LayerByIndex, ParentComp, Flags, ToWorld, ObjType, SetFlag, GetID, FromID};
+static AEGP_LayerSuite8 sLS = {NumLayers, LayerByIndex, ParentComp, Flags, ToWorld, ObjType, SetFlag, GetID, FromID, SourceItem};
+static AEGP_ItemSuite9 sIS = {ItemDims, ItemPar};
 static AEGP_StreamSuite5 sSS = {NewStream, DisposeStream, StreamVal, DisposeVal, NewEffectStream, SetStreamVal};
-static AEGP_CompSuite11 sCS = {CreateNull};
+static AEGP_CompSuite11 sCS = {CreateNull, CompItem};
 static AEGP_UtilitySuite5 sUS = {StartUndo, EndUndo, Register};
 static AEGP_EffectSuite4 sES = {DisposeEffect};
 static AEGP_LightSuite2 sLT = {LightType};
@@ -228,6 +236,7 @@ static int32 Acquire(const char* n, int32, const void** p) {
     else if (s == kAEGPStreamSuite) *p = &sSS; else if (s == kAEGPLightSuite) *p = &sLT;
     else if (s == kPFGPUDeviceSuite) *p = &sGPU; else if (s == kPFHandleSuite) *p = &sHS;
     else if (s == kAEGPCompSuite) *p = &sCS; else if (s == kAEGPUtilitySuite) *p = &sUS; else if (s == kAEGPEffectSuite) *p = &sES;
+    else if (s == kAEGPItemSuite) *p = &sIS;
     else return 1;
     return kSPNoError;
 }
@@ -344,8 +353,8 @@ static std::vector<float> RunGPU() {
     return res;
 }
 
-// Presses "Create Nulls from Mask" like AE does and writes the changed plain params back.
-static PF_Err PressMakeNulls(PF_OutData& out) {
+// Presses a button like AE does and writes the changed plain params back.
+static PF_Err PressButton(int index, PF_OutData& out) {
     std::vector<PF_ParamDef> cur(gDefs);
     PF_ParamDef input;
     std::memset(&input, 0, sizeof(input));
@@ -354,7 +363,7 @@ static PF_Err PressMakeNulls(PF_OutData& out) {
     for (size_t i = 1; i < ptrs.size(); i++) ptrs[i] = &cur[i - 1];
     cur[RB_PATH - 1].u.path_d.path_id = 7;
     for (PF_ParamDef& d : cur) d.uu.change_flags = 0;
-    PF_UserChangedParamExtra ex = {RB_MAKE_NULLS};
+    PF_UserChangedParamExtra ex = {index};
     PF_InData in = MakeInData();
     std::memset(&out, 0, sizeof(out));
     PF_Err err = EffectMain(PF_Cmd_USER_CHANGED_PARAM, &in, &out, ptrs.data(), nullptr, &ex);
@@ -362,6 +371,7 @@ static PF_Err PressMakeNulls(PF_OutData& out) {
         if (cur[i].uu.change_flags & PF_ChangeFlag_CHANGED_VALUE) gDefs[i].u = cur[i].u;
     return err;
 }
+static PF_Err PressMakeNulls(PF_OutData& out) { return PressButton(RB_MAKE_NULLS, out); }
 
 static double DiffFraction(const std::vector<float>& a, const std::vector<float>& b) {
     size_t n = 0;
@@ -441,6 +451,86 @@ static int TestControlNulls(const std::vector<float>& maskImg) {
     return fails;
 }
 
+// "Configure": the chosen layer becomes the texture and Width keeps its aspect on the visible ribbon.
+static int TestConfigure() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    const double L = segLen(kSegs[0]) + segLen(kSegs[1]);  // the mask, untransformed
+    SimLayer* footage = new SimLayer(); footage->id = 300; footage->source = {1920, 1080, {1, 1}};
+    SimLayer* anamorphic = new SimLayer(); anamorphic->id = 301; anamorphic->source = {960, 1080, {2, 1}};
+    SimLayer* text = new SimLayer(); text->id = 302;  // no source: comp-sized
+    gLayers.insert(gLayers.begin(), {footage, anamorphic, text});
+    struct Case { const char* what; A_long fit, tex; double start, end, repeat, want; A_long texAfter; };
+    const Case cases[] = {
+        {"footage 1920x1080", 300, 0, 0, 100, 1, L * 1080 / 1920, 300},
+        {"Start 20 / End 70, repeat 2", 300, 0, 20, 70, 2, L * 0.5 / 2 * 1080 / 1920, 300},
+        {"pixel aspect 2:1", 301, 0, 0, 100, 1, L * 1080 / 1920, 301},
+        {"text layer (comp size)", 302, 0, 0, 100, 1, L * 540 / 960, 302},
+        {"empty Fit Layer uses Texture Layer", 0, 300, 0, 100, 1, L * 1080 / 1920, 300},
+    };
+    for (const Case& c : cases) {
+        gEffectLayerIds[RB_FIT_LAYER] = c.fit;
+        gEffectLayerIds[RB_TEXTURE] = c.tex;
+        gDefs[RB_START - 1].u.fs_d.value = c.start;
+        gDefs[RB_END - 1].u.fs_d.value = c.end;
+        gDefs[RB_TEX_REPEAT - 1].u.fs_d.value = c.repeat;
+        gDefs[RB_WIDTH - 1].u.fs_d.value = 60;
+        gUndoDepth = 0;
+        PF_OutData out;
+        PF_Err e = PressButton(RB_FIT_CONFIGURE, out);
+        double w = gDefs[RB_WIDTH - 1].u.fs_d.value;
+        std::printf("configure, %s: width %.2f (expected %.2f), texture layer %d\n", c.what, w, c.want, int(gEffectLayerIds[RB_TEXTURE]));
+        if (e || (out.out_flags & PF_OutFlag_DISPLAY_ERROR_MESSAGE) || std::fabs(w - c.want) > 0.05 ||
+            gEffectLayerIds[RB_TEXTURE] != c.texAfter || gUndoDepth != 0) {
+            std::printf("FAIL: configure (%s)\n", c.what); fails++;
+        }
+    }
+    // Nothing chosen: a message, Width untouched.
+    gEffectLayerIds[RB_FIT_LAYER] = 0;
+    gEffectLayerIds[RB_TEXTURE] = 0;
+    gDefs[RB_WIDTH - 1].u.fs_d.value = 60;
+    PF_OutData out;
+    PressButton(RB_FIT_CONFIGURE, out);
+    std::printf("configure without a layer: \"%s\"\n", out.return_msg);
+    if (!(out.out_flags & PF_OutFlag_DISPLAY_ERROR_MESSAGE) || gDefs[RB_WIDTH - 1].u.fs_d.value != 60) { std::printf("FAIL: no-layer case\n"); fails++; }
+
+    gDefs[RB_START - 1].u.fs_d.value = 0; gDefs[RB_END - 1].u.fs_d.value = 100; gDefs[RB_TEX_REPEAT - 1].u.fs_d.value = 1;
+    gDefs[RB_WIDTH - 1].u.fs_d.value = 60;
+    ResetComp();
+    return fails;
+}
+
+// Offset past the end of the open mask: Cycle on brings the cut part back at the start.
+static int TestCycle() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_START - 1].u.fs_d.value = 0;
+    gDefs[RB_END - 1].u.fs_d.value = 40;
+    gDefs[RB_OFFSET - 1].u.fs_d.value = 80;
+    auto cover = [](const std::vector<float>& img, int x0, int x1) {
+        size_t n = 0;
+        for (int y = 0; y < H; y++)
+            for (int x = x0; x < x1; x++) n += std::fabs(img[(size_t(y) * W + x) * 4 + 2] - 0.2f) > 0.02f;
+        return n;
+    };
+    gDefs[RB_CYCLE - 1].u.bd.value = TRUE;
+    std::vector<float> on = RunCPU(32);
+    gDefs[RB_CYCLE - 1].u.bd.value = FALSE;
+    std::vector<float> off = RunCPU(32);
+    // The mask starts at x = 90 and ends at x = 870: the wrapped part shows up on the left.
+    size_t leftOn = cover(on, 0, 300), leftOff = cover(off, 0, 300), rightOn = cover(on, 660, W), rightOff = cover(off, 660, W);
+    std::printf("cycle: start of the path %zu px with Cycle, %zu without; end of the path %zu / %zu\n", leftOn, leftOff, rightOn, rightOff);
+    if (leftOn < 2000 || leftOff > 0 || rightOn < 2000 || std::labs(long(rightOn) - long(rightOff)) > long(rightOn / 50)) {
+        std::printf("FAIL: cycle\n"); fails++;
+    }
+    gDefs[RB_CYCLE - 1].u.bd.value = TRUE;
+    gDefs[RB_END - 1].u.fs_d.value = 100;
+    gDefs[RB_OFFSET - 1].u.fs_d.value = 0;
+    return fails;
+}
+
 int main(int argc, char** argv) {
     ResetComp();
     PF_InData in = MakeInData();
@@ -487,6 +577,8 @@ int main(int argc, char** argv) {
 
     gDefs[RB_THICKNESS - 1].u.fs_d.value = 0;
     fails += TestControlNulls(c32);
+    fails += TestConfigure();
+    fails += TestCycle();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

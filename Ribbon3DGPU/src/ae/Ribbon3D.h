@@ -108,6 +108,11 @@ enum {
     RB_POINTS_TOPIC_END = RB_NULL_1 + RB_MAX_NULLS,
     RB_NULLS_TOPIC_END,
 
+    // v1.4 (appended for the same reason).
+    RB_CYCLE,             // checkbox: the ribbon wraps around the ends of the path
+    RB_FIT_LAYER,         // layer for the "Configure" button
+    RB_FIT_CONFIGURE,     // button: texture = that layer, width = its aspect over the visible length
+
     RB_NUM_PARAMS
 };
 

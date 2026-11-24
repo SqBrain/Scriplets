@@ -24,6 +24,14 @@ bool RibbonReadControlNulls(PF_InData* in_data, const A_Time& compTime, bool clo
 // Must be called on every pre-render (AE checks it); with useNulls false only a marker is mixed.
 PF_Err RibbonMixInControlNulls(PF_InData* in_data, PF_PreRenderExtra* extra, bool useNulls);
 
+// Layer parameters (slots) through their effect streams: the layer's ID, 0 when empty.
+AEGP_LayerIDVal RibbonGetLayerParam(PF_InData* in_data, int paramIndex, const A_Time& compTime);
+bool RibbonSetLayerParam(PF_InData* in_data, int paramIndex, const A_Time& compTime, AEGP_LayerIDVal id);
+
+// Size of a layer's source as the effect sees it when it checks the layer out: footage or comp
+// pixels, width times the pixel aspect ratio; comp size for layers without a source (text, shape).
+bool RibbonLayerSourceSize(PF_InData* in_data, AEGP_LayerIDVal id, double& width, double& height);
+
 // Handle-length ratio and tangent direction of a mask vertex (exposed for tests).
 struct RibbonMaskVertex {
     double x, y;              // position

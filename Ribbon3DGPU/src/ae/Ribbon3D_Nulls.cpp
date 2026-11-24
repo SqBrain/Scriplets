@@ -262,6 +262,80 @@ PF_Err RibbonMakeNullsFromMask(PF_InData* in_data, PF_OutData* out_data, PF_Para
     return PF_Err_NONE;
 }
 
+// ---------------------------------------------------------------- layer parameters
+
+AEGP_LayerIDVal RibbonGetLayerParam(PF_InData* in_data, int paramIndex, const A_Time& compTime) {
+    Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+    Suite<RB_STREAM_SUITE> ss(in_data, kAEGPStreamSuite, RB_STREAM_SUITE_VERSION);
+    Suite<RB_EFFECT_SUITE> es(in_data, kAEGPEffectSuite, RB_EFFECT_SUITE_VERSION);
+    if (!pfi || !ss || !es) return 0;
+    const AEGP_PluginID pid = PluginID(in_data);
+    AEGP_EffectRefH effect = nullptr;
+    if (pfi->AEGP_GetNewEffectForEffect(pid, in_data->effect_ref, &effect) || !effect) return 0;
+    AEGP_LayerIDVal id = 0;
+    AEGP_StreamRefH s = nullptr;
+    if (!ss->AEGP_GetNewEffectStreamByIndex(pid, effect, paramIndex, &s) && s) {
+        AEGP_StreamValue2 v;
+        AEFX_CLR_STRUCT(v);
+        if (!ss->AEGP_GetNewStreamValue(pid, s, AEGP_LTimeMode_CompTime, &compTime, FALSE, &v)) {
+            id = v.val.layer_id;
+            ss->AEGP_DisposeStreamValue(&v);
+        }
+        ss->AEGP_DisposeStream(s);
+    }
+    es->AEGP_DisposeEffect(effect);
+    return id;
+}
+
+bool RibbonSetLayerParam(PF_InData* in_data, int paramIndex, const A_Time& compTime, AEGP_LayerIDVal id) {
+    Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+    Suite<RB_STREAM_SUITE> ss(in_data, kAEGPStreamSuite, RB_STREAM_SUITE_VERSION);
+    Suite<RB_EFFECT_SUITE> es(in_data, kAEGPEffectSuite, RB_EFFECT_SUITE_VERSION);
+    if (!pfi || !ss || !es) return false;
+    const AEGP_PluginID pid = PluginID(in_data);
+    AEGP_EffectRefH effect = nullptr;
+    if (pfi->AEGP_GetNewEffectForEffect(pid, in_data->effect_ref, &effect) || !effect) return false;
+    bool ok = false;
+    AEGP_StreamRefH s = nullptr;
+    if (!ss->AEGP_GetNewEffectStreamByIndex(pid, effect, paramIndex, &s) && s) {
+        AEGP_StreamValue2 v;
+        AEFX_CLR_STRUCT(v);
+        if (!ss->AEGP_GetNewStreamValue(pid, s, AEGP_LTimeMode_CompTime, &compTime, TRUE, &v)) {
+            v.val.layer_id = id;
+            ok = !ss->AEGP_SetStreamValue(pid, s, &v);
+            ss->AEGP_DisposeStreamValue(&v);
+        }
+        ss->AEGP_DisposeStream(s);
+    }
+    es->AEGP_DisposeEffect(effect);
+    return ok;
+}
+
+bool RibbonLayerSourceSize(PF_InData* in_data, AEGP_LayerIDVal id, double& width, double& height) {
+    Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+    Suite<RB_LAYER_SUITE> ls(in_data, kAEGPLayerSuite, RB_LAYER_SUITE_VERSION);
+    Suite<RB_COMP_SUITE> cs(in_data, kAEGPCompSuite, RB_COMP_SUITE_VERSION);
+    Suite<RB_ITEM_SUITE> is(in_data, kAEGPItemSuite, RB_ITEM_SUITE_VERSION);
+    if (!pfi || !ls || !cs || !is || !id) return false;
+    AEGP_LayerH self = nullptr, layer = nullptr;
+    AEGP_CompH comp = nullptr;
+    if (pfi->AEGP_GetEffectLayer(in_data->effect_ref, &self) || !self) return false;
+    if (ls->AEGP_GetLayerParentComp(self, &comp) || !comp) return false;
+    if (ls->AEGP_GetLayerFromLayerID(comp, id, &layer) || !layer) return false;
+    AEGP_ItemH item = nullptr;
+    if (ls->AEGP_GetLayerSourceItem(layer, &item) || !item) {
+        item = nullptr;  // text and shape layers render comp-sized
+        if (cs->AEGP_GetItemFromComp(comp, &item) || !item) return false;
+    }
+    A_long w = 0, h = 0;
+    if (is->AEGP_GetItemDimensions(item, &w, &h) || w <= 0 || h <= 0) return false;
+    A_Ratio par = {1, 1};
+    if (is->AEGP_GetItemPixelAspectRatio(item, &par) || par.num <= 0 || par.den == 0) par = {1, 1};
+    width = double(w) * double(par.num) / double(par.den);
+    height = double(h);
+    return true;
+}
+
 // ---------------------------------------------------------------- render
 
 bool RibbonReadControlPoints(PF_InData* in_data, const A_Time& compTime, std::vector<rb::ControlPoint>& cps) {

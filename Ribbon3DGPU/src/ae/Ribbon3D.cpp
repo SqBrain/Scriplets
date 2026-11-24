@@ -250,6 +250,14 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
 
+    // v1.4: outside the groups, so they are visible without twirling anything open.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_CHECKBOX("Cycle", "Wrap around path ends", TRUE, 0, RB_ID(RB_CYCLE));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_LAYER("Fit Layer", PF_LayerDefault_NONE, RB_ID(RB_FIT_LAYER));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_BUTTON("Fit to Layer", "Configure", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_FIT_CONFIGURE));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -437,26 +445,47 @@ std::vector<rb::LightDesc> CompLights(PF_InData* in_data, const A_Time& compTime
     return lights;
 }
 
+// What decides the ribbon's path: the source and the Path Transform group.
+struct PathInputs {
+    int source = RB_SOURCE_MASK;
+    bool nullsClosed = false;
+    PF_PathID mask = PF_PathID_NONE;
+    rb::PathTransform xf;
+};
+
+// The ribbon's path in world (comp) space at compTime: the mask or the control nulls, then the
+// Path Transform group around the path's bounding box center.
+bool RibbonWorldPath(PF_InData* in_data, const A_Time& compTime, PathInputs in, rb::Polyline& out) {
+    rb::Polyline path;
+    const bool ok = in.source == RB_SOURCE_NULLS ? RibbonReadControlNulls(in_data, compTime, in.nullsClosed, path)
+                                                 : ReadMaskPolyline(in_data, in.mask, path);
+    if (!ok) return false;
+    double minx = 1e300, miny = 1e300, maxx = -1e300, maxy = -1e300;
+    for (const rb::V3& q : path.pts) {
+        minx = std::min(minx, q.x); maxx = std::max(maxx, q.x);
+        miny = std::min(miny, q.y); maxy = std::max(maxy, q.y);
+    }
+    in.xf.pivot = rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
+    out = rb::transformPolyline(path, in.xf);
+    return true;
+}
+
 // Builds the render packet for an output buffer of outW x outH pixels.
 PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int outH, rb::Packet& pk) {
     const double t = double(in_data->current_time) / double(in_data->time_scale ? in_data->time_scale : 1);
 
     rb::RibbonSettings rs;
-    rb::PathTransform xf;
     rb::Material mat;
-    rb::Polyline path;
-    bool havePath = false;
     A_Time compTime = {0, 1};
     {
         Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
         if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
     }
-    if (Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS) {
-        havePath = RibbonReadControlNulls(in_data, compTime, Param(in_data, RB_NULLS_CLOSED).b(), path);
-    } else {
-        Param p(in_data, RB_PATH);
-        havePath = ReadMaskPolyline(in_data, p.path(), path);
-    }
+    PathInputs pin;
+    pin.source = Param(in_data, RB_PATH_SOURCE).popup();
+    pin.nullsClosed = Param(in_data, RB_NULLS_CLOSED).b();
+    pin.mask = Param(in_data, RB_PATH).path();
+    rb::PathTransform& xf = pin.xf;
     rs.segments = std::max(2, Param(in_data, RB_SEGMENTS).i());
     rs.start = Param(in_data, RB_START).f() / 100;
     rs.end = Param(in_data, RB_END).f() / 100;
@@ -478,6 +507,7 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rs.bevelSegments = std::clamp(Param(in_data, RB_BEVEL_SEGMENTS).i(), 1, 16);
     if (in_data->quality == PF_Quality_LO) rs.bevelSegments = std::min(rs.bevelSegments, 2);  // draft preview
     rs.caps = Param(in_data, RB_END_CAPS).b();
+    rs.cycle = Param(in_data, RB_CYCLE).b();
 
     xf.rotX = Param(in_data, RB_XF_ROT_X).angle();
     xf.rotY = Param(in_data, RB_XF_ROT_Y).angle();
@@ -532,16 +562,71 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     }
 
     rb::RibbonMesh mesh;
-    if (havePath) {
-        double minx = 1e300, miny = 1e300, maxx = -1e300, maxy = -1e300;
-        for (const rb::V3& p : path.pts) {
-            minx = std::min(minx, p.x); maxx = std::max(maxx, p.x);
-            miny = std::min(miny, p.y); maxy = std::max(maxy, p.y);
-        }
-        xf.pivot = rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
-        mesh = rb::buildRibbon(rb::transformPolyline(path, xf), rs);
-    }
+    rb::Polyline world;
+    if (RibbonWorldPath(in_data, compTime, pin, world)) mesh = rb::buildRibbon(world, rs);
     rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk);
+    return PF_Err_NONE;
+}
+
+// ------------------------------------------------------------------ "Configure" button
+
+PF_Err ShowMessage(PF_OutData* out_data, const char* msg) {
+    std::snprintf(out_data->return_msg, sizeof(out_data->return_msg), "Ribbon 3D GPU: %s", msg);
+    out_data->out_flags |= PF_OutFlag_DISPLAY_ERROR_MESSAGE;
+    return PF_Err_NONE;
+}
+
+// PF_Cmd_USER_CHANGED_PARAM for RB_FIT_CONFIGURE: the layer in "Fit Layer" (else the one in
+// "Texture Layer") becomes the texture, and Width is set so that the texture keeps its aspect on
+// the visible ribbon: width = path length * |End - Start| / Texture Repeat * height / width.
+PF_Err ConfigureFromLayer(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) {
+    A_Time compTime = {0, 1};
+    {
+        Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+        if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
+    }
+    const AEGP_LayerIDVal fit = RibbonGetLayerParam(in_data, RB_FIT_LAYER, compTime);
+    const AEGP_LayerIDVal tex = RibbonGetLayerParam(in_data, RB_TEXTURE, compTime);
+    const AEGP_LayerIDVal id = fit ? fit : tex;
+    if (!id) return ShowMessage(out_data, "pick a layer in \"Fit Layer\" first, then press Configure.");
+    double lw = 0, lh = 0;
+    if (!RibbonLayerSourceSize(in_data, id, lw, lh)) return ShowMessage(out_data, "could not read the size of the chosen layer.");
+
+    // Plain parameter values come from params[] during USER_CHANGED_PARAM.
+    PathInputs pin;
+    pin.source = int(params[RB_PATH_SOURCE]->u.pd.value);
+    pin.nullsClosed = params[RB_NULLS_CLOSED]->u.bd.value != 0;
+    pin.mask = params[RB_PATH]->u.path_d.path_id;
+    pin.xf.rotX = params[RB_XF_ROT_X]->u.ad.value / 65536.0;
+    pin.xf.rotY = params[RB_XF_ROT_Y]->u.ad.value / 65536.0;
+    pin.xf.rotZ = params[RB_XF_ROT_Z]->u.ad.value / 65536.0;
+    pin.xf.offset = rb::V3(params[RB_XF_OFF_X]->u.fs_d.value, params[RB_XF_OFF_Y]->u.fs_d.value, params[RB_XF_OFF_Z]->u.fs_d.value);
+    pin.xf.scale = params[RB_XF_SCALE]->u.fs_d.value / 100;
+    rb::Polyline world;
+    if (!RibbonWorldPath(in_data, compTime, pin, world))
+        return ShowMessage(out_data, "no path yet: pick a mask in \"Path\" or set up the control nulls.");
+    const rb::FramedCurve curve(world);
+    const double span = std::fabs(params[RB_END]->u.fs_d.value - params[RB_START]->u.fs_d.value) / 100;
+    if (!curve.valid()) return ShowMessage(out_data, "the path has no length.");
+    if (span < 1e-6) return ShowMessage(out_data, "Start and End are equal, the ribbon has no length.");
+    const double repeat = std::max(0.01, double(params[RB_TEX_REPEAT]->u.fs_d.value));
+    const double want = curve.length() * span / repeat * lh / lw;
+    const double width = std::clamp(want, 0.0, 10000.0);  // Width's valid range
+
+    if (fit && fit != tex) {
+        Suite<RB_UTILITY_SUITE> us(in_data, kAEGPUtilitySuite, RB_UTILITY_SUITE_VERSION);
+        if (us) us->AEGP_StartUndoGroup("Ribbon 3D: Fit to Layer");
+        RibbonSetLayerParam(in_data, RB_TEXTURE, compTime, fit);
+        if (us) us->AEGP_EndUndoGroup();
+    }
+    params[RB_WIDTH]->u.fs_d.value = width;
+    params[RB_WIDTH]->uu.change_flags = PF_ChangeFlag_CHANGED_VALUE;
+    out_data->out_flags |= PF_OutFlag_FORCE_RERENDER | PF_OutFlag_REFRESH_UI;
+    if (want > width + 1e-6) {
+        char msg[200];
+        std::snprintf(msg, sizeof(msg), "the layer needs a width of %.0f px, Width was set to its maximum of 10000.", want);
+        return ShowMessage(out_data, msg);
+    }
     return PF_Err_NONE;
 }
 
@@ -681,6 +766,7 @@ extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutDat
             case PF_Cmd_USER_CHANGED_PARAM: {
                 const PF_UserChangedParamExtra* ex = static_cast<const PF_UserChangedParamExtra*>(extra);
                 if (ex && ex->param_index == RB_MAKE_NULLS) err = RibbonMakeNullsFromMask(in_data, out_data, params);
+                if (ex && ex->param_index == RB_FIT_CONFIGURE) err = ConfigureFromLayer(in_data, out_data, params);
                 break;
             }
             default: break;

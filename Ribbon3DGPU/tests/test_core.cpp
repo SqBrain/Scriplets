@@ -335,6 +335,80 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Offset past the ends of the path: Cycle wraps the ribbon (also on open paths), else it is hidden.
+static void testCycle() {
+    std::printf("cycle\n");
+    auto near = [](double x, double y) { return std::fabs(x - y) < 1e-9; };
+    std::vector<RibbonPiece> P = ribbonPieces(0.8, 1.2, false, true);
+    CHECK(P.size() == 2 && near(P[0].u0, 0) && near(P[0].u1, 0.5) && P[0].lap == 0 && near(P[1].u0, 0.5) &&
+              near(P[1].u1, 1) && P[1].lap == 1,
+          "open, cycle: two pieces around the end");
+    P = ribbonPieces(0.8, 1.2, false, false);
+    CHECK(P.size() == 1 && near(P[0].u1, 0.5) && P[0].lap == 0, "open, no cycle: the part past the end is hidden");
+    P = ribbonPieces(0.8, 1.2, true, true);
+    CHECK(P.size() == 1 && near(P[0].u0, 0) && near(P[0].u1, 1) && P[0].lap == 0, "closed, cycle: one piece across the seam");
+    P = ribbonPieces(0.8, 1.2, true, false);
+    CHECK(P.size() == 1 && near(P[0].u1, 0.5), "closed, no cycle: cut at the seam");
+    P = ribbonPieces(-0.3, 0.2, false, true);
+    CHECK(P.size() == 2 && near(P[0].u1, 0.6) && P[0].lap == -1 && P[1].lap == 0, "before the start wraps to the end");
+    P = ribbonPieces(1.2, 0.8, false, true);
+    CHECK(P.size() == 2 && near(P[0].u1, 0.5) && P[0].lap == 1 && P[1].lap == 0, "reversed ribbon");
+    P = ribbonPieces(5.8, 6.2, false, true);
+    CHECK(P.size() == 2 && P[0].lap == 5 && P[1].lap == 6, "large offsets");
+    P = ribbonPieces(0.2, 0.6, false, true);
+    CHECK(P.size() == 1 && near(P[0].u0, 0) && near(P[0].u1, 1) && P[0].lap == 0, "inside the path: unchanged");
+
+    // Straight open path, 1000 px along X; a 400 px ribbon at offset 80 %: 800..1000 and 0..200.
+    Polyline line;
+    line.pts = {V3(0, 0, 0), V3(1000, 0, 0)};
+    RibbonSettings rs;
+    rs.segments = 100;
+    rs.twistTurns = 0;
+    rs.width = 20;
+    rs.start = 0;
+    rs.end = 0.4;
+    rs.offset = 0.8;
+    RibbonMesh m = buildRibbon(line, rs);
+    CHECK(m.center.size() == 102 && m.verts.size() == 102 * 2 && m.tris.size() == 100 * 6, "two pieces of 50 segments (%zu)",
+          m.center.size());
+    bool inRange = true;
+    double len = 0;
+    for (size_t k = 0; k < m.center.size(); k++) {
+        double x = m.center[k].x;
+        inRange = inRange && ((x >= 800 - 1e-6 && x <= 1000 + 1e-6) || (x >= -1e-6 && x <= 200 + 1e-6));
+        if (k != 0 && k != 51) len += length(m.center[k] - m.center[k - 1]);
+    }
+    CHECK(inRange, "ribbon only on 800..1000 and 0..200");
+    CHECK(std::fabs(len - 400) < 1e-6, "visible length %.4f", len);
+    CHECK(std::fabs(m.center[50].x - 1000) < 1e-6 && std::fabs(m.center[51].x) < 1e-6, "cut exactly at the path ends");
+    // Texture u runs on over the cut: the texture travels with the ribbon.
+    CHECK(std::fabs(m.verts[50 * 2].uv[0] - 0.5f) < 1e-6f && std::fabs(m.verts[51 * 2].uv[0] - 0.5f) < 1e-6f &&
+              std::fabs(m.verts[101 * 2].uv[0] - 1.0f) < 1e-6f,
+          "u continuous across the pieces");
+
+    rs.cycle = false;
+    RibbonMesh h = buildRibbon(line, rs);
+    double minX = 1e300;
+    for (const V3& c : h.center) minX = std::min(minX, c.x);
+    CHECK(h.center.size() == 51 && minX > 800 - 1e-6, "no cycle: only 800..1000 (%zu sections, min x %.2f)", h.center.size(), minX);
+    rs.offset = 1.2;
+    CHECK(buildRibbon(line, rs).tris.empty(), "no cycle: fully past the end is empty");
+    rs.cycle = true;
+    RibbonMesh w = buildRibbon(line, rs);
+    double maxX = -1e300;
+    minX = 1e300;
+    for (const V3& c : w.center) { minX = std::min(minX, c.x); maxX = std::max(maxX, c.x); }
+    CHECK(std::fabs(minX - 200) < 1e-6 && std::fabs(maxX - 600) < 1e-6, "cycle: offset 120 %% = 20 %% (%.1f..%.1f)", minX, maxX);
+
+    // Solid: every piece is closed with caps.
+    rs.offset = 0.8;
+    rs.thickness = 6;
+    rs.bevel = 2;
+    RibbonMesh s = buildRibbon(line, rs);
+    const size_t R = ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, rs.across).size();
+    CHECK(s.verts.size() == 2 * (51 * R + 2 * (R + 1)), "solid pieces with caps (%zu verts)", s.verts.size());
+}
+
 static void testControlNulls() {
     std::printf("control nulls\n");
     auto cp = [](V3 pos, double zRotDeg, double xRotDeg, double scale) {
@@ -451,6 +525,7 @@ int main(int argc, char** argv) {
     testSolidGeometry();
     testSolidRaster();
     testControlNulls();
+    testCycle();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

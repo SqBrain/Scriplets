@@ -67,6 +67,7 @@ enum { PF_LayerDefault_NONE = 0, PF_LayerDefault_MYSELF = -1 };
 #define PF_ADD_SLIDER(N, a, b, c, d, DF, ID) do { def.u.sd.value = DF; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_FLOAT_SLIDERX(N, a, b, c, d, DF, P, DISP, FL, ID) do { def.u.fs_d.value = DF; (void)(P); (void)(DISP); def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_ANGLE(N, DF, ID) do { def.u.ad.value = (DF) * 65536; PF_STUB_ADD(N, ID); } while (0)
+#define PF_ADD_CHECKBOX(N, NB, DF, FL, ID) do { def.u.bd.value = DF; def.flags = FL; (void)(NB); PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_CHECKBOXX(N, DF, FL, ID) do { def.u.bd.value = DF; def.flags = FL; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_COLOR(N, R, G, B, ID) do { def.u.cd.value.red = R; def.u.cd.value.green = G; def.u.cd.value.blue = B; PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_LAYER(N, DF, ID) do { def.param_type = PF_Param_LAYER; (void)(DF); PF_STUB_ADD(N, ID); } while (0)
@@ -123,6 +124,7 @@ typedef struct { PF_Err (*PF_PathIsOpen)(PF_ProgPtr, PF_PathOutlinePtr, PF_Boole
 typedef struct _AEGP_Layer* AEGP_LayerH; typedef struct _AEGP_Comp* AEGP_CompH; typedef struct _AEGP_Stream* AEGP_StreamRefH; typedef A_long AEGP_PluginID;
 typedef A_long AEGP_ObjectType; enum { AEGP_ObjectType_NONE = 3, AEGP_ObjectType_AV = 0, AEGP_ObjectType_LIGHT = 1, AEGP_ObjectType_CAMERA = 2 };
 typedef A_long AEGP_LayerFlags; enum { AEGP_LayerFlag_VIDEO_ACTIVE = 1, AEGP_LayerFlag_LAYER_IS_3D = 1 << 9 };
+typedef struct { A_long num; A_u_long den; } A_Ratio; typedef struct _AEGP_Item* AEGP_ItemH;
 typedef struct _AEGP_Effect* AEGP_EffectRefH; typedef A_long AEGP_LayerIDVal; typedef void* AEGP_GlobalRefcon;
 typedef struct { A_FpLong x, y, z; } AEGP_ThreeDVal;
 typedef A_long AEGP_LightType; enum { AEGP_LightType_PARALLEL, AEGP_LightType_SPOT, AEGP_LightType_POINT, AEGP_LightType_AMBIENT };
@@ -143,7 +145,8 @@ typedef struct { A_Err (*AEGP_GetCompNumLayers)(AEGP_CompH, A_long*); A_Err (*AE
   A_Err (*AEGP_GetLayerParentComp)(AEGP_LayerH, AEGP_CompH*); A_Err (*AEGP_GetLayerFlags)(AEGP_LayerH, AEGP_LayerFlags*);
   A_Err (*AEGP_GetLayerToWorldXform)(AEGP_LayerH, const A_Time*, A_Matrix4*); A_Err (*AEGP_GetLayerObjectType)(AEGP_LayerH, AEGP_ObjectType*);
   A_Err (*AEGP_SetLayerFlag)(AEGP_LayerH, AEGP_LayerFlags, A_Boolean); A_Err (*AEGP_GetLayerID)(AEGP_LayerH, AEGP_LayerIDVal*);
-  A_Err (*AEGP_GetLayerFromLayerID)(AEGP_CompH, AEGP_LayerIDVal, AEGP_LayerH*); } AEGP_LayerSuite8;
+  A_Err (*AEGP_GetLayerFromLayerID)(AEGP_CompH, AEGP_LayerIDVal, AEGP_LayerH*);
+  A_Err (*AEGP_GetLayerSourceItem)(AEGP_LayerH, AEGP_ItemH*); } AEGP_LayerSuite8;
 #define kAEGPStreamSuite "AEGP Stream Suite"
 #define kAEGPStreamSuiteVersion5 5
 typedef struct { A_Err (*AEGP_GetNewLayerStream)(AEGP_PluginID, AEGP_LayerH, AEGP_LayerStream, AEGP_StreamRefH*); A_Err (*AEGP_DisposeStream)(AEGP_StreamRefH);
@@ -153,7 +156,11 @@ typedef struct { A_Err (*AEGP_GetNewLayerStream)(AEGP_PluginID, AEGP_LayerH, AEG
   A_Err (*AEGP_SetStreamValue)(AEGP_PluginID, AEGP_StreamRefH, AEGP_StreamValue2*); } AEGP_StreamSuite5;
 #define kAEGPCompSuite "AEGP Comp Suite"
 #define kAEGPCompSuiteVersion11 25
-typedef struct { A_Err (*AEGP_CreateNullInComp)(const A_UTF16Char*, AEGP_CompH, const A_Time*, AEGP_LayerH*); } AEGP_CompSuite11;
+typedef struct { A_Err (*AEGP_CreateNullInComp)(const A_UTF16Char*, AEGP_CompH, const A_Time*, AEGP_LayerH*);
+                 A_Err (*AEGP_GetItemFromComp)(AEGP_CompH, AEGP_ItemH*); } AEGP_CompSuite11;
+#define kAEGPItemSuite "AEGP Item Suite"
+#define kAEGPItemSuiteVersion9 14
+typedef struct { A_Err (*AEGP_GetItemDimensions)(AEGP_ItemH, A_long*, A_long*); A_Err (*AEGP_GetItemPixelAspectRatio)(AEGP_ItemH, A_Ratio*); } AEGP_ItemSuite9;
 #define kAEGPUtilitySuite "AEGP Utility Suite"
 #define kAEGPUtilitySuiteVersion5 11
 typedef struct { A_Err (*AEGP_StartUndoGroup)(const A_char*); A_Err (*AEGP_EndUndoGroup)(void);

@@ -215,6 +215,33 @@ static RK_Vertex makeVertex(const V3& p, const V3& n, const V3& t, double u, dou
     return vx;
 }
 
+// The visible ribbon is the path range a..b (a = start + offset, b = end + offset), parametrised by
+// u = 0..1 along the ribbon. Where it crosses an end of the path it is cut into pieces: with Cycle the
+// part past the end continues from the start (and vice versa), without Cycle it is hidden. A closed
+// path with Cycle needs no cut, the curve wraps by itself. u (taper, texture) stays continuous over
+// the pieces, so the ribbon and its texture travel along the path as one object.
+std::vector<RibbonPiece> ribbonPieces(double a, double b, bool closed, bool cycle) {
+    std::vector<RibbonPiece> out;
+    if (std::fabs(b - a) < 1e-12) return out;
+    if (closed && cycle) {
+        out.push_back({0, 1, 0});
+        return out;
+    }
+    const double lo = std::min(a, b), hi = std::max(a, b);
+    std::vector<double> cuts = {0, 1};
+    for (double n = std::floor(lo) + 1; n < hi; n += 1)
+        if (n > lo) cuts.push_back((n - a) / (b - a));
+    std::sort(cuts.begin(), cuts.end());
+    for (size_t i = 0; i + 1 < cuts.size(); i++) {
+        const double u0 = cuts[i], u1 = cuts[i + 1];
+        if (u1 - u0 < 1e-9) continue;
+        const double lap = std::floor(a + (b - a) * (u0 + u1) / 2);
+        if (!cycle && lap != 0) continue;
+        out.push_back({u0, u1, lap});
+    }
+    return out;
+}
+
 RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
     RibbonMesh mesh;
     FramedCurve C(path);
@@ -224,6 +251,10 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
     if (std::fabs(b - a) < 1e-9) return mesh;
     const double dir = b >= a ? 1 : -1;
     const double L = C.length(), wl = std::max(1.0, rs.waveLength), e = 0.5 / L;
+    const std::vector<RibbonPiece> pieces = ribbonPieces(a, b, C.closed(), rs.cycle);
+    if (pieces.empty()) return mesh;
+    mesh.solid = rs.thickness > 0;
+    const int R = mesh.solid ? int(ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, M).size()) : 0;
 
     struct Sample { V3 p, t, u; };
     auto disp = [&](double s) {
@@ -234,84 +265,90 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         return r;
     };
 
-    // Cross sections: center, tangent, width direction W, front normal F = W x T, width.
-    std::vector<V3> fronts;
-    std::vector<double> us;
-    for (int k = 0; k <= N; k++) {
-        double u = double(k) / N, s = a + (b - a) * u;
-        Sample F = disp(s), Fa = disp(s - e * dir), Fb = disp(s + e * dir);
-        V3 T = normalize(Fb.p - Fa.p, F.t * dir);
-        V3 U = normalize(orthoTo(F.u, T), F.u);
-        V3 Wf = cross(U, T);
-        double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
-        th += C.rollAt(s);  // control nulls' rotation
-        V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
-        double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
-        mesh.center.push_back(F.p);
-        mesh.tangent.push_back(T);
-        mesh.widthDir.push_back(W);
-        mesh.widths.push_back(w);
-        fronts.push_back(normalize(cross(W, T), U * -1.0));
-        us.push_back(u);
-    }
+    for (const RibbonPiece& pc : pieces) {
+        // Segments in proportion to the piece's share of the ribbon (all N for a single piece).
+        const int n = std::max(1, int(std::lround(N * (pc.u1 - pc.u0))));
+        const size_t first = mesh.center.size();
+        std::vector<V3> fronts;
+        std::vector<double> us;
+        // Cross sections: center, tangent, width direction W, front normal F = W x T, width.
+        for (int k = 0; k <= n; k++) {
+            double u = pc.u0 + (pc.u1 - pc.u0) * double(k) / n, s = a + (b - a) * u - pc.lap;
+            Sample F = disp(s), Fa = disp(s - e * dir), Fb = disp(s + e * dir);
+            V3 T = normalize(Fb.p - Fa.p, F.t * dir);
+            V3 U = normalize(orthoTo(F.u, T), F.u);
+            V3 Wf = cross(U, T);
+            double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
+            th += C.rollAt(s);  // control nulls' rotation
+            V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
+            double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
+            mesh.center.push_back(F.p);
+            mesh.tangent.push_back(T);
+            mesh.widthDir.push_back(W);
+            mesh.widths.push_back(w);
+            fronts.push_back(normalize(cross(W, T), U * -1.0));
+            us.push_back(u);
+        }
+        auto center = [&](int k) { return mesh.center[first + size_t(k)]; };
+        auto tangent = [&](int k) { return mesh.tangent[first + size_t(k)]; };
+        auto widthDir = [&](int k) { return mesh.widthDir[first + size_t(k)]; };
+        auto width = [&](int k) { return mesh.widths[first + size_t(k)]; };
+        const int base = int(mesh.verts.size());
 
-    if (rs.thickness <= 0) {
-        // Thin two-sided sheet.
-        mesh.verts.reserve(size_t(N + 1) * (M + 1));
-        for (int k = 0; k <= N; k++)
-            for (int j = 0; j <= M; j++) {
-                double v = double(j) / M;
-                mesh.verts.push_back(makeVertex(mesh.center[k] + mesh.widthDir[k] * ((v - 0.5) * mesh.widths[k]), fronts[k],
-                                                mesh.tangent[k], us[k], v, 0));
+        if (!mesh.solid) {
+            // Thin two-sided sheet.
+            for (int k = 0; k <= n; k++)
+                for (int j = 0; j <= M; j++) {
+                    double v = double(j) / M;
+                    mesh.verts.push_back(makeVertex(center(k) + widthDir(k) * ((v - 0.5) * width(k)), fronts[size_t(k)], tangent(k),
+                                                    us[size_t(k)], v, 0));
+                }
+            for (int k = 0; k < n; k++)
+                for (int j = 0; j < M; j++) {
+                    int i00 = base + k * (M + 1) + j, i10 = base + (k + 1) * (M + 1) + j, i11 = i10 + 1, i01 = i00 + 1;
+                    int t[6] = {i00, i10, i11, i00, i11, i01};
+                    mesh.tris.insert(mesh.tris.end(), t, t + 6);
+                }
+            continue;
+        }
+
+        // Solid: the beveled profile swept along the path. Each section uses its own (tapered) width.
+        for (int k = 0; k <= n; k++) {
+            const double w = width(k);
+            const V3& Fk = fronts[size_t(k)];
+            std::vector<ProfilePoint> prof = ribbonProfile(w, rs.thickness, rs.bevel, rs.bevelSegments, rs.chamfer, M);
+            for (const ProfilePoint& q : prof) {
+                V3 p = center(k) + widthDir(k) * q.x + Fk * q.y;
+                V3 nn = normalize(widthDir(k) * q.nx + Fk * q.ny, Fk);
+                double v = w > 1e-9 ? std::clamp(q.x / w + 0.5, 0.0, 1.0) : 0.5;
+                mesh.verts.push_back(makeVertex(p, nn, tangent(k), us[size_t(k)], v, q.ny));
             }
-        mesh.tris.reserve(size_t(N) * M * 6);
-        for (int k = 0; k < N; k++)
-            for (int j = 0; j < M; j++) {
-                int i00 = k * (M + 1) + j, i10 = (k + 1) * (M + 1) + j, i11 = i10 + 1, i01 = i00 + 1;
+        }
+        for (int k = 0; k < n; k++)
+            for (int i = 0; i < R; i++) {
+                int i2 = (i + 1) % R;
+                int i00 = base + k * R + i, i01 = base + k * R + i2, i10 = base + (k + 1) * R + i, i11 = base + (k + 1) * R + i2;
                 int t[6] = {i00, i10, i11, i00, i11, i01};
                 mesh.tris.insert(mesh.tris.end(), t, t + 6);
             }
-        return mesh;
-    }
-
-    // Solid: the beveled profile swept along the path. Each section uses its own (tapered) width.
-    mesh.solid = true;
-    const int R = int(ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, M).size());
-    mesh.verts.reserve(size_t(N + 1) * R + 2 * (R + 1));
-    for (int k = 0; k <= N; k++) {
-        const double w = mesh.widths[k];
-        std::vector<ProfilePoint> prof = ribbonProfile(w, rs.thickness, rs.bevel, rs.bevelSegments, rs.chamfer, M);
-        for (const ProfilePoint& q : prof) {
-            V3 p = mesh.center[k] + mesh.widthDir[k] * q.x + fronts[k] * q.y;
-            V3 n = normalize(mesh.widthDir[k] * q.nx + fronts[k] * q.ny, fronts[k]);
-            double v = w > 1e-9 ? std::clamp(q.x / w + 0.5, 0.0, 1.0) : 0.5;
-            mesh.verts.push_back(makeVertex(p, n, mesh.tangent[k], us[k], v, q.ny));
-        }
-    }
-    mesh.tris.reserve(size_t(N) * R * 6 + 6 * R);
-    for (int k = 0; k < N; k++)
-        for (int i = 0; i < R; i++) {
-            int i2 = (i + 1) % R;
-            int i00 = k * R + i, i01 = k * R + i2, i10 = (k + 1) * R + i, i11 = (k + 1) * R + i2;
-            int t[6] = {i00, i10, i11, i00, i11, i01};
-            mesh.tris.insert(mesh.tris.end(), t, t + 6);
-        }
-    if (rs.caps) {
-        // Flat end caps: fan around the section center, normal along -T (start) / +T (end), edge color.
-        for (int end = 0; end < 2; end++) {
-            const int k = end ? N : 0;
-            const V3 n = mesh.tangent[k] * (end ? 1.0 : -1.0);
-            const int c = int(mesh.verts.size());
-            mesh.verts.push_back(makeVertex(mesh.center[k], n, mesh.widthDir[k], us[k], 0.5, 0));
-            for (int i = 0; i < R; i++) {
-                RK_Vertex vx = mesh.verts[size_t(k * R + i)];
-                vx.nrm[0] = float(n.x); vx.nrm[1] = float(n.y); vx.nrm[2] = float(n.z);
-                vx.side = 0;
-                mesh.verts.push_back(vx);
-            }
-            for (int i = 0; i < R; i++) {
-                int t[3] = {c, c + 1 + i, c + 1 + (i + 1) % R};
-                mesh.tris.insert(mesh.tris.end(), t, t + 3);
+        if (rs.caps) {
+            // Flat end caps: fan around the section center, normal along -T (start) / +T (end), edge color.
+            // Every piece is closed, also where Cycle cuts the ribbon at an end of the path.
+            for (int endCap = 0; endCap < 2; endCap++) {
+                const int k = endCap ? n : 0;
+                const V3 nrm = tangent(k) * (endCap ? 1.0 : -1.0);
+                const int c = int(mesh.verts.size());
+                mesh.verts.push_back(makeVertex(center(k), nrm, widthDir(k), us[size_t(k)], 0.5, 0));
+                for (int i = 0; i < R; i++) {
+                    RK_Vertex vx = mesh.verts[size_t(base + k * R + i)];
+                    vx.nrm[0] = float(nrm.x); vx.nrm[1] = float(nrm.y); vx.nrm[2] = float(nrm.z);
+                    vx.side = 0;
+                    mesh.verts.push_back(vx);
+                }
+                for (int i = 0; i < R; i++) {
+                    int t[3] = {c, c + 1 + i, c + 1 + (i + 1) % R};
+                    mesh.tris.insert(mesh.tris.end(), t, t + 3);
+                }
             }
         }
     }

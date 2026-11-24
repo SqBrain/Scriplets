@@ -95,7 +95,17 @@ struct RibbonSettings {
     int bevelSegments = 5;                           // per corner, round bevel
     bool chamfer = false;                            // straight 45 degree cut instead of a round corner
     bool caps = true;                                // close both ends
+    // Where start + offset .. end + offset leaves 0..1: true wraps the ribbon around (it continues
+    // from the other end, also on open paths), false hides the part outside the path.
+    bool cycle = true;
 };
+
+// One continuous part of the ribbon: ribbon parameters u0..u1, path position s = a + (b - a) u - lap.
+struct RibbonPiece {
+    double u0, u1, lap;
+};
+// Pieces of the ribbon a..b (path fractions) on a closed or open path, see RibbonSettings::cycle.
+std::vector<RibbonPiece> ribbonPieces(double a, double b, bool closed, bool cycle);
 
 // Cross-section of a solid ribbon: closed loop (front face, right edge, back face, left edge) in the
 // (width, front-normal) plane. The point count depends only on the segment settings.

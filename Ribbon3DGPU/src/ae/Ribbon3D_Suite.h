@@ -19,6 +19,8 @@
 #define RB_UTILITY_SUITE_VERSION kAEGPUtilitySuiteVersion5
 #define RB_EFFECT_SUITE AEGP_EffectSuite4
 #define RB_EFFECT_SUITE_VERSION kAEGPEffectSuiteVersion4
+#define RB_ITEM_SUITE AEGP_ItemSuite9
+#define RB_ITEM_SUITE_VERSION kAEGPItemSuiteVersion9
 
 template <typename T>
 class Suite {
