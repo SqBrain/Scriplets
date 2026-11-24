@@ -35,6 +35,7 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf) {
     Polyline out = in;
     for (auto& p : out.pts) p = xf.pivot + R * ((p - xf.pivot) * xf.scale) + xf.offset;
     out.up = normalize(R * in.up, in.up);
+    for (auto& rc : out.rolls) rc.up = normalize(R * rc.up, rc.up);
     return out;
 }
 
@@ -96,6 +97,57 @@ FramedCurve::FramedCurve(const Polyline& p) : X_(p.pts), closed_(p.closed) {
         if (c2 > 1e-12) r = r - v2 * (2 * dot(v2, r) / c2);
         R_[j + 1] = normalize(orthoTo(r, T_[j + 1]), R_[j]);
     }
+    // Roll controls: signed angle that turns the transported up R onto the requested up around T.
+    // With W0 = R x T, the twisted up is R cos(a) - W0 sin(a).
+    for (const Polyline::RollControl& rc : p.rolls) {
+        if (rc.index < 0 || size_t(rc.index) >= n) continue;
+        const V3& T = T_[size_t(rc.index)];
+        const V3& R = R_[size_t(rc.index)];
+        V3 d = orthoTo(rc.up, T);
+        if (rb::length(d) < 1e-6) continue;
+        d = normalize(d);
+        double a = std::atan2(-dot(d, cross(R, T)), dot(d, R));
+        if (!rollA_.empty()) a += 2 * kPi * std::round((rollA_.back() - a) / (2 * kPi));  // shortest turn
+        rollS_.push_back(S_[size_t(rc.index)] / len_);
+        rollA_.push_back(a);
+    }
+}
+
+double FramedCurve::rollAt(double s) const {
+    const size_t n = rollS_.size();
+    if (n == 0) return 0;
+    if (closed_) s = s - std::floor(s);
+    if (n == 1 || s <= rollS_[0]) return rollA_[0];
+    if (s >= rollS_[n - 1]) return rollA_[n - 1];
+    size_t i = size_t(std::upper_bound(rollS_.begin(), rollS_.end(), s) - rollS_.begin()) - 1;
+    // Cubic Hermite with Catmull-Rom slopes over arc length: smooth twist between nulls.
+    auto slope = [&](size_t k) {
+        size_t a = k == 0 ? 0 : k - 1, b = k + 1 >= n ? n - 1 : k + 1;
+        double ds = rollS_[b] - rollS_[a];
+        return ds > 1e-12 ? (rollA_[b] - rollA_[a]) / ds : 0.0;
+    };
+    double h = rollS_[i + 1] - rollS_[i];
+    if (h <= 1e-12) return rollA_[i + 1];
+    double t = (s - rollS_[i]) / h, t2 = t * t, t3 = t2 * t;
+    return rollA_[i] * (2 * t3 - 3 * t2 + 1) + slope(i) * h * (t3 - 2 * t2 + t) + rollA_[i + 1] * (-2 * t3 + 3 * t2) +
+           slope(i + 1) * h * (t3 - t2);
+}
+
+Polyline controlPointsToPolyline(const std::vector<ControlPoint>& cps, bool closed, int samplesPerSegment) {
+    const size_t n = cps.size();
+    if (n < 3) closed = false;
+    std::vector<Bezier> segs;
+    for (size_t i = 0; i + 1 < n || (closed && i < n); i++) {
+        const ControlPoint& a = cps[i];
+        const ControlPoint& b = cps[(i + 1) % n];
+        double chord = rb::length(b.pos - a.pos) / 3;
+        segs.push_back({a.pos, a.pos + a.axisX * (a.handleScale * chord), b.pos - b.axisX * (b.handleScale * chord), b.pos});
+    }
+    const int sps = std::max(1, samplesPerSegment);
+    Polyline p = bezierToPolyline(segs, closed, n ? cps[0].axisZ : V3(0, 0, 1), sps);
+    for (size_t i = 0; i < n; i++) p.rolls.push_back({int(i) * sps, cps[i].axisZ});
+    if (closed && n) p.rolls.push_back({int(n) * sps, cps[0].axisZ});
+    return p;
 }
 
 void FramedCurve::at(double s, V3& pos, V3& tangent, V3& up) const {
@@ -192,6 +244,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         V3 U = normalize(orthoTo(F.u, T), F.u);
         V3 Wf = cross(U, T);
         double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
+        th += C.rollAt(s);  // control nulls' rotation
         V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
         double w = rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u);
         mesh.center.push_back(F.p);

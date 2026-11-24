@@ -13,19 +13,13 @@
 #include <vector>
 
 #include "Ribbon3D_GPU.h"
+#include "Ribbon3D_Nulls.h"
 #include "Ribbon3D_Suite.h"
 #include "core/RibbonCPU.h"
 #include "core/RibbonGeometry.h"
 #include "core/RibbonPacket.h"
 
-// AEGP suite versions. Older versions stay available in AE for compatibility; if your SDK's
-// AE_GeneralPlug.h / AE_GeneralPlugOld.h names them differently, adjust these lines only.
-#define RB_LAYER_SUITE AEGP_LayerSuite8
-#define RB_LAYER_SUITE_VERSION kAEGPLayerSuiteVersion8
-#define RB_STREAM_SUITE AEGP_StreamSuite5
-#define RB_STREAM_SUITE_VERSION kAEGPStreamSuiteVersion5
-#define RB_LIGHT_SUITE AEGP_LightSuite2
-#define RB_LIGHT_SUITE_VERSION kAEGPLightSuiteVersion2
+// AEGP suite versions: Ribbon3D_Suite.h
 
 namespace {
 
@@ -236,6 +230,26 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_SOLID_TOPIC_END));
 
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Control Nulls", RB_ID(RB_NULLS_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Path Source", 2, RB_SOURCE_MASK, "Mask|Control Nulls", RB_ID(RB_PATH_SOURCE));
+    PF_ADD_BUTTON("Mask to Nulls", "Create Nulls from Mask", 0, PF_ParamFlag_SUPERVISE, RB_ID(RB_MAKE_NULLS));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_CHECKBOXX("Closed Loop", FALSE, 0, RB_ID(RB_NULLS_CLOSED));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Points", RB_ID(RB_POINTS_TOPIC));  // groups start collapsed in AE
+    for (int i = 0; i < RB_MAX_NULLS; i++) {
+        char name[32];
+        std::snprintf(name, sizeof(name), "Point %d", i + 1);
+        AEFX_CLR_STRUCT(def);
+        PF_ADD_LAYER(name, PF_LayerDefault_NONE, RB_ID(RB_NULL_1 + i));
+    }
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_POINTS_TOPIC_END));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_NULLS_TOPIC_END));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
@@ -423,7 +437,14 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rb::Material mat;
     rb::Polyline path;
     bool havePath = false;
+    A_Time compTime = {0, 1};
     {
+        Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
+        if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
+    }
+    if (Param(in_data, RB_PATH_SOURCE).popup() == RB_SOURCE_NULLS) {
+        havePath = RibbonReadControlNulls(in_data, compTime, Param(in_data, RB_NULLS_CLOSED).b(), path);
+    } else {
         Param p(in_data, RB_PATH);
         havePath = ReadMaskPolyline(in_data, p.path(), path);
     }
@@ -480,11 +501,6 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
 
     // The effect layer is comp-sized: layer pixels == comp pixels.
     const double compW = in_data->width, compH = in_data->height;
-    A_Time compTime = {0, 1};
-    {
-        Suite<AEGP_PFInterfaceSuite1> pfi(in_data, kAEGPPFInterfaceSuite, kAEGPPFInterfaceSuiteVersion1);
-        if (pfi) pfi->AEGP_ConvertEffectToCompTime(in_data->effect_ref, in_data->current_time, in_data->time_scale, &compTime);
-    }
     rb::Camera cam = CompCamera(in_data, compTime, compW, compH);
     cam.scaleX = Ratio(in_data->downsample_x);
     cam.scaleY = Ratio(in_data->downsample_y);
@@ -637,7 +653,6 @@ extern "C" DllExport PF_Err PluginDataEntryFunction(PF_PluginDataPtr inPtr, PF_P
 
 extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
                                        PF_LayerDef* output, void* extra) {
-    (void)params;
     (void)output;
     PF_Err err = PF_Err_NONE;
     try {
@@ -654,6 +669,11 @@ extern "C" DllExport PF_Err EffectMain(PF_Cmd cmd, PF_InData* in_data, PF_OutDat
             case PF_Cmd_SMART_PRE_RENDER: err = PreRender(in_data, out_data, static_cast<PF_PreRenderExtra*>(extra)); break;
             case PF_Cmd_SMART_RENDER: err = SmartRender(in_data, out_data, static_cast<PF_SmartRenderExtra*>(extra), false); break;
             case PF_Cmd_SMART_RENDER_GPU: err = SmartRender(in_data, out_data, static_cast<PF_SmartRenderExtra*>(extra), true); break;
+            case PF_Cmd_USER_CHANGED_PARAM: {
+                const PF_UserChangedParamExtra* ex = static_cast<const PF_UserChangedParamExtra*>(extra);
+                if (ex && ex->param_index == RB_MAKE_NULLS) err = RibbonMakeNullsFromMask(in_data, out_data, params);
+                break;
+            }
             default: break;
         }
     } catch (const std::bad_alloc&) {

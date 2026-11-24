@@ -335,6 +335,59 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+static void testControlNulls() {
+    std::printf("control nulls\n");
+    auto cp = [](V3 pos, double zRotDeg, double xRotDeg, double scale) {
+        M3 R = rotationXYZ(0, 0, zRotDeg) * rotationXYZ(xRotDeg, 0, 0);  // AE: Z rotation of a null, then its own X roll
+        ControlPoint c;
+        c.pos = pos;
+        c.axisX = R * V3(1, 0, 0); c.axisY = R * V3(0, 1, 0); c.axisZ = R * V3(0, 0, 1);
+        c.handleScale = scale;
+        return c;
+    };
+    // Four nulls, the third rolled by 90 degrees around its X axis, the last one turned.
+    std::vector<ControlPoint> cps = {cp(V3(300, 600, 0), -20, 0, 1), cp(V3(800, 400, 0), 0, 0, 1),
+                                     cp(V3(1200, 500, 100), 15, 90, 1.5), cp(V3(1600, 700, 0), 40, 0, 0.5)};
+    Polyline pl = controlPointsToPolyline(cps, false, 64);
+    // The curve passes through every null with its tangent along the null's X axis.
+    for (size_t i = 0; i < cps.size(); i++) {
+        CHECK(length(pl.pts[i * 64] - cps[i].pos) < 1e-9, "passes through null %zu", i);
+        size_t j = std::min(pl.pts.size() - 1, i * 64 + 1), k = j - 1;
+        V3 t = normalize(pl.pts[j] - pl.pts[k]);
+        CHECK(dot(t, cps[i].axisX) > 0.995, "tangent along null %zu X axis (%.4f)", i, dot(t, cps[i].axisX));
+    }
+    // At every null the ribbon's width lies along the null's Y axis and its front faces -Z.
+    RibbonSettings rs;
+    rs.twistTurns = 0; rs.segments = 600; rs.width = 50;
+    RibbonMesh m = buildRibbon(pl, rs);
+    FramedCurve fc(pl);
+    for (size_t i = 0; i < cps.size(); i++) {
+        double best = 1e300; size_t at = 0;
+        for (size_t k = 0; k < m.center.size(); k++) {
+            double d = length(m.center[k] - cps[i].pos);
+            if (d < best) { best = d; at = k; }
+        }
+        double wy = dot(m.widthDir[at], cps[i].axisY);
+        CHECK(wy > 0.98, "null %zu: width along its Y axis (%.4f)", i, wy);
+    }
+    // Rolling a null twists the ribbon around it, but not far away from it.
+    std::vector<ControlPoint> flat = cps;
+    flat[2] = cp(V3(1200, 500, 100), 15, 0, 1.5);
+    RibbonMesh m2 = buildRibbon(controlPointsToPolyline(flat, false, 64), rs);
+    CHECK(dot(m.widthDir.front(), m2.widthDir.front()) > 0.999, "first section unaffected by the third null's roll");
+    // Handle scale 0 gives a sharp corner at that null.
+    std::vector<ControlPoint> corner = {cp(V3(300, 600, 0), 0, 0, 0), cp(V3(800, 400, 0), 0, 0, 0), cp(V3(1300, 600, 0), 0, 0, 0)};
+    Polyline pc = controlPointsToPolyline(corner, false, 64);
+    V3 tin = normalize(pc.pts[64] - pc.pts[63]), tout = normalize(pc.pts[65] - pc.pts[64]);
+    CHECK(dot(tin, tout) < 0.9, "sharp corner with zero handles (%.3f)", dot(tin, tout));
+    // The path transform rotates the roll targets together with the points.
+    PathTransform xf;
+    xf.rotY = 90;
+    xf.pivot = V3(960, 540, 0);
+    Polyline r = transformPolyline(pl, xf);
+    CHECK(std::fabs(dot(r.rolls[2].up, rotationXYZ(0, 90, 0) * cps[2].axisZ) - 1) < 1e-9, "roll targets follow the path transform");
+}
+
 static void previews(const std::string& dir) {
     std::printf("previews -> %s\n", dir.c_str());
     const int W = 1920, H = 1080;
@@ -397,6 +450,7 @@ int main(int argc, char** argv) {
     testTexture();
     testSolidGeometry();
     testSolidRaster();
+    testControlNulls();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());
     return test::failures() ? 1 : 0;

@@ -4,7 +4,7 @@
 #pragma once
 
 #define RB_MAJOR_VERSION 1
-#define RB_MINOR_VERSION 1
+#define RB_MINOR_VERSION 2
 #define RB_BUG_VERSION   0
 #define RB_BUILD_VERSION 1
 

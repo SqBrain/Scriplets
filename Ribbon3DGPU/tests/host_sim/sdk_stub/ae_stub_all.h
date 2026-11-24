@@ -21,7 +21,13 @@ enum { A_Err_NONE = 0 };
 enum { PF_Err_NONE = 0, PF_Err_OUT_OF_MEMORY = 4, PF_Err_INTERNAL_STRUCT_DAMAGED = 512, PF_Err_BAD_CALLBACK_PARAM = 516 };
 typedef A_long PF_Cmd;
 enum { PF_Cmd_ABOUT, PF_Cmd_GLOBAL_SETUP, PF_Cmd_PARAMS_SETUP, PF_Cmd_SMART_PRE_RENDER, PF_Cmd_SMART_RENDER,
-       PF_Cmd_GPU_DEVICE_SETUP, PF_Cmd_GPU_DEVICE_SETDOWN, PF_Cmd_SMART_RENDER_GPU };
+       PF_Cmd_GPU_DEVICE_SETUP, PF_Cmd_GPU_DEVICE_SETDOWN, PF_Cmd_SMART_RENDER_GPU, PF_Cmd_USER_CHANGED_PARAM };
+typedef A_long PF_ParamIndex;
+typedef struct { PF_ParamIndex param_index; } PF_UserChangedParamExtra;
+enum { PF_ParamFlag_SUPERVISE = 1 << 6 };
+enum { PF_ChangeFlag_CHANGED_VALUE = 1 };
+enum { PF_OutFlag_REFRESH_UI = 1 << 3, PF_OutFlag_DISPLAY_ERROR_MESSAGE = 1 << 13, PF_OutFlag_FORCE_RERENDER = 1 << 22 };
+typedef unsigned short A_UTF16Char;
 typedef struct { A_long value; A_u_long scale; } A_Time;
 typedef struct { A_FpLong mat[4][4]; } A_Matrix4;
 typedef struct { A_u_char alpha, red, green, blue; } PF_Pixel; typedef PF_Pixel PF_Pixel8;
@@ -33,11 +39,11 @@ typedef struct { void* data; A_long rowbytes; A_long width, height; } PF_LayerDe
 typedef struct { A_long num; A_u_long den; } PF_RationalScale;
 typedef struct { A_long left, top, right, bottom; } PF_LRect;
 #define PF_PathID_NONE 0
-enum { PF_Param_LAYER, PF_Param_PATH = 12 };
+enum { PF_Param_LAYER, PF_Param_BUTTON = 23, PF_Param_PATH = 12 };
 typedef struct {
   union { struct { PF_FpLong value; } fs_d; struct { A_long value; } sd; struct { A_long value; } bd; struct { PF_Fixed value; } ad;
           struct { A_long value; } pd; struct { PF_Pixel value, dephault; } cd; struct { PF_PathID path_id; A_long reserved0; A_long dephault; } path_d; } u;
-  A_long param_type; A_char name_do_not_use_directly[32]; union { A_long id; } uu; A_long flags;
+  A_long param_type; A_char name_do_not_use_directly[32]; union { A_long id; A_long change_flags; } uu; A_long flags;
 } PF_ParamDef;
 typedef struct SPBasicSuite { int32 (*AcquireSuite)(const char*, int32, const void**); int32 (*ReleaseSuite)(const char*, int32); } SPBasicSuite;
 enum { kSPNoError = 0 };
@@ -66,6 +72,7 @@ enum { PF_LayerDefault_NONE = 0, PF_LayerDefault_MYSELF = -1 };
 #define PF_ADD_LAYER(N, DF, ID) do { def.param_type = PF_Param_LAYER; (void)(DF); PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_POPUP(N, C, DF, STR, ID) do { def.u.pd.value = DF; (void)(C); (void)(STR); PF_STUB_ADD(N, ID); } while (0)
 #define PF_ADD_TOPIC(N, ID) PF_STUB_ADD(N, ID)
+#define PF_ADD_BUTTON(N, BN, PUI, FL, ID) do { AEFX_CLR_STRUCT(def); def.param_type = PF_Param_BUTTON; def.flags = (FL); (void)(BN); (void)(PUI); PF_STUB_ADD(N, ID); } while (0)
 #define PF_END_TOPIC(ID) PF_STUB_ADD("", ID)
 enum { PF_Stage_DEVELOP, PF_Stage_ALPHA, PF_Stage_BETA, PF_Stage_RELEASE };
 #define PF_VERSION(V, S, B, ST, BLD) (((V) << 19) | ((S) << 15) | ((B) << 11) | ((ST) << 9) | (BLD))
@@ -104,34 +111,54 @@ typedef struct { PF_Err (*PF_CheckoutPath)(PF_ProgPtr, PF_PathID, A_long, A_long
                  PF_Err (*PF_CheckinPath)(PF_ProgPtr, PF_PathID, PF_Boolean, PF_PathOutlinePtr); } PF_PathQuerySuite1;
 #define kPFPathDataSuite "PF Path Data Suite"
 #define kPFPathDataSuiteVersion1 1
+typedef struct { PF_FpLong x, y; PF_FpLong tan_in_x, tan_in_y; PF_FpLong tan_out_x, tan_out_y; } PF_PathVertex;
 typedef struct { PF_Err (*PF_PathIsOpen)(PF_ProgPtr, PF_PathOutlinePtr, PF_Boolean*); PF_Err (*PF_PathNumSegments)(PF_ProgPtr, PF_PathOutlinePtr, A_long*);
+  PF_Err (*PF_PathVertexInfo)(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathVertex*);
   PF_Err (*PF_PathPrepareSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, A_long, PF_PathSegPrepPtr*);
   PF_Err (*PF_PathGetSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathSegPrepPtr*, PF_FpLong*);
   PF_Err (*PF_PathEvalSegLength)(PF_ProgPtr, PF_PathOutlinePtr, PF_PathSegPrepPtr*, A_long, PF_FpLong, PF_FpLong*, PF_FpLong*);
   PF_Err (*PF_PathCleanupSegLength)(PF_ProgPtr, PF_PathOutlinePtr, A_long, PF_PathSegPrepPtr*); } PF_PathDataSuite1;
 typedef struct _AEGP_Layer* AEGP_LayerH; typedef struct _AEGP_Comp* AEGP_CompH; typedef struct _AEGP_Stream* AEGP_StreamRefH; typedef A_long AEGP_PluginID;
 typedef A_long AEGP_ObjectType; enum { AEGP_ObjectType_NONE = 3, AEGP_ObjectType_AV = 0, AEGP_ObjectType_LIGHT = 1, AEGP_ObjectType_CAMERA = 2 };
-typedef A_long AEGP_LayerFlags; enum { AEGP_LayerFlag_VIDEO_ACTIVE = 1 };
+typedef A_long AEGP_LayerFlags; enum { AEGP_LayerFlag_VIDEO_ACTIVE = 1, AEGP_LayerFlag_LAYER_IS_3D = 1 << 9 };
+typedef struct _AEGP_Effect* AEGP_EffectRefH; typedef A_long AEGP_LayerIDVal; typedef void* AEGP_GlobalRefcon;
+typedef struct { A_FpLong x, y, z; } AEGP_ThreeDVal;
 typedef A_long AEGP_LightType; enum { AEGP_LightType_PARALLEL, AEGP_LightType_SPOT, AEGP_LightType_POINT, AEGP_LightType_AMBIENT };
-typedef A_long AEGP_LayerStream; enum { AEGP_LayerStream_ZOOM = 20, AEGP_LayerStream_INTENSITY, AEGP_LayerStream_COLOR, AEGP_LayerStream_CONE_ANGLE, AEGP_LayerStream_CONE_FEATHER };
+typedef A_long AEGP_LayerStream; enum { AEGP_LayerStream_ANCHORPOINT = 1, AEGP_LayerStream_POSITION, AEGP_LayerStream_SCALE, AEGP_LayerStream_ROTATION,
+  AEGP_LayerStream_ZOOM = 20, AEGP_LayerStream_INTENSITY, AEGP_LayerStream_COLOR, AEGP_LayerStream_CONE_ANGLE, AEGP_LayerStream_CONE_FEATHER };
 typedef A_long AEGP_LTimeMode; enum { AEGP_LTimeMode_LayerTime, AEGP_LTimeMode_CompTime };
 typedef struct { A_FpLong alphaF, redF, greenF, blueF; } AEGP_ColorVal;
-typedef union { A_FpLong one_d; AEGP_ColorVal color; } AEGP_StreamVal2;
+typedef union { A_FpLong one_d; AEGP_ColorVal color; AEGP_ThreeDVal three_d; AEGP_LayerIDVal layer_id; } AEGP_StreamVal2;
 typedef struct { AEGP_StreamRefH streamH; AEGP_StreamVal2 val; } AEGP_StreamValue2;
 #define kAEGPPFInterfaceSuite "AEGP PF Interface Suite"
 #define kAEGPPFInterfaceSuiteVersion1 1
-typedef struct { A_Err (*AEGP_GetEffectLayer)(PF_ProgPtr, AEGP_LayerH*); A_Err (*AEGP_ConvertEffectToCompTime)(PF_ProgPtr, A_long, A_u_long, A_Time*);
+typedef struct { A_Err (*AEGP_GetEffectLayer)(PF_ProgPtr, AEGP_LayerH*); A_Err (*AEGP_GetNewEffectForEffect)(AEGP_PluginID, PF_ProgPtr, AEGP_EffectRefH*);
+                 A_Err (*AEGP_ConvertEffectToCompTime)(PF_ProgPtr, A_long, A_u_long, A_Time*);
                  A_Err (*AEGP_GetEffectCamera)(PF_ProgPtr, const A_Time*, AEGP_LayerH*); } AEGP_PFInterfaceSuite1;
 #define kAEGPLayerSuite "AEGP Layer Suite"
 #define kAEGPLayerSuiteVersion8 8
 typedef struct { A_Err (*AEGP_GetCompNumLayers)(AEGP_CompH, A_long*); A_Err (*AEGP_GetCompLayerByIndex)(AEGP_CompH, A_long, AEGP_LayerH*);
   A_Err (*AEGP_GetLayerParentComp)(AEGP_LayerH, AEGP_CompH*); A_Err (*AEGP_GetLayerFlags)(AEGP_LayerH, AEGP_LayerFlags*);
-  A_Err (*AEGP_GetLayerToWorldXform)(AEGP_LayerH, const A_Time*, A_Matrix4*); A_Err (*AEGP_GetLayerObjectType)(AEGP_LayerH, AEGP_ObjectType*); } AEGP_LayerSuite8;
+  A_Err (*AEGP_GetLayerToWorldXform)(AEGP_LayerH, const A_Time*, A_Matrix4*); A_Err (*AEGP_GetLayerObjectType)(AEGP_LayerH, AEGP_ObjectType*);
+  A_Err (*AEGP_SetLayerFlag)(AEGP_LayerH, AEGP_LayerFlags, A_Boolean); A_Err (*AEGP_GetLayerID)(AEGP_LayerH, AEGP_LayerIDVal*);
+  A_Err (*AEGP_GetLayerFromLayerID)(AEGP_CompH, AEGP_LayerIDVal, AEGP_LayerH*); } AEGP_LayerSuite8;
 #define kAEGPStreamSuite "AEGP Stream Suite"
 #define kAEGPStreamSuiteVersion5 5
 typedef struct { A_Err (*AEGP_GetNewLayerStream)(AEGP_PluginID, AEGP_LayerH, AEGP_LayerStream, AEGP_StreamRefH*); A_Err (*AEGP_DisposeStream)(AEGP_StreamRefH);
   A_Err (*AEGP_GetNewStreamValue)(AEGP_PluginID, AEGP_StreamRefH, AEGP_LTimeMode, const A_Time*, A_Boolean, AEGP_StreamValue2*);
-  A_Err (*AEGP_DisposeStreamValue)(AEGP_StreamValue2*); } AEGP_StreamSuite5;
+  A_Err (*AEGP_DisposeStreamValue)(AEGP_StreamValue2*);
+  A_Err (*AEGP_GetNewEffectStreamByIndex)(AEGP_PluginID, AEGP_EffectRefH, PF_ParamIndex, AEGP_StreamRefH*);
+  A_Err (*AEGP_SetStreamValue)(AEGP_PluginID, AEGP_StreamRefH, AEGP_StreamValue2*); } AEGP_StreamSuite5;
+#define kAEGPCompSuite "AEGP Comp Suite"
+#define kAEGPCompSuiteVersion11 25
+typedef struct { A_Err (*AEGP_CreateNullInComp)(const A_UTF16Char*, AEGP_CompH, const A_Time*, AEGP_LayerH*); } AEGP_CompSuite11;
+#define kAEGPUtilitySuite "AEGP Utility Suite"
+#define kAEGPUtilitySuiteVersion5 11
+typedef struct { A_Err (*AEGP_StartUndoGroup)(const A_char*); A_Err (*AEGP_EndUndoGroup)(void);
+                 A_Err (*AEGP_RegisterWithAEGP)(AEGP_GlobalRefcon, const A_char*, AEGP_PluginID*); } AEGP_UtilitySuite5;
+#define kAEGPEffectSuite "AEGP Effect Suite"
+#define kAEGPEffectSuiteVersion4 4
+typedef struct { A_Err (*AEGP_DisposeEffect)(AEGP_EffectRefH); } AEGP_EffectSuite4;
 #define kAEGPLightSuite "AEGP Light Suite"
 #define kAEGPLightSuiteVersion2 2
 typedef struct { A_Err (*AEGP_GetLightType)(AEGP_LayerH, AEGP_LightType*); } AEGP_LightSuite2;

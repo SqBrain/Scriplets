@@ -24,7 +24,7 @@ add_custom_command(
     VERBATIM)
 
 # 2. The plugin.
-add_library(Ribbon3DGPU MODULE src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp)
+add_library(Ribbon3DGPU MODULE src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_Nulls.cpp)
 target_include_directories(Ribbon3DGPU PRIVATE ${AE_INCLUDES} src src/ae ${GEN_DIR})
 target_link_libraries(Ribbon3DGPU PRIVATE ribbon_core)
 add_dependencies(Ribbon3DGPU ribbon_kernel_source)

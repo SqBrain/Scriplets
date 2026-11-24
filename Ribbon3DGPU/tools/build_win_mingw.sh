@@ -37,7 +37,7 @@ python3 "$here/tools/make_pipl.py" --name "Ribbon 3D GPU" --category "Generate" 
 
 echo "== compile"
 srcs=(src/core/RibbonGeometry.cpp src/core/RibbonPacket.cpp src/core/RibbonCPU.cpp
-      src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp)
+      src/ae/Ribbon3D.cpp src/ae/Ribbon3D_GPU.cpp src/ae/Ribbon3D_GPULibs.cpp src/ae/Ribbon3D_Nulls.cpp)
 objs=()
 for s in "${srcs[@]}"; do
     o="$obj/$(basename "${s%.cpp}").o"

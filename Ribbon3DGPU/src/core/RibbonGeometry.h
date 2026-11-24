@@ -53,7 +53,22 @@ struct Polyline {
     std::vector<V3> pts;
     bool closed = false;
     V3 up{0, 0, 1};
+    // Optional roll controls: at polyline sample `index` the ribbon's up vector should be `up`
+    // (the ribbon twists smoothly between controls). Used by control nulls.
+    struct RollControl { int index; V3 up; };
+    std::vector<RollControl> rolls;
 };
+
+// A control null: world position, unit local axes (X = tangent direction, Z = ribbon up, so the
+// ribbon's width lies along Y) and the handle scale (1 = smooth default, 0 = sharp corner).
+struct ControlPoint {
+    V3 pos;
+    V3 axisX{1, 0, 0}, axisY{0, 1, 0}, axisZ{0, 0, 1};
+    double handleScale = 1;
+};
+// Cubic spline through the control points: tangent along each point's X axis, handle length
+// = handleScale * (distance to the neighbour) / 3. Adds a roll control per point.
+Polyline controlPointsToPolyline(const std::vector<ControlPoint>& cps, bool closed, int samplesPerSegment = 32);
 
 Polyline bezierToPolyline(const std::vector<Bezier>& segs, bool closed, const V3& up, int samplesPerSegment = 32);
 
@@ -109,10 +124,13 @@ public:
     double length() const { return len_; }
     // s: fraction of the length (clamped for open, wrapped for closed paths).
     void at(double s, V3& pos, V3& tangent, V3& up) const;
+    // Extra twist (radians) at s that turns the rotation minimizing frame onto the roll controls.
+    double rollAt(double s) const;
 
 private:
     std::vector<V3> X_, T_, R_;
     std::vector<double> S_;
+    std::vector<double> rollS_, rollA_;  // control positions (fractions) and unwrapped angles
     double len_ = 0;
     bool closed_ = false;
 };

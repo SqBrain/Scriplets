@@ -23,6 +23,10 @@
 #define RB_CATEGORY    "Generate"
 #define RB_DESCRIPTION "Realistic 3D ribbon along a mask path, rendered on the GPU.\rCopyright 2026 Scriplets."
 
+#define RB_MAX_NULLS 32
+#define RB_SOURCE_MASK 1
+#define RB_SOURCE_NULLS 2
+
 // Parameter indices. Never reorder: AE stores projects by these and by the disk IDs below.
 enum {
     RB_INPUT = 0,
@@ -93,6 +97,16 @@ enum {
     RB_EDGE_COLOR,
     RB_END_CAPS,
     RB_SOLID_TOPIC_END,
+
+    // v1.2 - control nulls (appended for the same reason).
+    RB_NULLS_TOPIC,
+    RB_PATH_SOURCE,       // 1: mask, 2: control nulls
+    RB_MAKE_NULLS,        // button
+    RB_NULLS_CLOSED,
+    RB_POINTS_TOPIC,      // collapsed group with the layer slots
+    RB_NULL_1,
+    RB_POINTS_TOPIC_END = RB_NULL_1 + RB_MAX_NULLS,
+    RB_NULLS_TOPIC_END,
 
     RB_NUM_PARAMS
 };
