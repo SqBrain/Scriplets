@@ -45,17 +45,30 @@ static int gNumMasks = 2;
 static double gMask2Dy = 150;
 static PF_Err NumPaths(PF_ProgPtr, A_long* n) { *n = gNumMasks; return PF_Err_NONE; }
 static PF_Err PathInfo(PF_ProgPtr, A_long i, PF_PathID* id) { *id = PF_PathID(7 + i); return PF_Err_NONE; }
+// Mask id 9: a closed 40 x 20 rectangle at (700, 60), used as a cross-section profile.
+static const double kRect[4][2] = {{700, 60}, {740, 60}, {740, 80}, {700, 80}};
+static bool IsRect(PF_PathOutlinePtr p) { return p == (PF_PathOutlinePtr)0x3; }
 static PF_Err CheckoutPath(PF_ProgPtr, PF_PathID id, A_long, A_long, A_u_long, PF_PathOutlinePtr* p) {
-    *p = id == 7 ? (PF_PathOutlinePtr)0x1 : (id == 8 ? (PF_PathOutlinePtr)0x2 : nullptr);
+    *p = id == 7 ? (PF_PathOutlinePtr)0x1 : (id == 8 ? (PF_PathOutlinePtr)0x2 : (id == 9 ? (PF_PathOutlinePtr)0x3 : nullptr));
     return PF_Err_NONE;
 }
 static double MaskDy(PF_PathOutlinePtr p) { return p == (PF_PathOutlinePtr)0x2 ? gMask2Dy : 0.0; }
 static PF_Err CheckinPath(PF_ProgPtr, PF_PathID, PF_Boolean, PF_PathOutlinePtr) { return PF_Err_NONE; }
-static PF_Err IsOpen(PF_ProgPtr, PF_PathOutlinePtr, PF_Boolean* o) { *o = TRUE; return PF_Err_NONE; }
-static PF_Err NumSegs(PF_ProgPtr, PF_PathOutlinePtr, A_long* n) { *n = 2; return PF_Err_NONE; }
+static PF_Err IsOpen(PF_ProgPtr, PF_PathOutlinePtr p, PF_Boolean* o) { *o = IsRect(p) ? FALSE : TRUE; return PF_Err_NONE; }
+static PF_Err NumSegs(PF_ProgPtr, PF_PathOutlinePtr p, A_long* n) { *n = IsRect(p) ? 4 : 2; return PF_Err_NONE; }
 static PF_Err Prep(PF_ProgPtr, PF_PathOutlinePtr, A_long, A_long, PF_PathSegPrepPtr* pp) { *pp = (PF_PathSegPrepPtr)0x2; return PF_Err_NONE; }
-static PF_Err GetLen(PF_ProgPtr, PF_PathOutlinePtr, A_long s, PF_PathSegPrepPtr*, PF_FpLong* l) { *l = segLen(kSegs[s]); return PF_Err_NONE; }
+static PF_Err GetLen(PF_ProgPtr, PF_PathOutlinePtr p, A_long s, PF_PathSegPrepPtr*, PF_FpLong* l) {
+    if (IsRect(p)) { const double* a = kRect[s]; const double* b = kRect[(s + 1) % 4]; *l = std::hypot(b[0] - a[0], b[1] - a[1]); }
+    else *l = segLen(kSegs[s]);
+    return PF_Err_NONE;
+}
 static PF_Err Eval(PF_ProgPtr, PF_PathOutlinePtr path, PF_PathSegPrepPtr*, A_long s, PF_FpLong len, PF_FpLong* x, PF_FpLong* y) {
+    if (IsRect(path)) {
+        const double* a = kRect[s]; const double* b = kRect[(s + 1) % 4];
+        const double L = std::hypot(b[0] - a[0], b[1] - a[1]), f = L > 0 ? len / L : 0;
+        *x = a[0] + (b[0] - a[0]) * f; *y = a[1] + (b[1] - a[1]) * f;
+        return PF_Err_NONE;
+    }
     // arc length -> t by bisection on a dense table
     const Seg& g = kSegs[s];
     double L = 0, px, py, cx, cy, t = 1;
@@ -201,6 +214,12 @@ static A_Err CompItem(AEGP_CompH, AEGP_ItemH* i) { *i = (AEGP_ItemH)&gCompItem; 
 static A_Err ItemDims(AEGP_ItemH i, A_long* w, A_long* h) { *w = ((SimLayer::Item*)i)->w; *h = ((SimLayer::Item*)i)->h; return 0; }
 static A_Err ItemPar(AEGP_ItemH i, A_Ratio* r) { *r = ((SimLayer::Item*)i)->par; return 0; }
 static PF_Err VertexInfo(PF_ProgPtr, PF_PathOutlinePtr path, A_long i, PF_PathVertex* v) {
+    if (IsRect(path)) {
+        v->x = kRect[i % 4][0]; v->y = kRect[i % 4][1];
+        v->tan_in_x = v->tan_in_y = v->tan_out_x = v->tan_out_y = gAbsoluteTangents ? 0 : 0;
+        if (gAbsoluteTangents) { v->tan_in_x = v->tan_out_x = v->x; v->tan_in_y = v->tan_out_y = v->y; }
+        return PF_Err_NONE;
+    }
     // Vertex i of the two-segment mask; handles relative or absolute depending on gAbsoluteTangents.
     const double* p = i == 0 ? kSegs[0].p[0] : (i == 1 ? kSegs[0].p[3] : kSegs[1].p[3]);
     const double* in = i == 0 ? kSegs[0].p[0] : (i == 1 ? kSegs[0].p[2] : kSegs[1].p[2]);
@@ -890,6 +909,38 @@ static int TestRoughEnds() {
     return fails;
 }
 
+// Cross sections in the single effect: round tube, custom profile from mask 9; CPU = GPU.
+static int TestSections() {
+    int fails = 0;
+    ResetComp();
+    gDefs[RB_PATH_SOURCE - 1].u.pd.value = RB_SOURCE_MASK;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 3;
+    auto area = [](const std::vector<float>& img) { double s = 0; for (size_t i = 3; i < img.size(); i += 4) s += img[i]; return s; };
+    std::vector<float> flat = RunCPU(32);
+    gDefs[RB_SECTION - 1].u.pd.value = 2;
+    std::vector<float> tube = RunCPU(32), tubeG = RunGPU();
+    gDefs[RB_SECTION - 1].u.pd.value = 3;
+    gDefs[RB_PROFILE_MASK - 1].u.path_d.path_id = 9;
+    std::vector<float> bar = RunCPU(32), barG = RunGPU();
+    auto maxDiff = [](const std::vector<float>& a, const std::vector<float>& b) {
+        double d = b.empty() ? 1 : 0;
+        for (size_t i = 0; i < a.size() && i < b.size(); i++) d = std::max(d, double(std::fabs(a[i] - b[i])));
+        return d;
+    };
+    // The twisted flat ribbon narrows where it turns edge-on; a tube of the same width does not.
+    std::printf("sections: area flat %.0f, round %.0f, custom 2:1 bar %.0f; CPU vs GPU round %.2e, custom %.2e\n", area(flat), area(tube),
+                area(bar), maxDiff(tube, tubeG), maxDiff(bar, barG));
+    if (area(tube) < area(flat) * 1.1 || area(bar) < area(flat) * 0.5 || DiffFraction(tube, bar) < 0.01 || maxDiff(tube, tubeG) > 2e-3 ||
+        maxDiff(bar, barG) > 2e-3) {
+        std::printf("FAIL: cross sections\n"); fails++;
+    }
+    if (!(gDefs[RB_TRIM_MASKS - 1].ui_flags & PF_PUI_INVISIBLE)) { std::printf("FAIL: Trim Masks visible in the single-mask effect\n"); fails++; }
+    gDefs[RB_SECTION - 1].u.pd.value = 1;
+    gDefs[RB_PROFILE_MASK - 1].u.path_d.path_id = 0;
+    gDefs[RB_COMPOSITE - 1].u.pd.value = 1;
+    return fails;
+}
+
 // Mean color of the ribbon pixels (alpha > 0.5) in columns x0..x1 (Ribbon Only renders).
 static void MeanColor(const std::vector<float>& img, int x0, int x1, int y0, int y1, double rgb[3]) {
     double n = 0;
@@ -960,6 +1011,37 @@ static int TestMultiMask() {
     const double r1 = area(half, 0, 270) / area(two, 0, 270), r2 = area(half, 270, H) / area(two, 270, H);
     std::printf("multi-mask, End 50 %%: upper part %.2f, lower part %.2f of the full ribbons\n", r1, r2);
     if (r1 > 0.8 || r2 > 0.8 || r1 < 0.2 || r2 < 0.2) { std::printf("FAIL: simultaneous trim\n"); fails++; }
+    // Individually: the two masks are one path (mask 1, then mask 2); End 50 % draws all of mask 1
+    // and nothing of mask 2. Offset 50 % then: all of mask 2, nothing of mask 1.
+    gDefs[RB_TRIM_MASKS - 1].u.pd.value = 2;
+    gDefs[RB_END - 1].u.fs_d.value = 50;
+    std::vector<float> ind = RunCPU(32), indG = RunGPU();
+    gDefs[RB_OFFSET - 1].u.fs_d.value = 50;
+    std::vector<float> indOff = RunCPU(32);
+    gDefs[RB_OFFSET - 1].u.fs_d.value = 0;
+    gDefs[RB_END - 1].u.fs_d.value = 100;
+    gDefs[RB_TRIM_MASKS - 1].u.pd.value = 1;
+    double gi = 0;
+    for (size_t i = 0; i < ind.size() && i < indG.size(); i++) gi = std::max(gi, double(std::fabs(ind[i] - indG[i])));
+    // Ribbon 1 covers y 120..410, ribbon 2 (150 px lower, 60 px wide) 280..560: compare rows only one covers.
+    const double i1 = area(ind, 120, 270) / area(two, 120, 270), i2 = area(ind, 415, H) / area(two, 415, H);
+    const double o1 = area(indOff, 120, 270) / area(two, 120, 270), o2 = area(indOff, 415, H) / area(two, 415, H);
+    std::printf("multi-mask Individually, End 50 %%: mask 1 %.2f, mask 2 %.2f; + Offset 50 %%: %.2f / %.2f; CPU vs GPU %.2e\n", i1, i2, o1,
+                o2, gi);
+    if (i1 < 0.95 || i2 > 0.05 || o1 > 0.05 || o2 < 0.95 || indG.empty() || gi > 2e-3) { std::printf("FAIL: individually\n"); fails++; }
+    // A custom profile from mask 9: that mask is the cross section, not a third ribbon.
+    gNumMasks = 3;
+    gDefs[RB_SECTION - 1].u.pd.value = 3;
+    gDefs[RB_PROFILE_MASK - 1].u.path_d.path_id = 9;
+    std::vector<float> prof = RunCPU(32);
+    double nearRect = 0;
+    for (int y = 40; y < 100; y++)
+        for (int x = 680; x < 760; x++) nearRect += prof[(size_t(y) * W + x) * 4 + 3];
+    std::printf("multi-mask with a profile mask: coverage around the profile mask %.0f px\n", nearRect);
+    if (nearRect > 5 || area(prof, 0, H) < area(two, 0, H) * 0.3) { std::printf("FAIL: profile mask drawn as a ribbon\n"); fails++; }
+    gNumMasks = 2;
+    gDefs[RB_SECTION - 1].u.pd.value = 1;
+    gDefs[RB_PROFILE_MASK - 1].u.path_d.path_id = 0;
     // Unused parameters are hidden.
     const int hidden[] = {RB_PATH, RB_NULLS_TOPIC, RB_PATH_SOURCE, RB_MAKE_NULLS, RB_NULLS_CLOSED, RB_NULL_1, RB_NULL_1 + RB_MAX_NULLS - 1};
     bool allHidden = true;
@@ -1087,6 +1169,7 @@ int main(int argc, char** argv) {
     fails += TestNormalMap();
     fails += TestRoughEnds();
     fails += TestGradient();
+    fails += TestSections();
 
     if (argc > 1) {
         FILE* f = std::fopen(argv[1], "wb");

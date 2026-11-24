@@ -418,13 +418,32 @@ PF_Err ParamsSetup(PF_InData* in_data, PF_OutData* out_data) {
     AEFX_CLR_STRUCT(def);
     PF_END_TOPIC(RB_ID(RB_GRAD_TOPIC_END));
 
+    // 0.1.11: cross section (flat / round tube / any outline from a mask), trim mode for masks.
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_TOPIC("Cross Section", RB_ID(RB_SECTION_TOPIC));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_POPUP("Cross Section", 3, 1, "Flat|Round|Custom Profile", RB_ID(RB_SECTION));
+    AEFX_CLR_STRUCT(def);
+    def.param_type = PF_Param_PATH;
+    std::strncpy(def.PF_DEF_NAME, "Profile Mask", sizeof(def.PF_DEF_NAME) - 1);
+    def.u.path_d.dephault = 0;  // none
+    def.uu.id = RB_ID(RB_PROFILE_MASK);
+    ERR(PF_ADD_PARAM(in_data, -1, &def));
+    AEFX_CLR_STRUCT(def);
+    PF_ADD_SLIDER("Profile Detail", 6, 256, 6, 96, 24, RB_ID(RB_PROFILE_DETAIL));
+    AEFX_CLR_STRUCT(def);
+    PF_END_TOPIC(RB_ID(RB_SECTION_TOPIC_END));
+    AEFX_CLR_STRUCT(def);
+    def.ui_flags = RB_SINGLE_PUI;  // multi-mask effect only
+    PF_ADD_POPUP("Trim Masks", 2, 1, "Simultaneously|Individually", RB_ID(RB_TRIM_MASKS));
+
     out_data->num_params = RB_NUM_PARAMS;
     return err;
 }
 
 bool FrameworkSupported(PF_GPU_Framework fw) { return RibbonGPU_Supports(fw); }
 
-std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam);
+std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam, PF_PathID exclude = PF_PathID_NONE);
 
 // Shape of every mask of the layer at the current time, for the cache key.
 void MasksKey(PF_InData* in_data, std::vector<double>& key) {
@@ -696,6 +715,7 @@ struct PathInputs {
     int source = RB_SOURCE_MASK;
     bool nullsClosed = false;
     PF_PathID mask = PF_PathID_NONE;
+    PF_PathID profileMask = PF_PathID_NONE;  // never a path of its own (multi-mask effect)
     bool front = false;  // Orientation = Front: the path is a view from above
     rb::PathTransform xf;
 };
@@ -710,8 +730,9 @@ rb::V3 PathPivot(const rb::Polyline& path) {
     return rb::V3((minx + maxx) / 2, (miny + maxy) / 2, 0);
 }
 
-// Masks to draw: the one in "Path", or every mask of the layer in the multi-mask effect.
-std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam) {
+// Masks to draw: the one in "Path", or every mask of the layer in the multi-mask effect (except
+// `exclude`, the mask that holds the cross-section profile).
+std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam, PF_PathID exclude) {
     std::vector<PF_PathID> ids;
     if (!kAllMasks) {
         if (pathParam != PF_PathID_NONE) ids.push_back(pathParam);
@@ -722,7 +743,7 @@ std::vector<PF_PathID> MaskIDs(PF_InData* in_data, PF_PathID pathParam) {
     if (!pq || pq->PF_NumPaths(in_data->effect_ref, &n)) return ids;
     for (A_long i = 0; i < n; i++) {
         PF_PathID id = PF_PathID_NONE;
-        if (!pq->PF_PathInfo(in_data->effect_ref, i, &id) && id != PF_PathID_NONE) ids.push_back(id);
+        if (!pq->PF_PathInfo(in_data->effect_ref, i, &id) && id != PF_PathID_NONE && id != exclude) ids.push_back(id);
     }
     return ids;
 }
@@ -743,7 +764,7 @@ bool RibbonWorldPaths(PF_InData* in_data, const A_Time& compTime, PathInputs in,
         rb::Polyline p;
         if (RibbonReadControlNulls(in_data, compTime, in.nullsClosed, p)) paths.push_back(p);
     } else {
-        for (PF_PathID id : MaskIDs(in_data, in.mask)) {
+        for (PF_PathID id : MaskIDs(in_data, in.mask, in.profileMask)) {
             rb::Polyline p;
             if (ReadMaskPolyline(in_data, id, p)) paths.push_back(p);
         }
@@ -774,6 +795,8 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     pin.nullsClosed = Param(in_data, RB_NULLS_CLOSED).b();
     pin.mask = Param(in_data, RB_PATH).path();
     pin.front = Param(in_data, RB_ORIENTATION).popup() == RB_ORIENT_FRONT;
+    const int sectionMode = Param(in_data, RB_SECTION).popup();
+    if (sectionMode == 3) pin.profileMask = Param(in_data, RB_PROFILE_MASK).path();
     rb::PathTransform& xf = pin.xf;
     rs.segments = std::max(2, Param(in_data, RB_SEGMENTS).i());
     rs.start = Param(in_data, RB_START).f() / 100;
@@ -797,6 +820,13 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     if (in_data->quality == PF_Quality_LO) rs.bevelSegments = std::min(rs.bevelSegments, 2);  // draft preview
     rs.caps = Param(in_data, RB_END_CAPS).b();
     rs.cycle = Param(in_data, RB_CYCLE).b();
+    // Cross section: round tube, or the outline of the profile mask (round if it has none).
+    rs.section = sectionMode == 2 ? rb::kSectionRound : (sectionMode == 3 ? rb::kSectionCustom : rb::kSectionFlat);
+    rs.profileDetail = std::clamp(Param(in_data, RB_PROFILE_DETAIL).i(), 6, 256);
+    if (rs.section == rb::kSectionCustom) {
+        rb::Polyline outline;
+        if (ReadMaskPolyline(in_data, pin.profileMask, outline)) rs.profile = rb::outlineProfile(outline.pts, 2 * rs.profileDetail);
+    }
     rs.endRounding = Param(in_data, RB_END_ROUNDING).f() / 100;
     {
         const int which = Param(in_data, RB_END_ROUND_WHICH).popup();
@@ -907,18 +937,44 @@ PF_Err BuildPacket(PF_InData* in_data, const PreRenderData& prd, int outW, int o
     rb::RibbonMesh mesh;
     std::vector<rb::Polyline> worlds;
     if (RibbonWorldPaths(in_data, compTime, pin, worlds)) {
-        // One ribbon per path, all with the same settings: Start / End / Offset act on every path
-        // at once ("simultaneously"). Every path gets its own gusts; with "Random per Path" its
-        // own color from the gradient.
+        // Every path gets its own wind gusts; with "Random per Path" its own color from the gradient.
+        std::vector<double> lengths;
         for (size_t i = 0; i < worlds.size(); i++) {
-            rb::RibbonSettings ri = rs;
-            ri.wind.seed += int(i) * 7919;
-            rb::RibbonMesh m = rb::buildRibbon(rb::applyWind(worlds[i], ri.wind, ri.time), ri);
+            rb::WindSettings w = rs.wind;
+            w.seed += int(i) * 7919;
+            worlds[i] = rb::applyWind(worlds[i], w, rs.time);
+            lengths.push_back(rb::FramedCurve(worlds[i]).length());
+        }
+        auto add = [&](size_t i, const rb::RibbonSettings& ri) {
+            rb::RibbonMesh m = rb::buildRibbon(worlds[i], ri);
             if (mat.gradMode == 2) {
                 const float g = float(rb::hashUnit((long long)i, gradSeed));
                 for (RK_Vertex& v : m.verts) v.grad = g;
             }
             rb::appendMesh(mesh, m);
+        };
+        const bool individually = kAllMasks && Param(in_data, RB_TRIM_MASKS).popup() == 2;
+        if (!individually) {
+            // Simultaneously: one ribbon per path, the same Start / End / Offset on every path.
+            for (size_t i = 0; i < worlds.size(); i++) {
+                rb::RibbonSettings ri = rs;
+                ri.wind.seed += int(i) * 7919;
+                add(i, ri);
+            }
+        } else {
+            // Individually: the paths in mask order are one long path; the ribbon's parts on each
+            // path keep one taper, texture and gradient over the whole length.
+            double total = 0;
+            for (double l : lengths) total += l;
+            const double a = rs.start + rs.offset, b = rs.end + rs.offset;
+            for (const rb::PathPart& pp : rb::individualParts(lengths, a, b, rs.cycle)) {
+                rb::RibbonSettings ri = rs;
+                ri.wind.seed += pp.path * 7919;
+                ri.start = pp.start; ri.end = pp.end; ri.offset = 0; ri.cycle = false;
+                ri.uMapLo = pp.uLo; ri.uMapHi = pp.uHi;
+                ri.lengthOverride = total * std::fabs(b - a);
+                add(size_t(pp.path), ri);
+            }
         }
     }
     rb::buildPacket(mesh, cam, lights, mat, outW, outH, pk, rs.width);
@@ -954,6 +1010,7 @@ PF_Err ConfigureFromLayer(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     pin.source = int(params[RB_PATH_SOURCE]->u.pd.value);
     pin.nullsClosed = params[RB_NULLS_CLOSED]->u.bd.value != 0;
     pin.mask = params[RB_PATH]->u.path_d.path_id;
+    if (params[RB_SECTION]->u.pd.value == 3) pin.profileMask = params[RB_PROFILE_MASK]->u.path_d.path_id;
     pin.front = params[RB_ORIENTATION]->u.pd.value == RB_ORIENT_FRONT;
     pin.xf.rotX = params[RB_XF_ROT_X]->u.ad.value / 65536.0;
     pin.xf.rotY = params[RB_XF_ROT_Y]->u.ad.value / 65536.0;
@@ -963,16 +1020,20 @@ PF_Err ConfigureFromLayer(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     std::vector<rb::Polyline> worlds;
     if (!RibbonWorldPaths(in_data, compTime, pin, worlds))
         return ShowMessage(out_data, kAllMasks ? "no masks on this layer yet." : "no path yet: pick a mask in \"Path\" or set up the control nulls.");
-    // Several masks: fit to the longest ribbon.
+    // Several masks: fit to the longest ribbon (Simultaneously) or to all of them in a row (Individually).
     size_t longest = 0;
-    for (size_t i = 1; i < worlds.size(); i++)
+    double total = 0;
+    for (size_t i = 0; i < worlds.size(); i++) {
+        total += rb::FramedCurve(worlds[i]).length();
         if (rb::FramedCurve(worlds[i]).length() > rb::FramedCurve(worlds[longest]).length()) longest = i;
+    }
     const rb::FramedCurve curve(worlds[longest]);
+    const bool individually = kAllMasks && params[RB_TRIM_MASKS]->u.pd.value == 2;
     const double span = std::fabs(params[RB_END]->u.fs_d.value - params[RB_START]->u.fs_d.value) / 100;
     if (!curve.valid()) return ShowMessage(out_data, "the path has no length.");
     if (span < 1e-6) return ShowMessage(out_data, "Start and End are equal, the ribbon has no length.");
     const double repeat = std::max(0.01, double(params[RB_TEX_REPEAT]->u.fs_d.value));
-    const double want = curve.length() * span / repeat * lh / lw;
+    const double want = (individually ? total : curve.length()) * span / repeat * lh / lw;
     const double width = std::clamp(want, 0.0, 10000.0);  // Width's valid range
 
     if (fit && fit != tex) {

@@ -336,6 +336,92 @@ static void testSolidRaster() {
     CHECK(bk[1] > 0.99f && bk[2] < 0.01f, "back face color");
 }
 
+// Cross sections: round tube, custom outline (sharp corners kept), Individually trimmed paths.
+static void testSections() {
+    std::printf("sections\n");
+    std::vector<ProfilePoint> rp = roundProfile(24);
+    bool circle = rp.size() == 25 && rp.front().t == 0 && rp.back().t == 1;
+    for (const ProfilePoint& q : rp) circle = circle && std::fabs(std::hypot(q.x, q.y) - 0.5) < 1e-12 && std::fabs(q.nx - 2 * q.x) < 1e-12;
+    CHECK(circle, "round profile: unit diameter, radial normals, seam at t = 1");
+
+    // A square drawn in comp pixels (y down), 40 x 20: unit width, centered, aspect kept, corners sharp.
+    std::vector<V3> sq = {V3(100, 200, 0), V3(140, 200, 0), V3(140, 220, 0), V3(100, 220, 0)};
+    std::vector<ProfilePoint> cp = outlineProfile(sq, 16);
+    double minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    bool axis = true, onEdge = true;
+    for (const ProfilePoint& q : cp) {
+        minx = std::min(minx, q.x); maxx = std::max(maxx, q.x); miny = std::min(miny, q.y); maxy = std::max(maxy, q.y);
+        axis = axis && (std::fabs(std::fabs(q.nx) - 1) < 1e-9 || std::fabs(std::fabs(q.ny) - 1) < 1e-9);
+        onEdge = onEdge && (std::fabs(std::fabs(q.x) - 0.5) < 1e-9 || std::fabs(std::fabs(q.y) - 0.25) < 1e-9);
+        // outward: the normal points away from the center
+        onEdge = onEdge && q.x * q.nx + q.y * q.ny > 0;
+    }
+    CHECK(std::fabs(maxx - minx - 1) < 1e-9 && std::fabs(maxy - miny - 0.5) < 1e-9 && std::fabs(maxx + minx) < 1e-9, "unit width, aspect kept, centered");
+    CHECK(axis && onEdge, "square: flat sides with outward axis normals (sharp corners split)");
+    // Every corner appears twice (incoming and outgoing normal; at the start one of them is the seam).
+    int atCorners = 0;
+    for (const ProfilePoint& q : cp) atCorners += std::fabs(std::fabs(q.x) - 0.5) < 1e-9 && std::fabs(std::fabs(q.y) - 0.25) < 1e-9;
+    CHECK(atCorners == 8 && std::fabs(cp.front().x - cp.back().x) < 1e-12 && cp.back().t == 1, "corners split, seam closed (%d corner points)", atCorners);
+
+    // Tube along a straight line: every vertex at radius w / 2 from the center line.
+    Polyline line;
+    line.pts = {V3(100, 300, 0), V3(700, 300, 0)};
+    RibbonSettings rs;
+    rs.segments = 40; rs.twistTurns = 0; rs.width = 50; rs.section = kSectionRound; rs.profileDetail = 32;
+    RibbonMesh tube = buildRibbon(line, rs);
+    double worst = 0;
+    for (size_t i = 0; i < size_t(41 * 33); i++) {
+        const RK_Vertex& v = tube.verts[i];
+        worst = std::max(worst, std::fabs(std::hypot(v.pos[1] - 300.0, double(v.pos[2])) - 25));
+    }
+    CHECK(tube.solid && worst < 1e-3, "tube radius (max error %.2e)", worst);
+    rs.endRounding = 1;
+    RibbonMesh capsule = buildRibbon(line, rs);
+    double tipR = 0;
+    for (size_t i = 0; i < 33; i++) tipR = std::max(tipR, std::hypot(capsule.verts[i].pos[1] - 300.0, double(capsule.verts[i].pos[2])));
+    CHECK(tipR < 0.5, "rounded tube ends close to a point (%.2f)", tipR);
+    rs.endRounding = 0;
+    rs.section = kSectionCustom;
+    rs.profile = cp;
+    RibbonMesh bar = buildRibbon(line, rs);
+    double maxZ = 0;
+    for (const RK_Vertex& v : bar.verts) maxZ = std::max(maxZ, std::fabs(double(v.pos[2])));
+    CHECK(bar.solid && std::fabs(maxZ - 12.5) < 1e-3, "custom 2:1 bar: 50 wide, 25 deep (%.2f)", maxZ);
+
+    // Individually: 100 px + 300 px paths as one 400 px path.
+    std::vector<PathPart> parts = individualParts({100, 300}, 0, 0.5, true);
+    CHECK(parts.size() == 2 && parts[0].path == 0 && std::fabs(parts[0].end - 1) < 1e-12 && std::fabs(parts[0].uHi - 0.5) < 1e-12 &&
+              parts[1].path == 1 && std::fabs(parts[1].end - 1.0 / 3) < 1e-12 && std::fabs(parts[1].uLo - 0.5) < 1e-12,
+          "first half of 400 px: all of path 1, a third of path 2");
+    parts = individualParts({100, 300}, 0.8, 1.2, true);
+    CHECK(parts.size() == 2 && parts[0].path == 1 && std::fabs(parts[0].start - (0.8 - 0.25) / 0.75) < 1e-12 && parts[1].path == 0 &&
+              std::fabs(parts[1].end - 0.8) < 1e-12 && std::fabs(parts[1].uLo - 0.5) < 1e-12,
+          "Cycle wraps from the last path to the first");
+    parts = individualParts({100, 300}, 0.8, 1.2, false);
+    CHECK(parts.size() == 1 && parts[0].path == 1, "without Cycle the part past the end is hidden");
+    // Built part by part, the ribbon keeps one taper from start to end.
+    Polyline p1, p2;
+    p1.pts = {V3(0, 100, 0), V3(100, 100, 0)};
+    p2.pts = {V3(0, 300, 0), V3(300, 300, 0)};
+    RibbonSettings t;
+    t.segments = 40; t.twistTurns = 0; t.width = 40; t.widthStart = 0; t.widthEnd = 1;
+    RibbonMesh m;
+    parts = individualParts({100, 300}, 0, 1, false);
+    const Polyline* paths[2] = {&p1, &p2};
+    for (const PathPart& pp : parts) {
+        RibbonSettings ri = t;
+        ri.start = pp.start; ri.end = pp.end; ri.offset = 0; ri.cycle = false;
+        ri.uMapLo = pp.uLo; ri.uMapHi = pp.uHi; ri.lengthOverride = 400;
+        appendMesh(m, buildRibbon(*paths[pp.path], ri));
+    }
+    double wEnd1 = -1, wStart2 = -1;
+    for (size_t k = 0; k < m.center.size(); k++) {
+        if (std::fabs(m.center[k].y - 100) < 1e-6 && std::fabs(m.center[k].x - 100) < 1e-6) wEnd1 = m.widths[k];
+        if (std::fabs(m.center[k].y - 300) < 1e-6 && std::fabs(m.center[k].x) < 1e-6) wStart2 = m.widths[k];
+    }
+    CHECK(std::fabs(wEnd1 - 10) < 1e-6 && std::fabs(wStart2 - 10) < 1e-6, "taper continues across paths (%.2f / %.2f)", wEnd1, wStart2);
+}
+
 // Gradient: stops at the ends, mirrored repeats (no jump), offset, per-path values used as is.
 static void testGradient() {
     std::printf("gradient\n");
@@ -876,6 +962,7 @@ int main(int argc, char** argv) {
     testNormalMap();
     testRoundedEnds();
     testGradient();
+    testSections();
     testRoughnessMap();
     if (argc > 1) previews(argv[1]);
     std::printf(test::failures() ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", test::failures());

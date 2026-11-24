@@ -196,6 +196,14 @@ enum {
     RB_GRAD_SEED,
     RB_GRAD_TOPIC_END,
 
+    // 0.1.11 (appended for the same reason).
+    RB_SECTION_TOPIC,
+    RB_SECTION,           // 1: Flat, 2: Round, 3: Custom Profile
+    RB_PROFILE_MASK,      // mask with the cross-section outline
+    RB_PROFILE_DETAIL,
+    RB_SECTION_TOPIC_END,
+    RB_TRIM_MASKS,        // multi-mask effect: 1: Simultaneously, 2: Individually
+
     RB_NUM_PARAMS
 };
 

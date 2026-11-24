@@ -39,6 +39,109 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf) {
     return out;
 }
 
+std::vector<PathPart> individualParts(const std::vector<double>& lengths, double a, double b, bool cycle) {
+    std::vector<PathPart> out;
+    double total = 0;
+    for (double l : lengths) total += std::max(0.0, l);
+    if (total <= 1e-9 || std::fabs(b - a) < 1e-12) return out;
+    std::vector<double> c{0};  // cumulative fractions
+    for (double l : lengths) c.push_back(c.back() + std::max(0.0, l) / total);
+    for (const RibbonPiece& pc : ribbonPieces(a, b, false, cycle)) {
+        // On this piece the position along the sequence is g(u) = a + (b - a) u - lap.
+        for (size_t i = 0; i < lengths.size(); i++) {
+            if (c[i + 1] - c[i] <= 1e-12) continue;
+            double uA = (c[i] + pc.lap - a) / (b - a), uB = (c[i + 1] + pc.lap - a) / (b - a);
+            double lo = std::max(pc.u0, std::min(uA, uB)), hi = std::min(pc.u1, std::max(uA, uB));
+            if (hi - lo < 1e-9) continue;
+            auto local = [&](double u) { return (a + (b - a) * u - pc.lap - c[i]) / (c[i + 1] - c[i]); };
+            out.push_back({int(i), std::clamp(local(lo), 0.0, 1.0), std::clamp(local(hi), 0.0, 1.0), lo, hi});
+        }
+    }
+    return out;
+}
+
+std::vector<ProfilePoint> roundProfile(int points) {
+    const int n = std::max(6, points);
+    std::vector<ProfilePoint> out;
+    for (int i = 0; i <= n; i++) {
+        const double a = 2 * kPi * i / n;
+        ProfilePoint p;
+        p.nx = std::cos(a); p.ny = std::sin(a);
+        p.x = 0.5 * p.nx; p.y = 0.5 * p.ny;
+        p.t = double(i) / n;
+        out.push_back(p);
+    }
+    return out;
+}
+
+std::vector<ProfilePoint> outlineProfile(const std::vector<V3>& outline, int points) {
+    std::vector<ProfilePoint> out;
+    // Distinct points, drawing y flipped (up = front), closed.
+    std::vector<V3> pts;
+    for (const V3& p : outline)
+        if (pts.empty() || length(V3(p.x, -p.y, 0) - pts.back()) > 1e-9) pts.push_back(V3(p.x, -p.y, 0));
+    while (pts.size() > 1 && length(pts.front() - pts.back()) < 1e-9) pts.pop_back();
+    if (pts.size() < 3) return out;
+    double minx = 1e300, maxx = -1e300, miny = 1e300, maxy = -1e300, area = 0;
+    for (size_t i = 0; i < pts.size(); i++) {
+        const V3 &p = pts[i], &q = pts[(i + 1) % pts.size()];
+        minx = std::min(minx, p.x); maxx = std::max(maxx, p.x);
+        miny = std::min(miny, p.y); maxy = std::max(maxy, p.y);
+        area += p.x * q.y - q.x * p.y;
+    }
+    const double w = maxx - minx;
+    if (w <= 1e-9 || std::fabs(area) < 1e-12) return out;
+    if (area < 0) std::reverse(pts.begin(), pts.end());  // counter-clockwise: outward = right of travel
+    const V3 c((minx + maxx) / 2, (miny + maxy) / 2, 0);
+    for (V3& p : pts) p = (p - c) * (1.0 / w);
+    // Resample at even arc length, keeping the original corners where they are sharp.
+    const size_t m = pts.size();
+    std::vector<double> S(m + 1, 0.0);
+    for (size_t i = 0; i < m; i++) S[i + 1] = S[i] + length(pts[(i + 1) % m] - pts[i]);
+    const double P = S[m];
+    auto edgeNormal = [&](size_t i) {  // outward normal of edge i -> i + 1
+        V3 d = normalize(pts[(i + 1) % m] - pts[i], V3(1, 0, 0));
+        return V3(d.y, -d.x, 0);
+    };
+    std::vector<bool> sharp(m, false);
+    for (size_t i = 0; i < m; i++) sharp[i] = dot(edgeNormal((i + m - 1) % m), edgeNormal(i)) < std::cos(40 * kPi / 180);
+    const int n = std::max(8, points);
+    std::vector<double> ts;
+    for (int k = 0; k < n; k++) ts.push_back(P * k / n);
+    for (size_t i = 0; i < m; i++)
+        if (sharp[i]) ts.push_back(S[i]);
+    std::sort(ts.begin(), ts.end());
+    ts.erase(std::unique(ts.begin(), ts.end(), [&](double x, double y) { return std::fabs(x - y) < P * 1e-6; }), ts.end());
+    for (double t : ts) {
+        size_t i = size_t(std::upper_bound(S.begin(), S.end(), t) - S.begin()) - 1;
+        if (i >= m) i = m - 1;
+        const double span = S[i + 1] - S[i], f = span > 1e-12 ? (t - S[i]) / span : 0;
+        const V3 p = pts[i] + (pts[(i + 1) % m] - pts[i]) * f;
+        const bool atVertex = f < 1e-9;
+        ProfilePoint q;
+        q.x = p.x; q.y = p.y; q.t = t / P;
+        if (atVertex && sharp[i]) {
+            // Corner: the incoming edge's normal, then the outgoing edge's normal at the same spot.
+            V3 n0 = edgeNormal((i + m - 1) % m), n1 = edgeNormal(i);
+            q.nx = n0.x; q.ny = n0.y;
+            out.push_back(q);
+            q.nx = n1.x; q.ny = n1.y;
+            out.push_back(q);
+            continue;
+        }
+        V3 nn = atVertex ? normalize(edgeNormal((i + m - 1) % m) + edgeNormal(i), edgeNormal(i)) : edgeNormal(i);
+        q.nx = nn.x; q.ny = nn.y;
+        out.push_back(q);
+    }
+    // Seam: the first point again at t = 1 (its first normal, in case it is a corner).
+    ProfilePoint seam = out.front();
+    seam.t = 1;
+    if (sharp[0]) { V3 n0 = edgeNormal(m - 1); seam.nx = n0.x; seam.ny = n0.y; }
+    out.push_back(seam);
+    if (sharp[0]) { V3 n1 = edgeNormal(0); out.front().nx = n1.x; out.front().ny = n1.y; out.erase(out.begin() + 1); }
+    return out;
+}
+
 void appendMesh(RibbonMesh& dst, const RibbonMesh& src) {
     const int base = int(dst.verts.size());
     dst.verts.insert(dst.verts.end(), src.verts.begin(), src.verts.end());
@@ -355,8 +458,15 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
     const double L = C.length(), wl = std::max(1.0, rs.waveLength), e = 0.5 / L;
     const std::vector<RibbonPiece> pieces = ribbonPieces(a, b, C.closed(), rs.cycle);
     if (pieces.empty()) return mesh;
-    mesh.solid = rs.thickness > 0;
-    const int R = mesh.solid ? int(ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, M).size()) : 0;
+    // Cross section: flat (sheet / beveled solid, sized per section) or a unit-width loop (round,
+    // custom) scaled by the section width; those have their seam duplicated, so they do not wrap.
+    std::vector<ProfilePoint> unitProf;
+    if (rs.section == kSectionCustom && rs.profile.size() >= 4) unitProf = rs.profile;
+    else if (rs.section != kSectionFlat) unitProf = roundProfile(rs.profileDetail);
+    const bool shaped = !unitProf.empty();
+    mesh.solid = shaped || rs.thickness > 0;
+    const int R = shaped ? int(unitProf.size()) : (mesh.solid ? int(ribbonProfile(1, 1, 0, rs.bevelSegments, rs.chamfer, M).size()) : 0);
+    const int quadsAround = shaped ? R - 1 : R;
 
     struct Sample { V3 p, t, u; };
     auto disp = [&](double s) {
@@ -369,7 +479,10 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
 
     // Rounded ends: near each end the half width follows a circle of radius r (the corner), so the
     // outline is a rounded rectangle, a semicircle at 100 %. Texture v is cut, not squeezed.
-    const double Lr = L * std::fabs(b - a);  // ribbon length, world px
+    // u: 0..1 along this ribbon; ug(u): along the whole ribbon it is part of (Individually).
+    const double uLo = rs.uMapLo, uHi = rs.uMapHi;
+    auto ug = [&](double u) { return uLo + (uHi - uLo) * u; };
+    const double Lr = rs.lengthOverride > 0 ? rs.lengthOverride : L * std::fabs(b - a);  // whole ribbon, world px
     auto widthAt = [&](double u) { return rs.width * std::max(0.0, rs.widthStart + (rs.widthEnd - rs.widthStart) * u); };
     const double rounding = std::clamp(rs.endRounding, 0.0, 1.0);
     const double rS = rs.roundStart ? rounding * widthAt(0) / 2 : 0, rE = rs.roundEnd ? rounding * widthAt(1) / 2 : 0;
@@ -383,14 +496,21 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
         return std::min(corner(u * Lr, rS, hw), corner((1 - u) * Lr, rE, hw));
     };
     // Sections along the ribbon: the uniform grid, plus dense ones over the rounded ends (denser
-    // toward the tip, where the circle turns fastest).
-    std::vector<double> grid;
-    for (int k = 0; k <= N; k++) grid.push_back(double(k) / N);
+    // toward the tip, where the circle turns fastest). Laid out on the whole ribbon, then mapped
+    // to this part.
+    std::vector<double> gridG;
+    for (int k = 0; k <= N; k++) gridG.push_back(double(k) / N);
     const int kCap = 16;
     for (int i = 1; i < kCap && Lr > 1e-9; i++) {
         const double d = 1 - std::cos(double(i) / kCap * kPi / 2);
-        if (rS > 0) grid.push_back(std::min(1.0, rS * d / Lr));
-        if (rE > 0) grid.push_back(std::max(0.0, 1 - rE * d / Lr));
+        if (rS > 0) gridG.push_back(std::min(1.0, rS * d / Lr));
+        if (rE > 0) gridG.push_back(std::max(0.0, 1 - rE * d / Lr));
+    }
+    std::vector<double> grid;
+    const double uSpan = uHi - uLo;
+    for (double g : gridG) {
+        const double u = std::fabs(uSpan) > 1e-12 ? (g - uLo) / uSpan : g;
+        if (u >= -1e-12 && u <= 1 + 1e-12) grid.push_back(std::clamp(u, 0.0, 1.0));
     }
     std::sort(grid.begin(), grid.end());
 
@@ -411,17 +531,17 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             V3 T = normalize(Fb.p - Fa.p, F.t * dir);
             V3 U = normalize(orthoTo(F.u, T), F.u);
             V3 Wf = cross(U, T);
-            double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : u) + rs.twistSpeedDeg * rs.time) * kPi / 180;
+            double th = (rs.twistAngleDeg + 360 * rs.twistTurns * (rs.twistAlongPath ? s : ug(u)) + rs.twistSpeedDeg * rs.time) * kPi / 180;
             th += C.rollAt(s);  // control nulls' rotation
             th += windTwist(rs.wind, C.closed() ? s - std::floor(s) : std::clamp(s, 0.0, 1.0), L, rs.time);
             V3 W = normalize(Wf * std::cos(th) + U * std::sin(th), Wf);
-            const double wFull = widthAt(u), cut = cutAt(u);
+            const double wFull = widthAt(ug(u)), cut = cutAt(ug(u));
             mesh.center.push_back(F.p);
             mesh.tangent.push_back(T);
             mesh.widthDir.push_back(W);
             mesh.widths.push_back(wFull * cut);
             fronts.push_back(normalize(cross(W, T), U * -1.0));
-            us.push_back(u);
+            us.push_back(ug(u));
             cuts.push_back(cut);
             fullW.push_back(wFull);
         }
@@ -448,10 +568,20 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             continue;
         }
 
-        // Solid: the beveled profile swept along the path. Each section uses its own (tapered) width.
+        // Solid: the profile swept along the path. Each section uses its own (tapered) width.
         for (int k = 0; k <= n; k++) {
             const double w = width(k);
             const V3& Fk = fronts[size_t(k)];
+            if (shaped) {
+                // Round / custom: the unit profile scaled by the width (rounded ends shrink it evenly,
+                // a tube gets hemispherical ends); texture v goes around, one color all around.
+                for (const ProfilePoint& q : unitProf) {
+                    V3 p = center(k) + widthDir(k) * (q.x * w) + Fk * (q.y * w);
+                    V3 nn = normalize(widthDir(k) * q.nx + Fk * q.ny, Fk);
+                    mesh.verts.push_back(makeVertex(p, nn, tangent(k), us[size_t(k)], q.t, 1, us[size_t(k)] * Lr));
+                }
+                continue;
+            }
             std::vector<ProfilePoint> prof = ribbonProfile(w, rs.thickness, rs.bevel, rs.bevelSegments, rs.chamfer, M);
             for (const ProfilePoint& q : prof) {
                 V3 p = center(k) + widthDir(k) * q.x + Fk * q.y;
@@ -462,7 +592,7 @@ RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs) {
             }
         }
         for (int k = 0; k < n; k++)
-            for (int i = 0; i < R; i++) {
+            for (int i = 0; i < quadsAround; i++) {
                 int i2 = (i + 1) % R;
                 int i00 = base + k * R + i, i01 = base + k * R + i2, i10 = base + (k + 1) * R + i, i11 = base + (k + 1) * R + i2;
                 int t[6] = {i00, i10, i11, i00, i11, i01};

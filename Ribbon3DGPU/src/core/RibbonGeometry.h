@@ -86,6 +86,24 @@ Polyline transformPolyline(const Polyline& in, const PathTransform& xf);
 // (+Y, AE's Y axis points down). A rigid rotation, so lengths and the control nulls' rolls carry over.
 Polyline topViewToFloor(const Polyline& in, const V3& pivot);
 
+// Cross-section of a solid ribbon: closed loop (front face, right edge, back face, left edge) in the
+// (width, front-normal) plane. The point count depends only on the segment settings.
+struct ProfilePoint {
+    double x, y;     // position: x along the width direction, y along the front normal
+    double nx, ny;   // unit outward normal
+    double t = 0;    // round / custom sections: position around the outline 0..1 (texture v)
+};
+// Cross sections: the flat ribbon (sheet, or a solid with Thickness and Bevel), a round tube, or a
+// custom outline swept along the path.
+enum SectionShape { kSectionFlat = 0, kSectionRound = 1, kSectionCustom = 2 };
+// Unit-diameter circle, counter-clockwise from the width direction, seam duplicated at t = 1.
+std::vector<ProfilePoint> roundProfile(int points);
+// A closed outline (any position, scale and orientation; drawing y points down) -> a unit-width
+// profile centered on its bounding box, drawing up = front: points at even arc length, outward
+// normals, sharp corners kept sharp (split into two points with their own normals), seam
+// duplicated at t = 1. Empty for fewer than 3 distinct points.
+std::vector<ProfilePoint> outlineProfile(const std::vector<V3>& outline, int points);
+
 // Wind: one end of the path stays pinned, the rest streams downwind and flutters. Procedural
 // (a function of time, no simulation state), so every frame renders on its own.
 struct WindSettings {
@@ -128,6 +146,14 @@ struct RibbonSettings {
     // Where start + offset .. end + offset leaves 0..1: true wraps the ribbon around (it continues
     // from the other end, also on open paths), false hides the part outside the path.
     bool cycle = true;
+    // Cross section (kSectionFlat uses thickness / bevel; round and custom are sized by width, the
+    // custom profile keeps its aspect). profile: unit-width loop from outlineProfile.
+    int section = kSectionFlat;
+    std::vector<ProfilePoint> profile;
+    int profileDetail = 24;                          // points around a round section
+    // This ribbon is the part uMapLo..uMapHi of a longer one (Individually trimmed masks): taper,
+    // texture, gradient and rounded ends follow the whole ribbon of length lengthOverride (world px).
+    double uMapLo = 0, uMapHi = 1, lengthOverride = 0;
     // Rounded ends: corner radius as a fraction of the half width (0 = straight cut, 1 = semicircle).
     double endRounding = 0;
     bool roundStart = true, roundEnd = true;
@@ -141,12 +167,7 @@ struct RibbonPiece {
 // Pieces of the ribbon a..b (path fractions) on a closed or open path, see RibbonSettings::cycle.
 std::vector<RibbonPiece> ribbonPieces(double a, double b, bool closed, bool cycle);
 
-// Cross-section of a solid ribbon: closed loop (front face, right edge, back face, left edge) in the
-// (width, front-normal) plane. The point count depends only on the segment settings.
-struct ProfilePoint {
-    double x, y;     // position: x along the width direction, y along the front normal
-    double nx, ny;   // unit outward normal
-};
+
 std::vector<ProfilePoint> ribbonProfile(double width, double thickness, double bevel, int bevelSegments, bool chamfer,
                                         int faceSegments);
 
@@ -182,5 +203,16 @@ private:
 RibbonMesh buildRibbon(const Polyline& path, const RibbonSettings& rs);
 // Adds src's triangles to dst (several ribbons in one mesh, e.g. one per mask).
 void appendMesh(RibbonMesh& dst, const RibbonMesh& src);
+
+// Individually trimmed paths: the paths (lengths `lengths`, in order) are one long path; the ribbon
+// a..b (fractions of the total, offset included) with Cycle wrapping around the whole sequence.
+// One entry per part of the ribbon on one path: its path, its own start / end fractions on that
+// path, and the part of the whole ribbon it is (uLo..uHi).
+struct PathPart {
+    int path;
+    double start, end;
+    double uLo, uHi;
+};
+std::vector<PathPart> individualParts(const std::vector<double>& lengths, double a, double b, bool cycle);
 
 }  // namespace rb
